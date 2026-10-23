@@ -7,7 +7,7 @@
 음성 인식 자막을 글처럼 편집하면 영상이 따라 잘리고,<br>
 교회 로고·설교자·성경 구절이 들어간 세로 영상(1080×1920)과 SRT 자막이 한 번에 나옵니다.
 
-[**⬇ 내려받기 (Windows · Mac)**](https://github.com/hahadark/sermon-shorts/releases/latest) · [사용 설명서](docs/USER_GUIDE.md) · [설치 안내](docs/INSTALL.md) · [단축키](docs/SHORTCUTS.md)
+[**⬇ 내려받기 (Windows · Mac)**](https://github.com/hahadark/sermon-shorts/releases) · [사용 설명서](docs/USER_GUIDE.md) · [설치 안내](docs/INSTALL.md) · [단축키](docs/SHORTCUTS.md)
 
 ![설교쇼츠편집기 편집 화면: 왼쪽 쇼츠 미리보기, 오른쪽 자막 블록, 아래 파형](docs/images/01-overview.png)
 
@@ -67,7 +67,7 @@
 
 ## 3분 만에 시작하기
 
-1. **설치** — [Releases](https://github.com/hahadark/sermon-shorts/releases/latest)에서 `SermonShorts-Setup-x.y.z-x64.exe`를 받아 실행합니다. (Mac은 [Mac 설치 안내](docs/INSTALL.md#mac-베타) 참고)
+1. **설치** — [Releases](https://github.com/hahadark/sermon-shorts/releases)에서 `SermonShorts-Setup-x.y.z-x64.exe`를 받아 실행합니다. (Mac은 [Mac 설치 안내](docs/INSTALL.md#mac-베타) 참고)
 2. **자막 엔진** — 설치 마지막에 *"자막 엔진도 지금 설치할까요?"* → **예**. Python 3.12·음성 인식 엔진·모델을 자동으로 설치합니다(약 5~6GB, 10~30분).
    건너뛰었다면 앱 상단 **점검** 창의 **엔진 설치** 버튼으로 언제든 설치할 수 있습니다.
 3. **편집** — **영상 열기** → **자막 만들기** → 필요 없는 구간 삭제 → 출력 자막 오타 수정 → **내보내기**(`Ctrl+E`).
