@@ -1,0 +1,15 @@
+# Third-party software in the Windows beta
+
+The application code is not granted an open-source license by this document. The repository is public for viewing only.
+
+- **Electron**: MIT. The distribution includes Electron's LICENSE and Chromium third-party notices. Source: https://github.com/electron/electron
+- **FFmpeg / ffprobe**: 8.1.2 full build from https://www.gyan.dev/ffmpeg/builds/ . The included binaries report GPL version 3 or later; see FFMPEG-GPLv3.txt and run `ffmpeg -version` / `ffmpeg -L` for the build configuration and licensing details. Unmodified upstream project source: https://ffmpeg.org/download.html and https://git.ffmpeg.org/ffmpeg.git . The binary vendor's build/source references are at https://www.gyan.dev/ffmpeg/builds/ . Preserve the notices and obtain the exact corresponding sources/build material from the vendor before redistributing these binaries publicly.
+- **yt-dlp**: 2026.10.21 standalone Windows executable, including dependencies under their respective terms. Project license: YTDLP-LICENSE.txt. Source and detailed dependency/license information: https://github.com/yt-dlp/yt-dlp . Check the upstream release and THIRD_PARTY_LICENSES for the bundled Windows dependencies before onward redistribution.
+- **macOS 빌드의 FFmpeg / ffprobe**: ffmpeg-static b6.1.1 정적 빌드(https://github.com/eugeneware/ffmpeg-static), GPL. 원본 소스: https://ffmpeg.org/download.html
+- **macOS 빌드의 yt-dlp**: `yt-dlp_macos` 공식 릴리스 실행 파일. https://github.com/yt-dlp/yt-dlp
+- **macOS 엔진의 Python**: python-build-standalone 3.12 (https://github.com/astral-sh/python-build-standalone), 앱에 포함하지 않고 엔진 설치 때 사용자 폴더로 내려받음. PSF License 등 해당 라이선스.
+- **Open fonts**: Noto Sans KR, Yeon Sung, Black Han Sans, Do Hyeon, Nanum Gothic and Nanum Pen Script, under SIL Open Font License 1.1. The full license files are included in assets/fonts/OFL-*.txt.
+- **Church-specific fonts and artwork** are not included. Users with their own license may add a font with the theme editor and set their own logo in the church settings.
+- **Python, PyTorch, faster-whisper, transformers and downloaded models**: not bundled. They are installed/downloaded separately into the user's profile and retain their upstream licenses.
+
+The beta installer is unsigned. This notice is not a claim that all third-party components share the application's license or that public redistribution has been cleared.

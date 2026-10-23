@@ -1,0 +1,118 @@
+{
+  "id": "meditation-card",
+  "name": "묵상 카드형 (밝은 배경)",
+  "source": [
+    "https://www.youtube.com/watch?v=dxhNln2xW2Q"
+  ],
+  "note": "위쪽 절반 영상이 아래 베이지 배경으로 부드럽게 사라짐. 아래에 갈색 굵은 제목, 파란 강조 자막.",
+  "canvas": {
+    "background": "#ECE0D3"
+  },
+  "title": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1160,
+    "font": "Black Han Sans",
+    "weight": 400,
+    "size": 92,
+    "color": "#6E5235",
+    "stroke": 0,
+    "strokeColor": null,
+    "shadow": null,
+    "maxLines": 2
+  },
+  "verse": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1035,
+    "font": "Black Han Sans",
+    "weight": 400,
+    "size": 60,
+    "color": "#8A6A48",
+    "band": null
+  },
+  "video": {
+    "show": true,
+    "x": 0,
+    "y": 0,
+    "width": 1080,
+    "height": 1000,
+    "fit": "cover",
+    "radius": 0,
+    "border": null,
+    "fade": {
+      "edge": "bottom",
+      "length": 260,
+      "toColor": "#ECE0D3"
+    }
+  },
+  "subtitle": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1330,
+    "font": "Do Hyeon",
+    "weight": 400,
+    "size": 84,
+    "color": "#1E4FC4",
+    "stroke": 0,
+    "strokeColor": null,
+    "box": null,
+    "maxChars": 8,
+    "lineGap": 1.25,
+    "highlightColor": null
+  },
+  "churchName": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1790,
+    "font": "Black Han Sans",
+    "size": 60,
+    "color": "#C0392B",
+    "letterSpacing": 0,
+    "text": ""
+  },
+  "speaker": {
+    "show": false,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1700,
+    "font": "Noto Sans KR",
+    "size": 36,
+    "color": "#6E5235",
+    "text": ""
+  },
+  "logo": {
+    "show": false,
+    "x": 540,
+    "y": 1700,
+    "height": 90,
+    "path": ""
+  },
+  "fadeInSec": 0.5,
+  "fonts": [
+    {
+      "name": "Black Han Sans",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Black+Han+Sans"
+    },
+    {
+      "name": "Do Hyeon",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Do+Hyeon"
+    },
+    {
+      "name": "Noto Sans KR",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Noto+Sans+KR"
+    }
+  ]
+}

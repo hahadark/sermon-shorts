@@ -1,0 +1,130 @@
+{
+  "name": "sermonshorts",
+  "productName": "SermonShorts",
+  "version": "0.2.0",
+  "description": "설교 자막과 파형으로 편집하는 Windows 쇼츠 편집기",
+  "main": "src/main/main.js",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "node node_modules/electron/cli.js .",
+    "test": "node --test",
+    "build:win": "node node_modules/electron-builder/cli.js --win nsis zip --x64 --publish never",
+    "build:dir": "node node_modules/electron-builder/cli.js --win --x64 --dir --publish never",
+    "build:mac": "bash scripts/build_mac.sh"
+  },
+  "devDependencies": {
+    "electron": "^44.7.2",
+    "electron-builder": "^26.15.3"
+  },
+  "author": "hahadark",
+  "build": {
+    "appId": "com.hahadark.sermonshorts",
+    "productName": "SermonShorts",
+    "asar": false,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "assets/themes/**/*",
+      "assets/images/**/*",
+      "assets/fonts/**/*",
+      "!assets/fonts/구세군체*",
+      "!assets/fonts/NotoSansKR-Regular.ttf",
+      "!assets/fonts/NotoSansKR-Medium.ttf",
+      "!assets/fonts/NotoSansKR-Bold.ttf",
+      "!assets/fonts/NotoSansKR-Black.ttf",
+      "!assets/fonts/YeonSung-Regular_fixed.ttf",
+      "docs/USER_GUIDE.md",
+      "docs/USER_GUIDE.pdf",
+      "docs/images/**/*",
+      "docs/INSTALL.md",
+      "docs/SHORTCUTS.md",
+      "docs/THIRD_PARTY_NOTICES.md",
+      "scripts/setup_engine.ps1",
+      "scripts/setup_engine.sh",
+      "engine/transcribe.py",
+      "package.json",
+      "LICENSE",
+      "docs/FFMPEG-GPLv3.txt",
+      "docs/YTDLP-LICENSE.txt"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": true,
+      "requestedExecutionLevel": "asInvoker",
+      "extraResources": [
+        {
+          "from": "bin",
+          "to": "app/bin",
+          "filter": [
+            "ffmpeg.exe",
+            "ffprobe.exe",
+            "yt-dlp.exe"
+          ]
+        }
+      ],
+      "extraFiles": [
+        {
+          "from": "scripts/Setup-Subtitle-Engine.cmd",
+          "to": "Setup-Subtitle-Engine.cmd"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "설교쇼츠편집기",
+      "artifactName": "SermonShorts-Setup-${version}-x64.${ext}",
+      "runAfterFinish": false
+    },
+    "artifactName": "SermonShorts-${version}-win-x64.${ext}",
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.video",
+      "icon": "build/icon.icns",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "artifactName": "SermonShorts-${version}-mac-${arch}.${ext}",
+      "extraResources": [
+        {
+          "from": "bin-mac/${arch}",
+          "to": "app/bin",
+          "filter": [
+            "ffmpeg",
+            "ffprobe",
+            "yt-dlp"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "설교쇼츠편집기 ${version}",
+      "artifactName": "SermonShorts-${version}-mac-${arch}.${ext}"
+    }
+  }
+}

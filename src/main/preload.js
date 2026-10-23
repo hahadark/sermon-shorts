@@ -1,0 +1,82 @@
+'use strict';
+// 렌더러에 window.api 노출 (contextIsolation: true)
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('api', {
+  /** 시작 인자: { open: string|null, screenshot: boolean, root: string } */
+  openGuide: () => ipcRenderer.invoke('app:openGuide'),
+  getLaunchInfo: () => ipcRenderer.invoke('app:launch'),
+  /** 영상 파일 선택 대화상자 → 경로 또는 null */
+  openVideoDialog: () => ipcRenderer.invoke('dialog:openVideo'),
+  /** { duration, fps, width, height, hasAudio } */
+  probe: (path) => ipcRenderer.invoke('media:probe', path),
+  /** { buffer: ArrayBuffer(Float32 [min,max] 쌍), bucketSec: 0.01, hash } */
+  getPeaks: (path) => ipcRenderer.invoke('media:peaks', path),
+  /** ArrayBuffer (Float32 mono PCM) */
+  getPcm: (path, start, end, rate) => ipcRenderer.invoke('media:pcm', path, start, end, rate),
+  readJson: (path) => ipcRenderer.invoke('fs:readJson', path),
+  // 유튜브
+  ytInfo: (url) => ipcRenderer.invoke('yt:info', url),
+  ytAutoSubs: (url) => ipcRenderer.invoke('yt:autoSubs', url),
+  ytResolve: (url) => ipcRenderer.invoke('yt:resolve', url),
+  ytFetchPart: (url, start, end) => ipcRenderer.invoke('yt:fetchPart', url, start, end),
+  ytDownload: (url, start, end) => ipcRenderer.invoke('yt:download', url, start, end),
+  // 엔진
+  transcribe: (path, start, end) => ipcRenderer.invoke('engine:transcribe', path, start, end),
+  cancelTask: () => ipcRenderer.send('engine:cancel'),
+  // 공통 진행률 구독
+  onProgress: (callback) => {
+    const listener = (_event, info) => callback(info);
+    ipcRenderer.on('progress', listener);
+    return () => ipcRenderer.removeListener('progress', listener);
+  },
+  /** 테스트 모드: 캡처 준비 완료 알림 */
+  notifyTestReady: (info) => ipcRenderer.send('test:ready', info),
+  notifyTestError: (msg) => ipcRenderer.send('test:error', String(msg)),
+  testScreenshot: (p) => ipcRenderer.invoke('test:screenshot', p),
+  // 새로 추가된 핸들러 (Settings, Project, Export)
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
+  saveProjectDialog: (options) => ipcRenderer.invoke('dialog:saveProject', options),
+  openProjectDialog: () => ipcRenderer.invoke('dialog:openProject'),
+  writeText: (p, text) => ipcRenderer.invoke('fs:writeText', p, text),
+  writeImage: (options) => ipcRenderer.invoke('fs:writeImage', options),
+  mkdir: (p) => ipcRenderer.invoke('fs:mkdir', p),
+  saveExportDialog: (options) => ipcRenderer.invoke('dialog:saveExport', options),
+  startExport: (params) => ipcRenderer.invoke('export:start', params),
+  // AI
+  aiAnalyze: (lines, opts) => ipcRenderer.invoke('ai:analyze', lines, opts),
+  aiCorrect: (words, ctx) => ipcRenderer.invoke('ai:correct', words, ctx),
+  /** { ok, code, message } - 키는 오지 않는다 */
+  testAiConnection: (model) => ipcRenderer.invoke('ai:testConnection', model),
+  // 시스템 점검
+  sysCheck: (opts) => ipcRenderer.invoke('sys:check', opts),
+  sysUpdateYtdlp: () => ipcRenderer.invoke('sys:updateYtdlp'),
+  sysTestYoutube: (url) => ipcRenderer.invoke('sys:testYoutube', url),
+  sysClearCache: () => ipcRenderer.invoke('sys:clearCache'),
+  sysMarkSeen: () => ipcRenderer.invoke('sys:markSeen'),
+  /** 고정된 안내 페이지 열기 (python, ffmpeg, ytdlp, node, gemini) */
+  sysOpenLink: (key) => ipcRenderer.invoke('sys:openLink', key),
+  sysInstallEngine: (force) => ipcRenderer.invoke('sys:installEngine', force),
+  sysDownloadModel: () => ipcRenderer.invoke('sys:downloadModel'),
+  // 테마
+  listThemes: () => ipcRenderer.invoke('theme:list'),
+  getTheme: (id) => ipcRenderer.invoke('theme:get', id),
+  saveTheme: (json) => ipcRenderer.invoke('theme:save', json),
+  deleteTheme: (id) => ipcRenderer.invoke('theme:delete', id),
+  exportTheme: (json) => ipcRenderer.invoke('theme:export', json),
+  importTheme: () => ipcRenderer.invoke('theme:import'),
+  addFont: () => ipcRenderer.invoke('font:add'),
+  listFonts: () => ipcRenderer.invoke('font:list'),
+  getFontDataUrl: (name) => ipcRenderer.invoke('font:dataUrl', name),
+  // 교회 로고: 저장된 logoPath → data: URL (앱 assets 또는 userData/logos 만 허용)
+  getLogoDataUrl: (logoPath) => ipcRenderer.invoke('settings:logoDataUrl', logoPath),
+  /** 파일 선택 → userData/logos 로 복사 → { path, dataUrl } 또는 null */
+  chooseLogo: () => ipcRenderer.invoke('settings:chooseLogo'),
+  /** 설정 저장 시 호출됨 (공개 설정 객체) */
+  onSettingsChanged: (callback) => {
+    const listener = (_event, s) => callback(s);
+    ipcRenderer.on('settings:changed', listener);
+    return () => ipcRenderer.removeListener('settings:changed', listener);
+  },
+});

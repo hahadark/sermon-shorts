@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data: blob:; media-src file: blob: https://*.googlevideo.com; font-src 'self' file: data:">
+  <title>설교쇼츠편집기</title>
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header id="topbar">
+    <div class="app-title">설교쇼츠편집기</div>
+    <div class="toolbar">
+      <button id="btnAiRecommend" class="btn" style="background:#5c2d91;color:#fff;border-color:#743db0;">AI 추천</button>
+      <button id="btnOpen" class="btn primary">영상 열기</button>
+      <button id="btnYoutube" class="btn" title="유튜브에서 가져오기 (Ctrl+U)">유튜브에서 가져오기</button>
+      <button id="btnTranscribe" class="btn" title="열린 영상의 음성을 인식해 자막을 만듭니다">자막 만들기</button>
+      <button id="btnOpenProject" class="btn">프로젝트 열기</button>
+      <button id="btnSave" class="btn">저장</button>
+      <button id="btnExport" class="btn" disabled>내보내기</button>
+      <button id="btnUserGuide" class="btn">사용 설명서</button>
+      <button id="btnSysCheck" class="btn">점검</button>
+      <button id="btnSettings" class="btn">⚙ 설정</button>
+    </div>
+    <div id="fileName" class="file-name">열린 영상 없음</div>
+  </header>
+
+  <main id="workspace">
+    <section id="leftCol">
+      <div id="stageWrap">
+        <div id="stage">
+          <div id="stageInner">
+            <div class="tpl-video" id="tplVideoBox">
+              <video id="video" preload="auto" playsinline></video>
+              <div id="videoEmpty" class="video-empty">영상을 열어 주세요</div>
+            </div>
+            <canvas id="tplCanvas" width="1080" height="1920" style="position: absolute; top:0; left:0; pointer-events: none;"></canvas>
+          </div>
+        </div>
+      </div>
+      <div id="transport">
+        <div class="transport-row">
+          <button id="btnPlay" class="btn play" disabled>재생</button>
+          <div class="timecode"><span id="curTime">00:00.000</span> <span class="sep">/</span> <span id="durTime">00:00.000</span></div>
+        </div>
+        <input id="seek" type="range" min="0" max="1000" step="1" value="0" disabled>
+        <div class="hint">클릭해서 커서 → Backspace 지우기 · 지운 부분 클릭 → 되살리기 · Ctrl+Z 취소 · F1 단축키</div>
+      </div>
+      <div id="templatePanel" style="padding: 10px; background: #2a2d32; border-top: 1px solid #3c4048; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display:flex; gap: 10px; align-items: center;">
+          <label style="color: #ccc; font-size: 13px; min-width: 30px;">테마</label>
+          <select id="selTheme" style="flex:1;"></select>
+          <button id="btnEditTheme" class="btn sm">테마 편집</button>
+        </div>
+        <div style="display:flex; gap: 10px;">
+          <input type="text" id="inpTitle" placeholder="설교 제목" style="flex:1;">
+          <input type="text" id="inpVerse" placeholder="성경 구절" style="flex:1;">
+        </div>
+        <div style="display:flex; gap: 10px;">
+          <select id="selSpeaker" style="flex:1;"></select>
+          <input type="text" id="inpSpeaker" placeholder="직접 입력" style="display:none; flex:1;">
+        </div>
+        <div>
+          <button id="btnSaveTemplate" class="btn" style="width: 100%;">템플릿 저장 (미리보기 반영)</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="rightCol">
+      <div id="transcriptPanel">
+        <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>자막</span>
+          <div style="display:flex; gap: 4px;">
+            <button id="btnAutoClean" class="btn sm" disabled>자동 정리</button>
+            <button id="btnAiCorrect" class="btn sm" disabled>AI 용어 교정</button>
+          </div>
+        </div>
+        <div id="transcriptBody" class="placeholder">자막 생성 후 여기에 자막이 표시됩니다</div>
+      </div>
+      <div id="waveWrap">
+        <canvas id="waveCanvas"></canvas>
+        <div id="waveStatus" class="wave-status">영상을 열면 파형이 표시됩니다</div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="preview.js"></script>
+  <script src="waveform.js"></script>
+  <script src="../shared/edl.js"></script>
+  <script src="../shared/theme.js"></script>
+  <script src="../shared/crop.js"></script>
+  <script src="template.js"></script>
+  <script src="../shared/project.js"></script>
+  <script src="project.js"></script>
+  <script src="exporter.js"></script>
+  <script src="import.js"></script>
+  <script src="settings-ui.js"></script>
+  <script src="syscheck-ui.js"></script>
+  <script src="ai-ui.js"></script>
+  <script src="../shared/caret.js"></script>
+  <script src="../shared/caption-edit.js"></script>
+  <script src="caption-blocks.js"></script>
+  <script src="editor.js"></script>
+  <script src="keymap.js"></script>
+  <script src="project-validation.js"></script>
+  <script src="guide-capture.js"></script>
+  <script src="app.js"></script>
+  <script src="theme-editor.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+bin/
+engine/.venv/
+engine/models/
+cache/
+*.mp4
+*.wav
+*.m4a
+*.webm
+.env
+engine/install.log
+*.log
+test_log.txt
+bin-mac/

@@ -1,0 +1,124 @@
+{
+  "id": "bold-title-color",
+  "name": "굵은 제목 + 단색 배경",
+  "source": [
+    "https://www.youtube.com/watch?v=zx4MjceDi6I"
+  ],
+  "note": "선명한 단색 배경 위 상단에 아주 굵은 흰 제목(짙은 그림자), 오른쪽 정렬 부제, 아래로 설교자 영상.",
+  "canvas": {
+    "background": "#2F6FD6"
+  },
+  "title": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 280,
+    "font": "Black Han Sans",
+    "weight": 400,
+    "size": 104,
+    "color": "#FFFFFF",
+    "stroke": 0,
+    "strokeColor": null,
+    "shadow": {
+      "color": "#1B2A55",
+      "blur": 0,
+      "offsetX": 8,
+      "offsetY": 8
+    },
+    "maxLines": 2
+  },
+  "verse": {
+    "show": true,
+    "align": "right",
+    "x": 1030,
+    "width": 900,
+    "y": 445,
+    "font": "Black Han Sans",
+    "weight": 400,
+    "size": 64,
+    "color": "#FFFFFF",
+    "band": null,
+    "shadow": {
+      "color": "#1B2A55",
+      "blur": 0,
+      "offsetX": 5,
+      "offsetY": 5
+    }
+  },
+  "video": {
+    "show": true,
+    "x": 0,
+    "y": 520,
+    "width": 1080,
+    "height": 1150,
+    "fit": "cover",
+    "radius": 0,
+    "border": null,
+    "fade": null
+  },
+  "subtitle": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1760,
+    "font": "Noto Sans KR",
+    "weight": 700,
+    "size": 56,
+    "color": "#FFFFFF",
+    "stroke": 0,
+    "strokeColor": null,
+    "box": {
+      "color": "#000000AA",
+      "padding": 16,
+      "radius": 10
+    },
+    "maxChars": 16,
+    "highlightColor": null
+  },
+  "churchName": {
+    "show": true,
+    "align": "left",
+    "x": 200,
+    "width": 500,
+    "y": 110,
+    "font": "Noto Sans KR",
+    "weight": 800,
+    "size": 50,
+    "color": "#FFFFFF",
+    "letterSpacing": 0.02,
+    "text": ""
+  },
+  "speaker": {
+    "show": false,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1860,
+    "font": "Noto Sans KR",
+    "size": 36,
+    "color": "#FFFFFF",
+    "text": ""
+  },
+  "logo": {
+    "show": true,
+    "x": 110,
+    "y": 110,
+    "height": 110,
+    "path": ""
+  },
+  "fadeInSec": 0.4,
+  "fonts": [
+    {
+      "name": "Black Han Sans",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Black+Han+Sans"
+    },
+    {
+      "name": "Noto Sans KR",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Noto+Sans+KR"
+    }
+  ]
+}
