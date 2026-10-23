@@ -113,6 +113,8 @@ npm run build:win  # bin/ffmpeg.exe, ffprobe.exe, yt-dlp.exe 준비 후 dist/ �
 npm run build:mac  # Mac용 ZIP (arm64·intel), ffmpeg·yt-dlp 자동 다운로드
 ```
 
+릴리스: `package.json`의 버전을 올리고 같은 이름의 태그(예: `v0.2.1`)를 푸시하면 GitHub Actions가 Windows·Mac에서 빌드해 [Releases](https://github.com/hahadark/sermon-shorts/releases)에 자동으로 올립니다.
+
 [설계](docs/ARCHITECTURE.md) · [편집 규칙](docs/EDITING.md) · [회귀 검증](docs/TESTING.md) · [서드파티 고지](docs/THIRD_PARTY_NOTICES.md)
 
 ## 라이선스

@@ -1,0 +1,105 @@
+# v로 시작하는 태그(예: v0.2.1)를 푸시하면 Windows·Mac에서 빌드해 GitHub 릴리스에 올린다.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - name: 태그와 package.json 버전 확인
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          v="v$(node -p "require('./package.json').version")"
+          [ "$v" = "${GITHUB_REF_NAME}" ] || { echo "태그 ${GITHUB_REF_NAME} 와 package.json 버전 $v 가 다릅니다"; exit 1; }
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: ffmpeg·ffprobe·yt-dlp 받기
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force bin | Out-Null
+          Invoke-WebRequest https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.7z -OutFile ff.7z
+          7z e ff.7z -obin ffmpeg.exe ffprobe.exe -r -y
+          Invoke-WebRequest https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -OutFile bin/yt-dlp.exe
+          Get-ChildItem bin
+      - name: 설치 파일·ZIP 빌드
+        run: npx electron-builder --win nsis zip --x64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/*.exe
+            dist/*.zip
+          if-no-files-found: error
+
+  mac:
+    needs: test
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Mac ZIP 빌드 (arm64·intel, ad-hoc 서명)
+        run: bash scripts/build_mac.sh
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: dist/SermonShorts-*-mac-*.zip
+          if-no-files-found: error
+
+  release:
+    needs: [windows, mac]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: SHA256 목록
+        working-directory: out
+        run: sha256sum * | tee SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: 설교쇼츠편집기 ${{ github.ref_name }}
+          prerelease: ${{ startsWith(github.ref_name, 'v0.') || contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          files: out/*
+          body: |
+            ## 내려받기
+            - **Windows**: `SermonShorts-Setup-*-x64.exe` (설치 마지막에 자막 엔진도 함께 설치할 수 있습니다) · 압축 해제판 `*-win-x64.zip`
+            - **Mac (Apple 칩)**: `*-mac-arm64.zip`
+            - **Mac (Intel)**: `*-mac-intel.zip`
+
+            코드 서명이 없는 베타입니다. Windows는 SmartScreen에서 "추가 정보 → 실행",
+            Mac은 처음 열기 전에 터미널에서 `xattr -cr /Applications/SermonShorts.app`을 실행하세요.
+            파일 확인용 해시는 `SHA256SUMS.txt`에 있습니다. 자세한 내용: [설치 안내](https://github.com/hahadark/sermon-shorts/blob/main/docs/INSTALL.md)
