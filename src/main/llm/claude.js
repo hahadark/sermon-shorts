@@ -96,13 +96,21 @@ function openLogin() {
  * 한 번 묻고 답 받기. 도구(파일·명령 실행)는 모두 끈다.
  * messages: [{role:'user'|'assistant', content}] → 하나의 대화 글로 합쳐 표준 입력으로 보낸다.
  */
-async function complete({ system, messages, model }) {
+async function complete(opts) {
+  try { return await completeOnce(opts); }
+  catch (e) {
+    if (e.code === 'not_installed' || e.code === 'auth' || e.code === 'usage_limit') throw e;
+    return completeOnce(opts); // 일시적인 오류(서버 혼잡 등)는 한 번 더 시도
+  }
+}
+
+async function completeOnce({ system, messages, model }) {
   const bin = findClaude();
   if (!bin) throw Object.assign(new Error('Claude Code 가 설치되어 있지 않습니다. [AI 연결]에서 설치해 주세요.'), { code: 'not_installed' });
   const tmp = path.join(os.tmpdir(), `ss-claude-system-${process.pid}-${Date.now()}.txt`);
   fs.writeFileSync(tmp, system || '', 'utf8');
   const convo = (messages || []).map((m) => (m.role === 'assistant' ? '[편집자(이전 답)]\n' : '[사용자]\n') + m.content).join('\n\n');
-  const args = ['-p', '--output-format', 'json', '--tools', '', '--no-session-persistence', '--max-turns', '1', '--system-prompt-file', tmp];
+  const args = ['-p', '--output-format', 'json', '--tools', '', '--no-session-persistence', '--system-prompt-file', tmp];
   if (model) args.push('--model', model);
   try {
     const r = await run(bin, args, { input: convo, timeout: 6 * 60 * 1000 });
@@ -113,8 +121,8 @@ async function complete({ system, messages, model }) {
       if (/login|log in|auth|인증|로그인/i.test(msg)) throw Object.assign(new Error('클로드에 로그인되어 있지 않습니다. [AI 연결]에서 로그인해 주세요.'), { code: 'auth' });
       throw new Error('클로드 실행 실패: ' + msg.slice(0, 300));
     }
-    if (data.is_error) {
-      const msg = String(data.result || data.error || '');
+    if (data.is_error || (data.subtype && data.subtype !== 'success')) {
+      const msg = String(data.result || data.error || (Array.isArray(data.errors) ? data.errors.join(' ') : '') || data.subtype || '알 수 없는 오류');
       if (/limit|한도|usage/i.test(msg)) throw Object.assign(new Error('클로드 사용 한도에 도달했습니다. 잠시 뒤 다시 하거나 다른 AI 로 바꿔 주세요.'), { code: 'usage_limit' });
       if (/login|auth|credential/i.test(msg)) throw Object.assign(new Error('클로드에 로그인되어 있지 않습니다. [AI 연결]에서 로그인해 주세요.'), { code: 'auth' });
       throw new Error('클로드 오류: ' + msg.slice(0, 300));
