@@ -210,3 +210,4 @@ async function correctTerms(words, context) {
 }
 
 module.exports.correctTerms = correctTerms;
+module.exports._getKey = () => keyProvider();

@@ -1,8 +1,8 @@
 {
   "name": "sermonshorts",
   "productName": "SermonShorts",
-  "version": "0.2.0",
-  "description": "설교 자막과 파형으로 편집하는 Windows 쇼츠 편집기",
+  "version": "0.3.0",
+  "description": "AI 와 대화하며 설교 영상을 쇼츠로 만드는 편집기",
   "main": "src/main/main.js",
   "private": true,
   "license": "UNLICENSED",

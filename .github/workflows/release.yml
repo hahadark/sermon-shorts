@@ -100,13 +100,13 @@ jobs:
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           name: 설교쇼츠편집기 ${{ inputs.tag || github.ref_name }}
-          prerelease: ${{ startsWith(inputs.tag || github.ref_name, 'v0.') || contains(inputs.tag || github.ref_name, '-') }}
+          prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
           overwrite_files: true
           generate_release_notes: true
           files: out/*
           body: |
             ## 내려받기
-            - **Windows**: `SermonShorts-Setup-*-x64.exe` (설치 마지막에 자막 엔진도 함께 설치할 수 있습니다) · 압축 해제판 `*-win-x64.zip`
+            - **Windows**: `SermonShorts-Setup-*-x64.exe` ← 보통 이것을 받으세요 · 압축 해제판 `*-win-x64.zip`
             - **Mac (Apple 칩)**: `*-mac-arm64.zip`
             - **Mac (Intel)**: `*-mac-intel.zip`
 

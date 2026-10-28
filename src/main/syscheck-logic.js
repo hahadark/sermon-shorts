@@ -85,9 +85,9 @@ function checkJsRuntime() {
 async function checkPython() {
   if (!fs.existsSync(tools.python)) {
     const py312 = await setup.findPython312();
-    if (py312) return { id: 'python', name: '자막 엔진 (Python)', status: 'error', critical: true, value: '설치 안 됨',
+    if (py312) return { id: 'python', name: '자막 엔진 (Python)', status: 'warn', value: '설치 안 됨',
       hint: 'Python 3.12 찾음: ' + py312 + '. [엔진 설치]를 누르면 PyTorch와 음성 인식 라이브러리를 설치합니다 (약 3GB, 10분 이상).', actions: ['install-engine'] };
-    return { id: 'python', name: '자막 엔진 (Python)', status: 'error', critical: true, value: '설치 안 됨 · Python 3.12 없음',
+    return { id: 'python', name: '자막 엔진 (Python)', status: 'warn', value: '설치 안 됨 · Python 3.12 없음',
       hint: '[엔진 설치]를 누르면 Python 3.12' + (tools.IS_WIN ? '(python.org 공식 설치 파일)' : '') + '와 엔진을 함께 설치합니다 (약 3GB, 10분 이상). 직접 설치하려면 [다운로드 페이지].',
       actions: ['install-engine', 'open:python'] };
   }
@@ -95,9 +95,9 @@ async function checkPython() {
   const r = await run(tools.python, ['-c', code], { env: pyEnv(), timeout: 60000 });
   let info = null;
   try { info = JSON.parse(r.stdout.trim().split(/\r?\n/).pop()); } catch (e) { /* */ }
-  if (!info) return { id: 'python', name: '자막 엔진 (Python)', status: 'error', critical: true, value: '실행 실패',
+  if (!info) return { id: 'python', name: '자막 엔진 (Python)', status: 'warn', value: '실행 실패',
     hint: '엔진 가상환경이 깨졌습니다. [엔진 다시 설치]를 누르세요. ' + (r.stderr || '').slice(-200), actions: ['reinstall-engine'] };
-  if (info.err) return { id: 'python', name: '자막 엔진 (Python)', status: 'error', critical: true, value: 'Python ' + info.py + ', torch 없음',
+  if (info.err) return { id: 'python', name: '자막 엔진 (Python)', status: 'warn', value: 'Python ' + info.py + ', torch 없음',
     hint: '[엔진 다시 설치]를 누르세요. (' + info.err.slice(0, 120) + ')', actions: ['reinstall-engine'] };
   let gpu = info.gpu;
   if (!info.cuda) {
@@ -160,7 +160,7 @@ async function checkSystem(settingsApi, opts = {}) {
     Promise.resolve(checkJsRuntime()),
     opts.quick ? Promise.resolve(fs.existsSync(tools.python)
       ? { id: 'python', name: '자막 엔진 (Python)', status: 'ok', value: '설치됨' }
-      : { id: 'python', name: '자막 엔진 (Python)', status: 'error', critical: true, value: '설치 안 됨' }) : checkPython(),
+      : { id: 'python', name: '자막 엔진 (Python)', status: 'warn', value: '설치 안 됨' }) : checkPython(),
     Promise.resolve(checkModel()),
     Promise.resolve(checkAiKey(settingsApi)),
     Promise.resolve(checkDisk()),

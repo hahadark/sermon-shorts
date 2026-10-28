@@ -189,7 +189,8 @@
       const launch = await api.getLaunchInfo();
       if (launch && (launch.screenshot || launch.testScript)) return;
       const [s, quick] = await Promise.all([api.getSettings(), api.sysCheck({ quick: true })]);
-      if (!s.sysCheckSeen || quick.critical) open();
+      if (quick.critical) open();
+      else if (!s.aiProvider && SS.openAiConnect) SS.openAiConnect(); // 처음에는 AI 연결부터 안내 (자막 엔진은 대화 편집에 필요 없음)
     } catch (e) { console.error('sysCheck auto', e); }
   })();
 

@@ -18,6 +18,7 @@ const ai = require('./ai');
 const syscheck = require('./syscheck-logic');
 const guard = require('./fs-guard');
 const setup = require('./setup');
+const { initLlm } = require('./llm');
 
 ai.setKeyProvider(() => {
   const k = getGeminiApiKey();
@@ -87,6 +88,8 @@ function registerIpc() {
     transcript: launch.transcript,
     screenshot: !!SCREENSHOT,
     testScript: process.env.SS_TEST_SCRIPT || null,
+    testUrl: process.env.SS_TEST_URL || null,
+    testProvider: process.env.SS_TEST_PROVIDER || null,
     waveView: process.env.SS_WAVE_VIEW || null,
     root: tools.root,
     cache: tools.cache,
@@ -251,6 +254,7 @@ app.whenReady().then(() => {
   initSettings();
   initThemeIpc();
   initRender();
+  initLlm();
   registerIpc();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

@@ -59,6 +59,25 @@ contextBridge.exposeInMainWorld('api', {
   sysOpenLink: (key) => ipcRenderer.invoke('sys:openLink', key),
   sysInstallEngine: (force) => ipcRenderer.invoke('sys:installEngine', force),
   sysDownloadModel: () => ipcRenderer.invoke('sys:downloadModel'),
+  // AI 연결(챗GPT·클로드·제미나이) — 토큰·키는 오지 않는다
+  llmStatus: () => ipcRenderer.invoke('llm:status'),
+  llmSetActive: (name) => ipcRenderer.invoke('llm:setActive', name),
+  llmOpenLink: (key) => ipcRenderer.invoke('llm:openLink', key),
+  llmChatgptSignIn: () => ipcRenderer.invoke('llm:chatgptSignIn'),
+  llmChatgptSignOut: () => ipcRenderer.invoke('llm:chatgptSignOut'),
+  llmClaudeInstall: () => ipcRenderer.invoke('llm:claudeInstall'),
+  llmClaudeLogin: () => ipcRenderer.invoke('llm:claudeLogin'),
+  llmTest: (name) => ipcRenderer.invoke('llm:test', name),
+  // 대화형 편집
+  chatLoad: (url) => ipcRenderer.invoke('chat:load', url),
+  chatSend: (text) => ipcRenderer.invoke('chat:send', text),
+  chatReset: () => ipcRenderer.invoke('chat:reset'),
+  chatFetchClips: (url, spans) => ipcRenderer.invoke('chat:fetchClips', url, spans),
+  onChatDelta: (callback) => {
+    const listener = (_event, d) => callback(d);
+    ipcRenderer.on('chat:delta', listener);
+    return () => ipcRenderer.removeListener('chat:delta', listener);
+  },
   // 테마
   listThemes: () => ipcRenderer.invoke('theme:list'),
   getTheme: (id) => ipcRenderer.invoke('theme:get', id),

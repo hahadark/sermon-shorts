@@ -94,7 +94,7 @@ async function fetchInfo(url) {
   });
 }
 
-async function fetchAutoSubs(url) {
+async function fetchAutoSubs(url, opts = {}) {
   const info = await fetchInfo(url);
   const id = info.id;
   const targetDir = path.join(root, 'cache', 'yt', id);
@@ -148,7 +148,7 @@ async function fetchAutoSubs(url) {
           }
         }
 
-        resolve({ lines, plainText: plainText.trim() });
+        resolve(opts.raw ? { lines, plainText: plainText.trim(), raw: content, info } : { lines, plainText: plainText.trim() });
       } catch (e) {
         reject(e);
       }
