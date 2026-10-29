@@ -59,6 +59,7 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 760,
     backgroundColor: '#15171a',
+    icon: path.join(__dirname, '..', '..', 'assets', 'images', 'app-icon.png'),
     title: '설교쇼츠편집기',
     autoHideMenuBar: true,
     webPreferences: {
