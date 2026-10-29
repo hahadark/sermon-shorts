@@ -147,12 +147,12 @@ async function channelName() {
 
 // ---- 업로드 ----
 /** 제목·설명 만들기 — 순수 함수 (테스트용으로 내보냄) */
-function buildMetadata({ title, verse, church, speaker, privacy }) {
+function buildMetadata({ title, verse, church, speaker, privacy, credits }) {
   // 화면용 표시(*강조*, 줄바꿈 ' / ')는 유튜브 제목에서 뺀다
   let t = String(title || '').replace(/\*/g, '').replace(/\s+\/\s+/g, ' ').trim() || '설교 쇼츠';
   if (!/#shorts/i.test(t)) t += ' #Shorts';
   if (t.length > 100) t = t.slice(0, 100 - ' #Shorts'.length).trim() + ' #Shorts';
-  const desc = [verse, [church, speaker].filter(Boolean).join(' · '), '', '#Shorts #설교'].filter((x, i) => x || i === 2).join('\n').trim();
+  const desc = [verse, [church, speaker].filter(Boolean).join(' · '), '', String(credits || '').trim(), '#Shorts #설교'].filter((x, i) => x || i === 2).join('\n').trim();
   return {
     snippet: { title: t.replace(/[<>]/g, ''), description: desc.replace(/[<>]/g, '').slice(0, 5000), categoryId: '29', defaultLanguage: 'ko', defaultAudioLanguage: 'ko' },
     status: { privacyStatus: PRIVACY.includes(privacy) ? privacy : 'unlisted', selfDeclaredMadeForKids: false },

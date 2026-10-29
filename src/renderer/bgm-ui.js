@@ -1,0 +1,298 @@
+/* 배경음악: 추천 목록에서 고르고(원래 사이트에서 바로 스트리밍 재생·일시정지), 곡의 쓸 구간·페이드 인/아웃·
+ * 맞추기(영상 처음에 시작 / 영상 끝에 끝남)·크기를 정한다. 미리보기 재생 때 영상과 함께 들리고, 내보낼 때 섞인다.
+ * 계산은 SS.bgm(shared/bgm.js)로 미리보기와 내보내기가 똑같이 한다. 음악 파일은 앱에 들어 있지 않다. */
+(function () {
+  'use strict';
+  const SS = (window.SS = window.SS || {});
+  const api = window.api;
+  const $ = (id) => document.getElementById(id);
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const B = () => SS.bgm;
+  const CAT = () => SS.bgmCatalog;
+
+  const mix = new Audio();      // 영상과 함께 나오는 음악
+  mix.preload = 'auto';
+  const lib = new Audio();      // 목록·구간 듣기
+  lib.preload = 'none';
+  let libId = null, libStop = null, peaks = null, peaksFor = null, drag = null;
+
+  const track = (id) => (CAT() ? CAT().tracks.find((t) => t.id === id) : null);
+  const cur = () => (SS.state && SS.state.bgm ? SS.state.bgm : null);
+  const outDur = () => (SS.getSegments ? SS.edl.segmentsDuration(SS.getSegments()) : 0);
+  const planNow = () => { const b = cur(); return b ? B().plan(b, outDur()) : null; };
+
+  function toast(m, ms) { if (SS.toast) SS.toast(m, ms || 3500); }
+
+  // ---------------- 카드 탭 (디자인 / 배경음악) ----------------
+  function setTab(which) {
+    const music = which === 'music';
+    $('designPane').hidden = music; $('bgmPane').hidden = !music;
+    $('tabDesign').classList.toggle('on', !music); $('tabMusic').classList.toggle('on', music);
+    $('tabDesign').setAttribute('aria-selected', String(!music)); $('tabMusic').setAttribute('aria-selected', String(music));
+    $('btnChurchMore').hidden = music;
+    if (music) { render(); drawWave(); }
+  }
+  SS.showBgmTab = () => setTab('music');
+
+  // ---------------- 고른 음악 표시 ----------------
+  function render() {
+    const b = cur(), t = b && track(b.id);
+    $('bgmNone').hidden = !!t; $('bgmOn').hidden = !t;
+    $('tabMusic').classList.toggle('has', !!t);
+    if (!t) return;
+    $('bgmTitle').textContent = t.title;
+    $('bgmSub').textContent = `${t.artist} · ${t.mood} · ${B().fmt(t.durationSec)}`;
+    const p = planNow();
+    $('bgmA').value = B().fmt(b.trackStart); $('bgmB').value = B().fmt(b.trackEnd);
+    const sel = b.trackEnd - b.trackStart, od = outDur();
+    $('bgmLen').textContent = `${B().fmt(sel)} 구간` + (od ? (sel > od + 0.5 ? ` · 영상(${B().fmt(od)})보다 길어 ${b.align === 'end' ? '뒷부분' : '앞부분'}만 씀` : sel < od - 0.5 ? ` · 영상보다 짧아 ${b.align === 'end' ? '끝에 맞춰 늦게 시작' : '처음부터 나오고 먼저 끝남'}` : '') : '');
+    document.querySelectorAll('#bgmAlign [data-align]').forEach((x) => x.classList.toggle('on', x.dataset.align === b.align));
+    $('bgmFi').value = b.fadeIn; $('bgmFo').value = b.fadeOut;
+    $('bgmVol').value = Math.round(b.volume * 100); $('bgmVolLbl').textContent = Math.round(b.volume * 100) + '%';
+    const credit = t.attribution ? `출처 표시 필요 (${t.license}): ${t.attribution}` : `${t.license} · 출처 표시 없이 써도 됩니다`;
+    $('bgmCredit').innerHTML = `<span class="bgm-lic">${esc(t.license)}</span> ${esc(credit)} <a href="#" id="bgmCopy">복사</a>`;
+    $('bgmCopy').onclick = (e) => { e.preventDefault(); navigator.clipboard.writeText(creditText()).then(() => toast('음악 출처를 복사했습니다. 영상 설명란에 붙여 넣으세요.')); };
+    void p;
+  }
+
+  /** 영상 설명란에 넣을 음악 출처 (CC BY 는 꼭) */
+  function creditText() {
+    const b = cur(), t = b && track(b.id);
+    if (!t) return '';
+    return t.attribution ? `음악: ${t.attribution}` : `음악: "${t.title}" - ${t.artist} (${t.license})`;
+  }
+  SS.bgmCredit = creditText;
+
+  function change(patch, record) {
+    const b = cur(); if (!b) return;
+    SS.state.bgm = B().normalize({ ...b, ...patch, duration: (track(b.id) || {}).durationSec || b.duration });
+    if (record !== false && SS.pushUndo) SS.pushUndo();
+    render(); drawWave(); sync(true);
+  }
+
+  // ---------------- 파형 (곡 전체, 쓸 구간 손잡이) ----------------
+  async function loadPeaks() {
+    const b = cur(); if (!b || peaksFor === b.id) return;
+    peaksFor = b.id; peaks = null;
+    $('bgmWaveMsg').textContent = '파형 불러오는 중… (처음 한 번 음악을 받습니다)'; $('bgmWaveMsg').hidden = false;
+    try {
+      const r = await api.bgmPeaks(b.id, 420);
+      if (peaksFor !== b.id) return;
+      peaks = r.peaks; $('bgmWaveMsg').hidden = true;
+      const t = track(b.id);
+      if (t && r.duration && Math.abs((t.durationSec || 0) - r.duration) > 2) t.durationSec = r.duration;
+    } catch (e) {
+      $('bgmWaveMsg').textContent = '파형을 불러오지 못했습니다 (인터넷 연결 확인). 구간은 숫자로 정할 수 있어요.';
+      peaksFor = null;
+    }
+    drawWave();
+  }
+  function drawWave() {
+    const c = $('bgmWave'), b = cur(), t = b && track(b.id);
+    if (!c || !t || $('bgmPane').hidden) return;
+    if (peaksFor !== b.id) loadPeaks();
+    const w = c.clientWidth, h = c.clientHeight, dpr = window.devicePixelRatio || 1;
+    if (!w || !h) return;
+    c.width = w * dpr; c.height = h * dpr;
+    const g = c.getContext('2d'); g.scale(dpr, dpr);
+    g.fillStyle = '#14171b'; g.fillRect(0, 0, w, h);
+    const dur = t.durationSec || 1, X = (s) => (s / dur) * w;
+    const p = planNow();
+    // 고른 구간 · 실제로 쓰는 부분
+    g.fillStyle = 'rgba(47,128,237,.16)'; g.fillRect(X(b.trackStart), 0, X(b.trackEnd) - X(b.trackStart), h);
+    if (p) { g.fillStyle = 'rgba(47,128,237,.30)'; g.fillRect(X(p.from), 0, X(p.from + p.length) - X(p.from), h); }
+    if (peaks) {
+      const n = peaks.length, bw = w / n;
+      for (let i = 0; i < n; i++) {
+        const s = (i / n) * dur, inSel = s >= b.trackStart && s <= b.trackEnd;
+        const v = Math.max(1, peaks[i] * (h * 0.42));
+        g.fillStyle = inSel ? '#7fb2ff' : '#3c4450';
+        g.fillRect(i * bw, h / 2 - v, Math.max(1, bw - 0.6), v * 2);
+      }
+    }
+    // 페이드 모양
+    if (p) {
+      const a = X(p.from), e = X(p.from + p.length), fi = X(p.from + p.fadeIn) - a, fo = e - X(p.from + p.length - p.fadeOut);
+      g.strokeStyle = '#ffd166'; g.lineWidth = 1.5; g.beginPath();
+      g.moveTo(a, h - 3); g.lineTo(a + fi, 4); g.lineTo(e - fo, 4); g.lineTo(e, h - 3); g.stroke();
+    }
+    // 손잡이
+    [b.trackStart, b.trackEnd].forEach((s) => { const x = X(s); g.fillStyle = '#2f80ed'; g.fillRect(x - 1.5, 0, 3, h); g.fillRect(x - 5, 0, 10, 8); g.fillRect(x - 5, h - 8, 10, 8); });
+    // 재생 위치
+    const now = !mix.paused ? mix.currentTime : (!lib.paused && libId === b.id ? lib.currentTime : null);
+    if (now != null) { g.fillStyle = '#fff'; g.fillRect(X(now) - 0.5, 0, 1.5, h); }
+  }
+  function waveTime(e) {
+    const c = $('bgmWave'), r = c.getBoundingClientRect(), t = track(cur().id);
+    return Math.max(0, Math.min(t.durationSec, ((e.clientX - r.left) / r.width) * t.durationSec));
+  }
+
+  // ---------------- 영상과 함께 재생 (미리보기) ----------------
+  let lastSrc = '';
+  function sync(force) {
+    const b = cur(), t = b && track(b.id);
+    const v = SS.preview && SS.preview.video;
+    const playing = v && !v.paused && SS.playback && SS.playback.active();
+    if (!t || !playing) { if (!mix.paused) mix.pause(); return; }
+    if (lastSrc !== t.url) { mix.src = t.url; lastSrc = t.url; }
+    const p = planNow(), info = SS.playback.timeInfo();
+    const tt = B().trackTimeAt(p, info.cur);
+    if (tt == null) { if (!mix.paused) mix.pause(); return; }
+    mix.volume = Math.max(0, Math.min(1, B().gainAt(p, info.cur)));
+    if (mix.paused) { try { mix.currentTime = tt; } catch (_) {} mix.play().catch(() => {}); return; }
+    if (force || Math.abs(mix.currentTime - tt) > 0.3) { try { mix.currentTime = tt; } catch (_) {} }
+  }
+  (function loop() {
+    sync(false);
+    if (!$('bgmPane') || !$('bgmPane').hidden) { if (!mix.paused || !lib.paused) drawWave(); }
+    requestAnimationFrame(loop);
+  })();
+
+  // 구간만 듣기 (영상 없이, 페이드 넣어서)
+  function listen() {
+    const b = cur(), t = b && track(b.id);
+    if (!t) return;
+    if (!lib.paused && libId === b.id) { lib.pause(); return; }
+    playLib(t, b.trackStart, b.trackEnd, b);
+  }
+  function playLib(t, from, to, fade) {
+    stopLib();
+    libId = t.id; lib.src = t.url; lib.volume = 0.8;
+    const startAt = () => { try { lib.currentTime = from || 0; } catch (_) {} lib.play().catch((e) => toast('재생하지 못했습니다: ' + e.message)); };
+    if (lib.readyState >= 1) startAt(); else lib.addEventListener('loadedmetadata', startAt, { once: true });
+    lib.load && lib.readyState === 0 && lib.load();
+    libStop = () => {
+      if (lib.paused || libId !== t.id) return;
+      const x = lib.currentTime;
+      if (to && x >= to) { lib.pause(); return; }
+      if (fade) { const fi = fade.fadeIn || 0, fo = fade.fadeOut || 0; let g = 1; if (fi && x - from < fi) g = (x - from) / fi; if (fo && to - x < fo) g = Math.min(g, (to - x) / fo); lib.volume = Math.max(0, Math.min(1, g)) * 0.8; }
+      requestAnimationFrame(libStop);
+    };
+    lib.addEventListener('playing', () => requestAnimationFrame(libStop), { once: true });
+    refreshLibButtons();
+  }
+  function stopLib() { if (!lib.paused) lib.pause(); }
+  lib.addEventListener('pause', refreshLibButtons);
+  lib.addEventListener('play', refreshLibButtons);
+  lib.addEventListener('error', () => { if (libId) toast('음악을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.'); refreshLibButtons(); });
+  mix.addEventListener('error', () => { if (cur()) toast('배경음악을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.'); });
+
+  // ---------------- 음악 고르기 (목록) ----------------
+  let mood = '전체';
+  function openLib() {
+    let m = $('bgmLib');
+    if (!m) {
+      m = document.createElement('div'); m.id = 'bgmLib'; m.className = 'modal-overlay bgm-lib';
+      m.innerHTML = `<div class="modal-dialog bgm-dialog" role="dialog" aria-label="배경음악 고르기">
+        <div class="bgm-lib-head"><div><h3>배경음악 고르기</h3><p>설교 쇼츠에 많이 쓰는 분위기로 골랐습니다. <b>퍼블릭 도메인·CC0·CC BY</b>처럼 저작권이 공개된 곡만 넣었고, 음악은 앱에 들어 있지 않아 원래 사이트에서 바로 재생합니다.</p></div>
+        <button class="btn ghost icon-only ico i-x" data-close title="닫기"></button></div>
+        <div class="bgm-moods" id="bgmMoods"></div>
+        <div class="bgm-list" id="bgmList"></div>
+        <div class="bgm-lib-foot">CC BY 곡은 영상 설명란에 출처를 적어야 합니다 (유튜브로 바로 올리면 자동으로 넣습니다). 같은 곡을 쓴 다른 영상 때문에 유튜브 저작권 알림이 드물게 올 수 있습니다.</div>
+      </div>`;
+      document.body.appendChild(m);
+      m.addEventListener('click', (e) => { if (e.target === m || e.target.closest('[data-close]')) closeLib(); });
+      m.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLib(); e.stopPropagation(); });
+    }
+    m.classList.remove('hidden'); m.hidden = false;
+    if (SS.state) SS.state.dialogOpen = true;
+    renderLib();
+  }
+  function closeLib() { const m = $('bgmLib'); if (m) m.hidden = true; stopLib(); if (SS.state) SS.state.dialogOpen = false; }
+  function renderLib() {
+    const C = CAT();
+    const moods = ['전체'].concat(C.MOODS);
+    $('bgmMoods').innerHTML = moods.map((x) => `<button class="bgm-mood${x === mood ? ' on' : ''}" data-mood="${esc(x)}">${esc(x)}<span>${x === '전체' ? C.tracks.length : C.tracks.filter((t) => t.mood === x).length}</span></button>`).join('');
+    $('bgmMoods').querySelectorAll('[data-mood]').forEach((b) => b.addEventListener('click', () => { mood = b.dataset.mood; renderLib(); }));
+    const list = C.tracks.filter((t) => mood === '전체' || t.mood === mood);
+    const sel = cur() && cur().id;
+    $('bgmList').innerHTML = list.length ? list.map((t) => `<div class="bgm-item${t.id === sel ? ' sel' : ''}" data-id="${esc(t.id)}">
+        <button class="btn icon-only bgm-play ico i-play" data-play="${esc(t.id)}" title="듣기 / 일시정지" aria-label="${esc(t.title)} 듣기"></button>
+        <div class="bgm-info"><b>${esc(t.title)}</b><span>${esc(t.artist)}</span><div class="bgm-tags">${(t.tags || []).slice(0, 3).map((x) => `<i>${esc(x)}</i>`).join('')}</div></div>
+        <span class="bgm-dur">${B().fmt(t.durationSec)}</span>
+        <span class="bgm-lic" title="${esc(t.licenseQuote || '')}">${esc(t.license)}</span>
+        <button class="btn sm ${t.id === sel ? '' : 'primary'}" data-use="${esc(t.id)}">${t.id === sel ? '쓰는 중' : '이 음악 쓰기'}</button>
+      </div>`).join('') : '<div class="bgm-empty">이 분위기의 음악이 아직 없습니다.</div>';
+    $('bgmList').querySelectorAll('[data-play]').forEach((b) => b.addEventListener('click', () => {
+      const t = track(b.dataset.play);
+      if (!lib.paused && libId === t.id) { lib.pause(); return; }
+      playLib(t, 0, 0, null);
+    }));
+    $('bgmList').querySelectorAll('[data-use]').forEach((b) => b.addEventListener('click', () => use(b.dataset.use)));
+    refreshLibButtons();
+  }
+  function refreshLibButtons() {
+    document.querySelectorAll('[data-play]').forEach((b) => {
+      const on = !lib.paused && libId === b.dataset.play;
+      b.classList.toggle('i-play', !on); b.classList.toggle('i-pause', on); b.classList.toggle('playing', on);
+    });
+    const lb = $('btnBgmListen');
+    if (lb) { const on = !lib.paused && cur() && libId === cur().id; lb.classList.toggle('i-play', !on); lb.classList.toggle('i-pause', on); lb.textContent = on ? '멈추기' : '구간 듣기'; }
+  }
+  function use(id) {
+    const t = track(id); if (!t) return;
+    if (SS.pushUndo) SS.pushUndo();
+    const prev = cur();
+    SS.state.bgm = B().normalize({ ...B().DEFAULTS, ...(prev ? { volume: prev.volume, fadeIn: prev.fadeIn, fadeOut: prev.fadeOut, align: prev.align } : {}), id, duration: t.durationSec, trackStart: 0, trackEnd: t.durationSec });
+    peaksFor = null; closeLib(); setTab('music'); render(); drawWave();
+    if (SS.pushUndo) SS.pushUndo();
+    toast(`"${t.title}"을(를) 배경음악으로 넣었습니다. [재생]으로 영상과 함께 들어 보세요.`);
+  }
+  SS.useBgm = use;
+
+  // ---------------- 연결 ----------------
+  function parseTime(s) {
+    s = String(s || '').trim();
+    const m = /^(\d+):(\d{1,2}(?:\.\d+)?)$/.exec(s);
+    if (m) return +m[1] * 60 + +m[2];
+    const n = Number(s); return isFinite(n) ? n : null;
+  }
+  function init() {
+    if (!$('bgmPane')) return;
+    $('tabDesign').addEventListener('click', () => setTab('design'));
+    $('tabMusic').addEventListener('click', () => setTab('music'));
+    $('btnBgmPick').addEventListener('click', openLib);
+    $('btnBgmChange').addEventListener('click', openLib);
+    $('btnBgmRemove').addEventListener('click', () => { if (SS.pushUndo) SS.pushUndo(); SS.state.bgm = null; if (SS.pushUndo) SS.pushUndo(); mix.pause(); render(); toast('배경음악을 뺐습니다. (Ctrl+Z 로 되돌리기)'); });
+    $('btnBgmPlay').addEventListener('click', () => {
+      if (!SS.preview) return;
+      if (!SS.preview.paused) { SS.preview.pause(); return; }
+      if (SS.setEditedPlayMode) SS.setEditedPlayMode(true);
+      SS.preview.play();
+    });
+    $('btnBgmListen').addEventListener('click', listen);
+    $('bgmA').addEventListener('change', () => { const v = parseTime($('bgmA').value); if (v != null) change({ trackStart: v }); else render(); });
+    $('bgmB').addEventListener('change', () => { const v = parseTime($('bgmB').value); if (v != null) change({ trackEnd: v }); else render(); });
+    document.querySelectorAll('#bgmAlign [data-align]').forEach((x) => x.addEventListener('click', () => change({ align: x.dataset.align })));
+    $('bgmFi').addEventListener('change', () => change({ fadeIn: Number($('bgmFi').value) }));
+    $('bgmFo').addEventListener('change', () => change({ fadeOut: Number($('bgmFo').value) }));
+    $('bgmVol').addEventListener('input', () => { const b = cur(); if (!b) return; b.volume = Number($('bgmVol').value) / 100; $('bgmVolLbl').textContent = $('bgmVol').value + '%'; sync(true); drawWave(); });
+    $('bgmVol').addEventListener('change', () => change({ volume: Number($('bgmVol').value) / 100 }));
+    const c = $('bgmWave');
+    c.addEventListener('mousedown', (e) => {
+      const b = cur(); if (!b) return;
+      const t = waveTime(e), r = c.getBoundingClientRect(), dur = track(b.id).durationSec, px = (s) => (s / dur) * r.width;
+      const dA = Math.abs(px(t) - px(b.trackStart)), dB = Math.abs(px(t) - px(b.trackEnd));
+      drag = dA <= dB ? 'a' : 'b';
+      if (SS.pushUndo) SS.pushUndo();
+      onDrag(e);
+    });
+    window.addEventListener('mousemove', (e) => { if (drag) onDrag(e); });
+    window.addEventListener('mouseup', () => { if (drag) { drag = null; change({}, false); } });
+    new ResizeObserver(() => drawWave()).observe(c);
+    // 영상 멈춤·자리 옮김에 맞춰
+    const hook = () => { const v = SS.preview && SS.preview.video; if (!v) { setTimeout(hook, 100); return; } v.addEventListener('pause', () => mix.pause()); v.addEventListener('seeked', () => sync(true)); v.addEventListener('play', () => { stopLib(); sync(true); }); };
+    hook();
+    window.addEventListener('ss:words-changed', () => { render(); drawWave(); });
+    render();
+  }
+  function onDrag(e) {
+    const b = cur(); if (!b) return;
+    const t = waveTime(e);
+    if (drag === 'a') b.trackStart = Math.min(t, b.trackEnd - 1); else b.trackEnd = Math.max(t, b.trackStart + 1);
+    render(); drawWave();
+  }
+
+  SS.bgmUi = { render, drawWave, openLib, closeLib, sync, listen, mix, lib, setTab, creditText };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();

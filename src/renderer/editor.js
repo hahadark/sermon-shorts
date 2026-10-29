@@ -21,7 +21,7 @@
 
   function pushHistory() {
     SS.captionEdit.capture(SS.state.words);
-    const st = JSON.parse(JSON.stringify({ words: SS.state.words, overrides: SS.state.overrides, markI: SS.state.markI, markO: SS.state.markO, captionSettings: { maxLineChars: SS.state.settings.maxLineChars, splitLongWords: SS.state.settings.splitLongWords, semanticBreaks: SS.state.settings.semanticBreaks } }));
+    const st = JSON.parse(JSON.stringify({ words: SS.state.words, overrides: SS.state.overrides, markI: SS.state.markI, markO: SS.state.markO, captionSettings: { maxLineChars: SS.state.settings.maxLineChars, splitLongWords: SS.state.settings.splitLongWords, semanticBreaks: SS.state.settings.semanticBreaks }, bgm: SS.state.bgm || null }));
     if (historyIdx >= 0 && JSON.stringify(history[historyIdx]) === JSON.stringify(st)) return;
     history = history.slice(0, historyIdx + 1);
     history.push(st);
@@ -36,6 +36,7 @@
       SS.state.overrides = JSON.parse(JSON.stringify(history[historyIdx].overrides));
       SS.state.markI = history[historyIdx].markI; SS.state.markO = history[historyIdx].markO;
       if (history[historyIdx].captionSettings) Object.assign(SS.state.settings, history[historyIdx].captionSettings);
+      if ('bgm' in history[historyIdx]) { SS.state.bgm = history[historyIdx].bgm ? JSON.parse(JSON.stringify(history[historyIdx].bgm)) : null; if (SS.bgmUi) { SS.bgmUi.render(); SS.bgmUi.drawWave(); } }
       SS.syncCaptionUI();
       renderTranscript(false); if (SS.updateTemplatePreview) SS.updateTemplatePreview(); if (trimState) { renderTrim(); trimHeader(); }
     }
@@ -48,6 +49,7 @@
       SS.state.overrides = JSON.parse(JSON.stringify(history[historyIdx].overrides));
       SS.state.markI = history[historyIdx].markI; SS.state.markO = history[historyIdx].markO;
       if (history[historyIdx].captionSettings) Object.assign(SS.state.settings, history[historyIdx].captionSettings);
+      if ('bgm' in history[historyIdx]) { SS.state.bgm = history[historyIdx].bgm ? JSON.parse(JSON.stringify(history[historyIdx].bgm)) : null; if (SS.bgmUi) { SS.bgmUi.render(); SS.bgmUi.drawWave(); } }
       SS.syncCaptionUI();
       renderTranscript(false); if (SS.updateTemplatePreview) SS.updateTemplatePreview(); if (trimState) { renderTrim(); trimHeader(); }
     }

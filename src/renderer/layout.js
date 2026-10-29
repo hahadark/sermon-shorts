@@ -35,6 +35,7 @@
     'open-project': () => click('btnOpenProject'),
     shortcuts: () => SS.showShortcuts && SS.showShortcuts(),
     settings: () => click('btnSettings'),
+    materials: () => SS.openMaterials && SS.openMaterials(),
   };
   SS.runCommand = (name) => { const f = CMDS[name]; if (f) f(); };
 

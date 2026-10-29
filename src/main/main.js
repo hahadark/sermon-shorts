@@ -260,6 +260,8 @@ app.whenReady().then(() => {
   initThemeIpc();
   initRender();
   initLlm();
+  require('./bgm').initBgm();
+  require('./materials').initMaterials();
   registerIpc();
   initUpdater({ getWindow: () => mainWindow, log, disabled: !!SCREENSHOT });
   initYoutubeUpload();

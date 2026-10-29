@@ -57,7 +57,7 @@
           }
         } else await image(`line_${i}.png`,['subtitle'],{subtitleText:lines[i].text});
       }
-      const result=await window.api.startExport({sourcePath:st.source.path,outPath,segments,lines,crop:st.crop||{scale:1,x:.5,y:.5},fadeMs:st.settings.fadeMs??10,tempDir,theme});
+      const result=await window.api.startExport({sourcePath:st.source.path,outPath,segments,lines,crop:st.crop||{scale:1,x:.5,y:.5},fadeMs:st.settings.fadeMs??10,tempDir,theme,bgm:st.bgm?{...st.bgm}:null});
       if (!result.success) return result;
       const srtPath=outPath.replace(/\.mp4$/i,'')+'.srt';
       await window.api.writeText(srtPath,SS.edl.toSRT(lines));
@@ -78,7 +78,7 @@
     const off=window.api.onProgress(p=>{if(p?.task==='ytupload'&&Number.isFinite(p.pct))btn.textContent='유튜브 업로드 '+p.pct+'%';});
     const meta=SS.state?.meta||{};
     try {
-      const r=await window.api.ytupUpload(outPath,{title:meta.title||'',verse:meta.verse||'',speaker:meta.speaker||SS.appSettings?.defaultSpeaker||'',church:SS.appSettings?.template?.churchName||''});
+      const r=await window.api.ytupUpload(outPath,{title:meta.title||'',verse:meta.verse||'',speaker:meta.speaker||SS.appSettings?.defaultSpeaker||'',church:SS.appSettings?.template?.churchName||'',credits:SS.state?.bgm&&SS.bgmCredit?SS.bgmCredit():''});
       const forced=r.privacy&&r.privacy!==st.privacy?" (유튜브가 '"+(names[r.privacy]||r.privacy)+"'로 바꿨습니다)":'';
       SS.toast('유튜브에 올렸습니다: '+r.url+forced,9000);
       if(confirm('유튜브에 올렸습니다'+forced+'.\n유튜브 스튜디오에서 확인할까요?'))window.api.ytupOpenUrl(r.studio);

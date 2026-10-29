@@ -175,4 +175,13 @@ function initLlm() {
   }));
 }
 
-module.exports = { initLlm, LINKS };
+/** 교인 자료용: 유튜브 대화에서 불러온 설교 자막 (AI 가 찾은 설교 범위가 있으면 그 범위만) */
+function sermonSource() {
+  if (!session || !Array.isArray(session.words) || !session.words.length) return null;
+  const w = session.words;
+  let a = 0, b = w.length - 1;
+  if (session.sermon) { a = Math.max(0, session.sermon.from - 5); b = Math.min(w.length - 1, session.sermon.to + 5); }
+  return { url: session.url, title: (session.info && session.info.title) || '', whole: !session.sermon, words: w.slice(a, b + 1).map((x) => ({ text: x.text, start: x.start, end: x.end })) };
+}
+
+module.exports = { initLlm, LINKS, complete, activeProvider, sermonSource };

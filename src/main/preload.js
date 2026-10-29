@@ -44,6 +44,18 @@ contextBridge.exposeInMainWorld('api', {
   mkdir: (p) => ipcRenderer.invoke('fs:mkdir', p),
   saveExportDialog: (options) => ipcRenderer.invoke('dialog:saveExport', options),
   startExport: (params) => ipcRenderer.invoke('export:start', params),
+  // 배경음악 (목록의 곡만): 캐시에 받아 두기 · 파형
+  bgmFetch: (id) => ipcRenderer.invoke('bgm:fetch', id),
+  bgmPeaks: (id, n) => ipcRenderer.invoke('bgm:peaks', id, n),
+  // 교인 배포 자료
+  materialsGenerate: (type, options, ctx) => ipcRenderer.invoke('materials:generate', type, options, ctx),
+  materialsSermon: () => ipcRenderer.invoke('materials:sermon'),
+  materialsReadFile: () => ipcRenderer.invoke('materials:readFile'),
+  materialsPdf: (o) => ipcRenderer.invoke('materials:pdf', o),
+  materialsPng: (o) => ipcRenderer.invoke('materials:png', o),
+  materialsPrint: (o) => ipcRenderer.invoke('materials:print', o),
+  materialsOpenPath: (p) => ipcRenderer.invoke('materials:openPath', p),
+  materialsRenderTest: (o) => ipcRenderer.invoke('materials:renderTest', o),
   // AI
   aiAnalyze: (lines, opts) => ipcRenderer.invoke('ai:analyze', lines, opts),
   aiCorrect: (words, ctx) => ipcRenderer.invoke('ai:correct', words, ctx),

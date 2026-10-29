@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data: blob:; media-src file: blob: https://*.googlevideo.com; font-src 'self' file: data:">
+        content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data: blob:; media-src file: blob: https://*.googlevideo.com https://incompetech.com https://*.incompetech.com https://upload.wikimedia.org https://archive.org https://*.archive.org https://files.freemusicarchive.org https://freemusicarchive.org https://ccmixter.org https://*.ccmixter.org; font-src 'self' file: data:">
   <title>SermonShorts</title>
   <link rel="stylesheet" href="fonts.css">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="icons.css">
+  <link rel="stylesheet" href="materials.css">
 </head>
 <body>
   <header id="topbar">
@@ -51,6 +52,7 @@
         <div class="menu-pop" role="menu" aria-label="AI">
           <button id="btnAiConnect" class="menu-item ico i-plug" role="menuitem">AI 연결 (챗GPT·클로드·제미나이)</button>
           <button id="btnAiRecommend" class="menu-item ico i-sparkles" role="menuitem">AI 쇼츠 추천 (제미나이 키)<kbd>Ctrl+Shift+U</kbd></button>
+          <button class="menu-item ico i-book-open" data-cmd="materials" role="menuitem">교인 자료 만들기 (소그룹·QT·퀴즈·요약·카드)</button>
           <div class="menu-sep" role="separator"></div>
           <button class="menu-item ico i-message-square" data-cmd="toggle-chat" role="menuitem">AI 편집 대화 보이기·숨기기</button>
         </div>
@@ -78,6 +80,7 @@
       <button id="updateClose" class="btn sm" title="닫기">✕</button>
     </div>
     <div class="top-right">
+      <button id="btnMaterials" class="btn ico i-book-open" title="설교로 소그룹 자료·QT·성경 퀴즈·설교 요약·묵상카드·가정예배지 만들기">교인 자료</button>
       <button id="btnSettings" class="btn ghost icon-only ico i-settings" title="설정 (Ctrl+,)" aria-label="설정"></button>
       <button id="btnExport" class="btn primary ico i-share" disabled>내보내기</button>
     </div>
@@ -104,8 +107,13 @@
         </div>
         <input id="seek" type="range" min="0" max="1000" step="1" value="0" disabled aria-label="재생 위치">
       </div>
-      <section id="templatePanel" class="design-card" aria-label="디자인">
-        <div class="card-head"><span class="ico i-palette" aria-hidden="true"></span>디자인<button id="btnChurchMore" class="btn sm ghost icon-only ico i-settings card-head-btn" type="button" title="교회 정보 자세히 (설교자 목록·자주 쓰는 말)" aria-label="교회 정보 자세히"></button></div>
+      <section id="templatePanel" class="design-card" aria-label="디자인과 배경음악">
+        <div class="card-head card-tabs" role="tablist">
+          <button id="tabDesign" class="card-tab on ico i-palette" type="button" role="tab" aria-selected="true">디자인</button>
+          <button id="tabMusic" class="card-tab ico i-music" type="button" role="tab" aria-selected="false">배경음악</button>
+          <button id="btnChurchMore" class="btn sm ghost icon-only ico i-settings card-head-btn" type="button" title="교회 정보 자세히 (설교자 목록·자주 쓰는 말)" aria-label="교회 정보 자세히"></button>
+        </div>
+        <div id="designPane" class="card-pane">
         <div class="field">
           <label for="selTheme">테마</label>
           <div class="field-inline"><select id="selTheme"></select><button id="btnEditTheme" class="btn sm ico i-pencil" title="테마 편집기 열기">편집</button></div>
@@ -127,6 +135,29 @@
           <div class="field-inline"><button id="btnChurchLogo" class="logo-btn" type="button" title="로고 이미지 바꾸기" aria-label="로고 이미지 바꾸기"><img id="imgChurchLogo" alt=""></button><input type="text" id="inpChurch" maxlength="60" placeholder="교회 이름" title="고치면 바로 미리보기에 반영되고 설정에도 저장됩니다"><button id="btnChurchShow" class="btn sm icon-only ico i-eye-off" type="button" aria-pressed="false" title="쇼츠에 교회 이름·로고 보이기" aria-label="쇼츠에 교회 이름·로고 보이기"></button></div>
         </div>
         <button id="btnSaveTemplate" class="btn" hidden>템플릿 저장 (미리보기 반영)</button>
+      
+        </div>
+        <div id="bgmPane" class="card-pane bgm-pane" hidden>
+          <div id="bgmNone" class="bgm-none">
+            <p>잔잔한 피아노·찬송가 연주처럼 설교 쇼츠에 많이 쓰는 <b>저작권 공개 음악</b>을 골라 넣습니다. 음악은 앱에 들어 있지 않고 인터넷에서 바로 재생합니다.</p>
+            <button id="btnBgmPick" class="btn primary ico i-list-music" type="button">음악 고르기</button>
+          </div>
+          <div id="bgmOn" class="bgm-on" hidden>
+            <div class="bgm-now">
+              <button id="btnBgmPlay" class="btn icon-only ico i-play" type="button" title="영상과 함께 듣기 (Space)" aria-label="영상과 함께 듣기"></button>
+              <div class="bgm-name"><b id="bgmTitle"></b><span id="bgmSub"></span></div>
+              <button id="btnBgmChange" class="btn sm" type="button">바꾸기</button>
+              <button id="btnBgmRemove" class="btn sm ghost icon-only ico i-x" type="button" title="음악 빼기" aria-label="음악 빼기"></button>
+            </div>
+            <div class="bgm-wave"><canvas id="bgmWave" title="파란 손잡이를 끌어 쓸 구간을 고르세요"></canvas><div id="bgmWaveMsg" class="bgm-wave-msg"></div></div>
+            <div class="bgm-row"><span class="bgm-k">구간</span><input id="bgmA" class="bgm-t" aria-label="구간 시작"> ~ <input id="bgmB" class="bgm-t" aria-label="구간 끝"><button id="btnBgmListen" class="btn sm ico i-play" type="button">구간 듣기</button></div>
+            <div class="bgm-row bgm-len" id="bgmLen"></div>
+            <div class="bgm-row"><span class="bgm-k">맞추기</span><div class="bgm-seg" id="bgmAlign"><button type="button" data-align="start" title="영상이 시작할 때 음악도 시작">처음에 시작</button><button type="button" data-align="end" title="영상이 끝날 때 음악도 끝나도록">끝에 끝남</button></div></div>
+            <div class="bgm-row"><span class="bgm-k">페이드</span>인 <input id="bgmFi" class="bgm-n" type="number" min="0" max="30" step="0.5">초 · 아웃 <input id="bgmFo" class="bgm-n" type="number" min="0" max="30" step="0.5">초</div>
+            <div class="bgm-row"><span class="bgm-k">크기</span><input id="bgmVol" type="range" min="0" max="100" step="1"><span id="bgmVolLbl" class="bgm-vl"></span></div>
+            <div class="bgm-credit" id="bgmCredit"></div>
+          </div>
+        </div>
       </section>
     </section>
 
@@ -171,10 +202,17 @@
   <script src="guide-capture.js"></script>
   <script src="theme-check.js"></script>
   <script src="batch-check.js"></script>
+  <script src="batch15-check.js"></script>
   <script src="app.js"></script>
   <script src="theme-editor.js"></script>
   <script src="../shared/chat-plan.js"></script>
   <script src="../shared/gaps.js"></script>
+  <script src="../shared/bgm.js"></script>
+  <script src="../shared/bgm-catalog.js"></script>
+  <script src="bgm-ui.js"></script>
+  <script src="../shared/materials.js"></script>
+  <script src="materials-doc.js"></script>
+  <script src="materials-ui.js"></script>
   <script src="chat-ui.js"></script>
   <script src="update-ui.js"></script>
   <script src="layout.js"></script>

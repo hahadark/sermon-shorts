@@ -36,7 +36,9 @@
       hideDeleted: !!data.hideDeleted,
       markI: Number.isInteger(data.markI) && data.markI >= 0 && data.markI < words.length ? data.markI : -1,
       markO: Number.isInteger(data.markO) && data.markO >= 0 && data.markO <= words.length ? data.markO : -1,
-      playhead: Math.max(0, number(data.playhead, 0))
+      playhead: Math.max(0, number(data.playhead, 0)),
+      bgm: data.bgm && typeof data.bgm === 'object' && typeof data.bgm.id === 'string' ? clone(data.bgm) : null,
+      materials: data.materials && typeof data.materials === 'object' && !Array.isArray(data.materials) ? clone(data.materials) : null
     };
   }
   function snapshot(state, playhead) { return normalize({ ...state, version: 1, playhead: number(playhead, 0) }); }

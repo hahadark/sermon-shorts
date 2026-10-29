@@ -5,6 +5,7 @@ const tools = require('./tools');
 const { spawn } = require('child_process');
 const { normalizeTheme, exportLayers } = require('../shared/theme');
 const guard = require('./fs-guard');
+const bgmLib = require('../shared/bgm');
 
 /** 내보낸 MP4 옆에 쓰는 SRT 경로 (확장자가 .mp4가 아니어도 영상 파일을 덮지 않는다) */
 function srtPathOf(outPath) { return String(outPath).replace(/\.mp4$/i, '') + '.srt'; }
@@ -60,7 +61,7 @@ function blurBackgroundFilter(blur) {
   return f;
 }
 
-function buildExportArgs({ sourcePath, outPath, segments, lines, crop, fadeMs, tempDir, theme, encoder }) {
+function buildExportArgs({ sourcePath, outPath, segments, lines, crop, fadeMs, tempDir, theme, encoder, bgmFile, bgmPlan }) {
   if (!segments?.length) throw Error('남은 영상 구간이 없습니다.');
   if (segments.some(s => !Number.isFinite(s.start) || !Number.isFinite(s.end) || s.start < 0 || s.end <= s.start)) throw Error('영상 구간 시각이 올바르지 않습니다.');
   const t = normalizeTheme(theme);
@@ -145,7 +146,15 @@ function buildExportArgs({ sourcePath, outPath, segments, lines, crop, fadeMs, t
   const footerFilter = fadeInD > 0 ? `format=rgba,fade=t=in:st=0:d=${fadeInD}:alpha=1` : "format=rgba";
   fg += `[basev][1:v]overlay=x=0:y=0:shortest=1[ovl1]; [2:v]${footerFilter}[footer]; [ovl1][footer]overlay=x=0:y=0:shortest=1[ovl2]; `;
   fg += `[ovl2][3:v]overlay=x=0:y=0:shortest=1,format=yuv420p[vout]`;
-  args.push('-filter_complex', fg, '-map', '[vout]', '-map', '[acat]');
+  // 배경음악: 고른 구간을 자르고 페이드·크기·시작 시각(맞춤)을 적용해 말소리 위에 얹는다
+  let audioOut = '[acat]';
+  if (bgmFile && bgmPlan && bgmPlan.length > 0) {
+    const bgmIn = nextInput++;
+    args.push('-i', bgmFile);
+    fg += '; ' + bgmLib.ffmpegFilter(bgmPlan, bgmIn, '[acat]');
+    audioOut = '[aout]';
+  }
+  args.push('-filter_complex', fg, '-map', '[vout]', '-map', audioOut);
   args.push('-t', segments.reduce((n,s)=>n+s.end-s.start,0).toFixed(6));
   args.push(...(VIDEO_ENCODERS[encoder] || VIDEO_ENCODERS[defaultEncoder()]), '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-r', '30', '-movflags', '+faststart', '-progress', 'pipe:1', outPath);
   return { args, filtergraph: fg };
@@ -153,6 +162,14 @@ function buildExportArgs({ sourcePath, outPath, segments, lines, crop, fadeMs, t
 
 async function runExport(event, params) {
   params = { ...params, outPath: guard.check(params.outPath), tempDir: guard.check(params.tempDir) };
+  // 배경음악은 목록(id)으로만 받는다: 받은 파일 경로는 메인이 정한다 (렌더러가 아무 파일이나 넣지 못하게)
+  delete params.bgmFile; delete params.bgmPlan;
+  if (params.bgm && params.bgm.id) {
+    const outDur = params.segments.reduce((n, s) => n + (s.end - s.start), 0);
+    const track = require('./bgm').trackOf(params.bgm.id);
+    params.bgmPlan = bgmLib.plan({ ...params.bgm, duration: track.durationSec || params.bgm.duration }, outDur);
+    if (params.bgmPlan) params.bgmFile = await require('./bgm').ensure(params.bgm.id);
+  }
   let { args } = buildExportArgs(params);
   const run = (currentArgs) => new Promise((resolve) => {
     let totalDur = params.segments.reduce((sum, s) => sum + (s.end - s.start), 0);
