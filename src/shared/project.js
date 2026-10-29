@@ -27,7 +27,7 @@
     const meta = data.meta || {};
     return {
       version: 1, source, words, overrides,
-      settings: { padBefore: clamp(number(settings.padBefore, .1), 0, 5), padAfter: clamp(number(settings.padAfter, .15), 0, 5), fadeMs: clamp(number(settings.fadeMs, 10), 0, 1000), maxLineChars: Math.trunc(clamp(number(settings.maxLineChars, 14), 1, 200)), splitLongWords: settings.splitLongWords === true },
+      settings: { padBefore: clamp(number(settings.padBefore, .1), 0, 5), padAfter: clamp(number(settings.padAfter, .15), 0, 5), fadeMs: clamp(number(settings.fadeMs, 10), 0, 1000), maxLineChars: Math.trunc(clamp(number(settings.maxLineChars, 14), 1, 200)), splitLongWords: settings.splitLongWords === true, semanticBreaks: settings.semanticBreaks !== false },
       meta: { title: String(meta.title || ''), verse: String(meta.verse || ''), speaker: String(meta.speaker || '') },
       crop: { scale: clamp(number(crop.scale, 1), 1, 3), x: clamp(number(crop.x, .5), 0, 1), y: clamp(number(crop.y, .5), 0, 1) },
       activeTheme: data.activeTheme ? clone(data.activeTheme) : null,

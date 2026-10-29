@@ -5,7 +5,7 @@
   const edl = SS.edl;
   const $ = id => document.getElementById(id);
 
-  SS.state.settings = { padBefore: 0.10, padAfter: 0.15, fadeMs: 10, maxLineChars: 14, splitLongWords: true };
+  SS.state.settings = { padBefore: 0.10, padAfter: 0.15, fadeMs: 10, maxLineChars: 14, splitLongWords: true, semanticBreaks: true };
   SS.state.words = [];
   SS.state.overrides = {};
   SS.state.caret = 0;
@@ -21,7 +21,7 @@
 
   function pushHistory() {
     SS.captionEdit.capture(SS.state.words);
-    const st = JSON.parse(JSON.stringify({ words: SS.state.words, overrides: SS.state.overrides, markI: SS.state.markI, markO: SS.state.markO, captionSettings: { maxLineChars: SS.state.settings.maxLineChars, splitLongWords: SS.state.settings.splitLongWords } }));
+    const st = JSON.parse(JSON.stringify({ words: SS.state.words, overrides: SS.state.overrides, markI: SS.state.markI, markO: SS.state.markO, captionSettings: { maxLineChars: SS.state.settings.maxLineChars, splitLongWords: SS.state.settings.splitLongWords, semanticBreaks: SS.state.settings.semanticBreaks } }));
     if (historyIdx >= 0 && JSON.stringify(history[historyIdx]) === JSON.stringify(st)) return;
     history = history.slice(0, historyIdx + 1);
     history.push(st);
@@ -110,6 +110,7 @@
         <input id="inpMaxLineChars" aria-label="자막 한 줄 최대 글자 수" type="number" min="1" max="200" step="1" value="14" title="1~200자, 공백 제외·문장부호 포함. 단어 경계를 우선합니다.">
         <span>자 <span class="muted">(공백 제외)</span></span>
         <select id="selCaptionLength" aria-label="자막 길이 프리셋"><option value="">직접 설정</option><option value="8">8자</option><option value="12">12자</option><option value="14" selected>14자</option><option value="16">16자</option><option value="20">20자</option></select>
+        <label class="ed-check" title="글자 수만 채워 끊지 않고 문장 끝·쉼표·말 사이 쉼·이음말(~고, ~는데, ~할 때) 뒤에서 끊습니다. '하나님의', '그런', '할 수'처럼 붙어 다니는 말은 한 줄에 둡니다."><input id="chkSemanticBreaks" type="checkbox" checked> 의미 단위로 나누기</label>
         <label class="ed-check" title="한 단어가 제한보다 길면 글자 수에 맞춰 나눕니다. 분할 시각은 단어 안에서 글자 수 비례로 배분하며 영상은 바꾸지 않습니다."><input id="chkSplitLongWords" type="checkbox" checked> 긴 단어도 나누기</label>
       </div>
       <div class="ed-set-row">
@@ -158,15 +159,16 @@
     const cfg = SS.state.settings;
     $('inpMaxLineChars').value = cfg.maxLineChars;
     $('chkSplitLongWords').checked = cfg.splitLongWords === true;
+    $('chkSemanticBreaks').checked = cfg.semanticBreaks !== false;
     $('selCaptionLength').value = [8,12,14,16,20].includes(cfg.maxLineChars) ? String(cfg.maxLineChars) : '';
   };
   function applyCaptionLength(commit) {
     const input = $('inpMaxLineChars');
     if (input.value === '' || !Number.isFinite(Number(input.value))) { if (commit) SS.syncCaptionUI(); return; }
     const max = Math.max(1, Math.min(200, Math.trunc(Number(input.value))));
-    const split = $('chkSplitLongWords').checked;
-    if (SS.state.settings.maxLineChars !== max || SS.state.settings.splitLongWords !== split) {
-      pushHistory(); SS.state.settings.maxLineChars = max; SS.state.settings.splitLongWords = split; pushHistory();
+    const split = $('chkSplitLongWords').checked, semantic = $('chkSemanticBreaks').checked;
+    if (SS.state.settings.maxLineChars !== max || SS.state.settings.splitLongWords !== split || (SS.state.settings.semanticBreaks !== false) !== semantic) {
+      pushHistory(); SS.state.settings.maxLineChars = max; SS.state.settings.splitLongWords = split; SS.state.settings.semanticBreaks = semantic; pushHistory();
       renderTranscript(); if (SS.updateTemplatePreview) SS.updateTemplatePreview();
     }
     if (commit) SS.syncCaptionUI();
@@ -175,6 +177,7 @@
   $('inpMaxLineChars').addEventListener('input', () => applyCaptionLength(false));
   $('inpMaxLineChars').addEventListener('change', () => applyCaptionLength(true));
   $('chkSplitLongWords').addEventListener('change', () => applyCaptionLength(true));
+  $('chkSemanticBreaks').addEventListener('change', () => applyCaptionLength(true));
   $('selCaptionLength').addEventListener('change', e => { if (e.target.value) { $('inpMaxLineChars').value = e.target.value; applyCaptionLength(true); } });
 
   let editedPlayMode = true;

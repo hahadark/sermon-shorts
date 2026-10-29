@@ -80,7 +80,7 @@
   }
   SS.renderCaptionBlocks=function(body,ws,lines,segments){
     style();connectToolbar();SS.captionEdit.capture(ws);
-    const nextSignature=JSON.stringify([ws,lines,SS.state.hideDeleted,SS.state.markI,SS.state.markO,SS.state.source?.offset,SS.state.settings.maxLineChars]);
+    const nextSignature=JSON.stringify([ws,lines,SS.state.hideDeleted,SS.state.markI,SS.state.markO,SS.state.source?.offset,SS.state.settings.maxLineChars,SS.state.settings.semanticBreaks]);
     if(signature===nextSignature&&body.querySelector('.caption-block')){refreshCaret(body);syncChecks(body);return;}
     signature=nextSignature;const scroll=body.scrollTop;const blocks=[];let cursor=0;
     const ids=new Map(ws.map((w,i)=>[w.id,i]));const max=SS.state.settings.maxLineChars||14;

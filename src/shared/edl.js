@@ -23,6 +23,14 @@
   var EPS = 1e-9;
 
   function isNum(x) { return typeof x === 'number' && isFinite(x); }
+  // 의미 단위 줄 나누기 (linebreak.js). Node 에서는 require, 렌더러에서는 먼저 읽은 SS.linebreak
+  var lbCache = null;
+  function LB() {
+    if (lbCache) return lbCache;
+    try { if (typeof module === 'object' && module && module.exports && typeof require === 'function') lbCache = require('./linebreak'); } catch (e) { lbCache = null; }
+    if (!lbCache && typeof window !== 'undefined' && window.SS && window.SS.linebreak) lbCache = window.SS.linebreak;
+    return lbCache;
+  }
   function clamp(x, lo, hi) { return x < lo ? lo : (x > hi ? hi : x); }
 
   // ---------------------------------------------------------------- 구간
@@ -258,9 +266,28 @@
 
     // 줄 나누기
     var groups = [];
+    var lb = settings.semanticBreaks === true ? LB() : null;
+    if (lb) {
+      // 의미 단위: 문장 끝·긴 쉼·손으로 나눈 자리에서는 꼭 바꾸고, 그 사이에서는 끊기 좋은 자리를 고른다 (한 줄 최대 글자 안에서)
+      var runs = [], run = [];
+      for (var q = 0; q < items.length; q++) {
+        var cur0 = items[q];
+        if (run.length) {
+          var pv = run[run.length - 1], pt = String(pv.w.text || '').trim();
+          if (pv.w.br || SENTENCE_END.test(pt) || cur0.outStart - pv.outEnd > LINE_PAUSE || lb.isSentenceEnd(pt)) { runs.push(run); run = []; }
+        }
+        run.push(cur0);
+      }
+      if (run.length) runs.push(run);
+      runs.forEach(function (r) {
+        var counts = lb.splitRun(r.map(function (x, idx) { return { text: x.w.text, len: x.len, gapBefore: idx ? x.outStart - r[idx - 1].outEnd : 0 }; }), maxChars);
+        var at = 0;
+        counts.forEach(function (c) { groups.push(r.slice(at, at + c)); at += c; });
+      });
+    }
     var cur = [];
     var curLen = 0;
-    for (var j = 0; j < items.length; j++) {
+    for (var j = 0; !lb && j < items.length; j++) {
       var it = items[j];
       if (cur.length > 0) {
         var prev = cur[cur.length - 1];

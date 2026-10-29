@@ -119,6 +119,21 @@
       check('재생 위치로 돌아감', r.top >= br.top - 2 && r.bottom <= br.bottom + 2, [r.top, br.top, br.bottom]);
       check('단추 숨김', $('btnFollowPlay').hidden);
       SS.preview.pause();
+
+      // ---------- 3) 의미 단위로 나누기 ----------
+      await sleep(150);
+      check('의미 단위 기본 켜짐', SS.state.settings.semanticBreaks === true && $('chkSemanticBreaks').checked);
+      const semLines = SS.getLines().map((l) => l.text);
+      $('chkSemanticBreaks').click(); await sleep(200);
+      const greedyLines = SS.getLines().map((l) => l.text);
+      check('끄면 글자 수 기준으로', SS.state.settings.semanticBreaks === false && JSON.stringify(semLines) !== JSON.stringify(greedyLines));
+      SS.undo(); await sleep(150);
+      check('되돌리면 다시 의미 단위', SS.state.settings.semanticBreaks === true && $('chkSemanticBreaks').checked && JSON.stringify(SS.getLines().map((l) => l.text)) === JSON.stringify(semLines));
+      check('출력 자막 칸도 의미 단위', Array.from(document.querySelectorAll('.caption-output')).some((el) => el.value === '이제 이걸 하고'), semLines.slice(0, 12));
+      report.semanticSample = semLines.slice(0, 16);
+      SS.toggleCaptionSettings(true); await sleep(200);
+      await shot('3_semantic');
+      SS.toggleCaptionSettings(false);
       report.success = true;
     } catch (err) {
       report.success = false; report.error = err.stack || String(err);
