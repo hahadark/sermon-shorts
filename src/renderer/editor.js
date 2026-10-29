@@ -144,7 +144,7 @@
   $('inpPadB').addEventListener('change', e => { SS.state.settings.padBefore = parseFloat(e.target.value); updateOutput(); });
   $('inpPadA').addEventListener('change', e => { SS.state.settings.padAfter = parseFloat(e.target.value); updateOutput(); });
   $('inpFade').addEventListener('change', e => { SS.state.settings.fadeMs = parseInt(e.target.value); updateOutput(); });
-  $('chkEditedPlay').addEventListener('change', e => { editedPlayMode = e.target.checked; });
+  $('chkEditedPlay').addEventListener('change', e => { editedPlayMode = e.target.checked; if (SS.updateTimeUI) SS.updateTimeUI(); });
   // 자막 길이·컷 여백 설정 펼치기
   SS.toggleCaptionSettings = (open) => {
     const box = $('edSettings'), btn = $('btnEdSettings');
@@ -548,7 +548,7 @@
     }
   });
 
-  let lastUpdate = 0, wasPlaying = false;
+  let lastUpdate = 0, wasPlaying = false, lastFollowScroll = 0;
   function playbackLoop() {
     requestAnimationFrame(playbackLoop);
     const playing = SS.preview && !SS.preview.paused;
@@ -558,15 +558,7 @@
     const outT = edl.srcToOut(segments, t);
     let curLine = outT == null ? null : lines.find(l => outT >= l.outStart && outT < l.outEnd);
     if ($('tplSubtitle')) $('tplSubtitle').textContent = curLine ? curLine.text : '';
-    if (editedPlayMode && segments.length > 0) {
-      for (let i = 0; i < segments.length; i++) {
-        let s = segments[i];
-        if (i < segments.length - 1 && t >= s.end - 0.05 && t < segments[i+1].start) {
-          SS.preview.seek(segments[i+1].start);
-          break;
-        }
-      }
-    }
+    // 지운 부분 건너뛰기는 playback.js 가 맡는다
     if (performance.now() - lastUpdate > 100) {
       lastUpdate = performance.now();
       const spans = $('transcriptBody').querySelectorAll('span[data-wid]');
@@ -588,16 +580,55 @@
         if (wid === SS.state.markI || wid === SS.state.markO) color = (r && wid >= r[0] && wid <= r[1]) ? '#663' : '#440';
         s.style.backgroundColor = color;
       });
-      if (SS.state.caret !== -1) {
+      if (SS.state.caret !== -1 && followPlay) {
         const activeSpan = $('transcriptBody').querySelector(`span[data-wid="${SS.state.caret}"]`);
         if (activeSpan) {
            const rect = activeSpan.getBoundingClientRect(), parentRect = $('transcriptBody').getBoundingClientRect();
-           if (rect.top < parentRect.top || rect.bottom > parentRect.bottom) activeSpan.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+           // 화면 밖이면 따라간다. 멀리 떨어졌으면 바로(가운데로), 가까우면 부드럽게. 부드러운 이동은 끝날 틈을 준다
+           if (rect.top < parentRect.top || rect.bottom > parentRect.bottom) {
+             const far = rect.bottom < parentRect.top - parentRect.height || rect.top > parentRect.bottom + parentRect.height;
+             if (far) { activeSpan.scrollIntoView({ block: 'center', behavior: 'auto' }); lastFollowScroll = performance.now(); }
+             else if (performance.now() - lastFollowScroll > 450) { activeSpan.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); lastFollowScroll = performance.now(); }
+           }
         }
       }
     }
   }
   requestAnimationFrame(playbackLoop);
+
+  // 재생 중 자막 목록 따라가기. 사용자가 직접 스크롤(휠·스크롤 막대·PageUp/Down·터치)하면 따라가기를 멈추고
+  // [재생 위치로] 단추를 띄운다. 다시 재생을 시작하거나 단추를 누르면 다시 따라간다.
+  let followPlay = true;
+  const followBtn = document.createElement('button');
+  followBtn.id = 'btnFollowPlay'; followBtn.type = 'button';
+  followBtn.className = 'btn sm follow-btn ico i-locate-fixed';
+  followBtn.textContent = '재생 위치로';
+  followBtn.title = '지금 재생 중인 자막으로 돌아가 다시 따라가기';
+  followBtn.hidden = true;
+  panel.appendChild(followBtn);
+  function setFollow(on) {
+    followPlay = !!on;
+    followBtn.hidden = followPlay || !SS.preview || SS.preview.paused;
+  }
+  SS.setFollowPlay = setFollow;
+  SS.isFollowPlay = () => followPlay;
+  function userScrolled() { if (SS.preview && !SS.preview.paused && followPlay) setFollow(false); }
+  const tbody = $('transcriptBody');
+  tbody.addEventListener('wheel', userScrolled, { passive: true });
+  tbody.addEventListener('touchmove', userScrolled, { passive: true });
+  tbody.addEventListener('mousedown', e => { if (e.target === tbody && (e.offsetX >= tbody.clientWidth || e.offsetY >= tbody.clientHeight)) userScrolled(); });
+  tbody.addEventListener('keydown', e => { if (e.key === 'PageUp' || e.key === 'PageDown') userScrolled(); });
+  followBtn.addEventListener('click', () => {
+    setFollow(true);
+    const span = tbody.querySelector(`span[data-wid="${SS.state.caret}"]`);
+    if (span) span.scrollIntoView({ block: 'center', behavior: 'auto' });
+  });
+  (function hookVideo() {
+    const v = SS.preview && SS.preview.video;
+    if (!v) { setTimeout(hookVideo, 100); return; }
+    v.addEventListener('play', () => setFollow(true));
+    v.addEventListener('pause', () => { followBtn.hidden = true; });
+  })();
 
   let trimState = null;
   SS.getTrimState = () => trimState;

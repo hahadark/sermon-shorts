@@ -59,23 +59,40 @@
   }
 
   let seeking = false; // 슬라이더 드래그 중
+  // 시간 표시·재생 막대: 편집 결과로 재생 중이면 완성될 쇼츠 기준(지운 부분 제외), 아니면 원본 기준
   function updateTimeUI() {
     const t = preview.currentTime;
+    const off = (state.source && state.source.offset) || 0;
+    const info = SS.playback ? SS.playback.timeInfo() : { edited: false, cur: t + off, dur: preview.duration, offset: off };
     const curTimeEl = $('curTime');
-    if (curTimeEl) curTimeEl.textContent = SS.fmtTime(t + ((state.source && state.source.offset) || 0));
-    const d = preview.duration;
+    if (curTimeEl && !seeking) curTimeEl.textContent = SS.fmtTime(info.cur);
+    const durEl = $('durTime');
+    if (durEl) durEl.textContent = SS.fmtTime(info.edited ? info.dur : (preview.duration || 0) + (info.offset || 0));
+    const mode = $('timeMode');
+    if (mode) {
+      const label = !state.words || !state.words.length ? '' : (info.edited ? '편집본' : '원본');
+      if (mode.textContent !== label) mode.textContent = label;
+      mode.classList.toggle('raw', !info.edited);
+      mode.title = info.edited ? '편집 결과 기준 시간 (지운 부분·잘라 낸 공백 제외)' : '원본 영상 기준 시간';
+    }
     const seekEl = $('seek');
-    if (!seeking && d > 0 && seekEl) seekEl.value = String(Math.round((t / d) * 1000));
+    const base = info.edited ? info.dur : preview.duration;
+    const pos = info.edited ? info.cur : t;
+    if (!seeking && base > 0 && seekEl) seekEl.value = String(Math.round((pos / base) * 1000));
     wave.setPlayhead(t, !preview.paused);
   }
+  SS.updateTimeUI = updateTimeUI;
 
   function updatePlayButton() {
     const btn = $('btnPlay');
     if (btn) btn.textContent = preview.paused ? '재생' : '일시정지';
   }
 
+  let lastIdleUI = 0;
   function loop() {
+    // 멈춰 있을 때도 가끔 고친다 (편집으로 길이가 바뀌면 전체 시간도 바뀜)
     if (!preview.paused) updateTimeUI();
+    else if (performance.now() - lastIdleUI > 300) { lastIdleUI = performance.now(); updateTimeUI(); }
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
@@ -113,8 +130,6 @@
       state.peaksReady = false;
 
       if (fnEl) { fnEl.textContent = basename(path); fnEl.title = path; }
-      const durEl = $('durTime');
-      if (durEl) durEl.textContent = SS.fmtTime(preview.duration);
       const playBtn = $('btnPlay'); if (playBtn) playBtn.disabled = false;
       const seekInp = $('seek'); if (seekInp) seekInp.disabled = false;
       wave.setData(null, 0.01, preview.duration);
@@ -200,7 +215,7 @@
 
   const seekEl = $('seek');
   if (seekEl) {
-    seekEl.addEventListener('input', () => { seeking = true; const t = (Number(seekEl.value) / 1000) * preview.duration; const ct = $('curTime'); if (ct) ct.textContent = SS.fmtTime(t); preview.seek(t); });
+    seekEl.addEventListener('input', () => { seeking = true; const f = Number(seekEl.value) / 1000; const t = SS.playback ? SS.playback.seekFraction(f) : f * preview.duration; const ct = $('curTime'); if (ct) { const info = SS.playback ? SS.playback.timeInfo() : null; ct.textContent = SS.fmtTime(info && info.edited ? f * info.dur : t + ((state.source && state.source.offset) || 0)); } preview.seek(t); });
     seekEl.addEventListener('change', () => { seeking = false; seekEl.blur(); updateTimeUI(); });
   }
 

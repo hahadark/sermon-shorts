@@ -72,18 +72,32 @@
     if (!p) return;
     try { await SS.openProjectFrom(p); } catch(e) { SS.toast('프로젝트 열기 실패: '+e.message,6000); }
   };
+  /** 설교자 목록 다시 채우기 (설정이 바뀌어도 지금 고른 설교자는 그대로). pick: 새로 고를 이름 */
+  SS.refreshSpeakerOptions = function(s, pick) {
+    const sel = $('selSpeaker'); if (!sel || !s) return;
+    const spks = (Array.isArray(s.speakers) ? s.speakers : s.template?.speakers) || [];
+    const had = sel.options.length > 0;
+    const cur = had ? (sel.value === '직접 입력' ? $('inpSpeaker').value : sel.value) : '';
+    const before = Array.from(sel.options).map(o => o.value).join('\n');
+    const next = [...spks, '직접 입력'];
+    const rebuilt = before !== next.join('\n');
+    if (rebuilt) {
+      sel.replaceChildren();
+      for (const text of next) { const opt=document.createElement('option');opt.value=text;opt.textContent=text;sel.appendChild(opt); }
+    }
+    if (pick) { showMeta({ title: $('inpTitle').value, verse: $('inpVerse').value, speaker: pick }); readMeta(); SS.updateTemplatePreview && SS.updateTemplatePreview(); }
+    else if (rebuilt && SS.state.meta) showMeta(SS.state.meta);
+    else if (rebuilt && had && cur) showMeta({ speaker: cur, title: $('inpTitle').value, verse: $('inpVerse').value });
+  };
   SS.initProjectUI = function() {
     $('btnSave').addEventListener('click', SS.saveProject);
     $('btnOpenProject').addEventListener('click', SS.loadProject);
     window.api.getSettings().then(s => {
       SS.appSettings = s;
-      const spks = s.template?.speakers || s.speakers || [];
-      const sel = $('selSpeaker'); sel.replaceChildren();
-      for (const text of [...spks,'직접 입력']) { const opt=document.createElement('option');opt.value=text;opt.textContent=text;sel.appendChild(opt); }
-      if (SS.state.meta) showMeta(SS.state.meta);
+      SS.refreshSpeakerOptions(s);
     });
     const update = () => { readMeta(); SS.updateTemplatePreview(); };
-    $('selSpeaker').addEventListener('change', () => { $('inpSpeaker').style.display=$('selSpeaker').value==='직접 입력'?'':'none';update(); });
+    $('selSpeaker').addEventListener('change', () => { $('inpSpeaker').style.display=$('selSpeaker').value==='직접 입력'?'':'none';update(); if (SS.syncSpeakerButton) SS.syncSpeakerButton(); });
     for (const id of ['inpTitle','inpVerse','inpSpeaker']) $(id).addEventListener('input', update);
     $('btnSaveTemplate').addEventListener('click', update);
   };

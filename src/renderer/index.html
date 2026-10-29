@@ -100,11 +100,12 @@
         <div class="transport-row">
           <button id="btnPlay" class="btn play ico i-play" disabled>재생</button>
           <div class="timecode"><span id="curTime">00:00.000</span> <span class="sep">/</span> <span id="durTime">00:00.000</span></div>
+          <span id="timeMode" class="time-mode"></span>
         </div>
         <input id="seek" type="range" min="0" max="1000" step="1" value="0" disabled aria-label="재생 위치">
       </div>
       <section id="templatePanel" class="design-card" aria-label="디자인">
-        <div class="card-head"><span class="ico i-palette" aria-hidden="true"></span>디자인</div>
+        <div class="card-head"><span class="ico i-palette" aria-hidden="true"></span>디자인<button id="btnChurchMore" class="btn sm ghost icon-only ico i-settings card-head-btn" type="button" title="교회 정보 자세히 (설교자 목록·자주 쓰는 말)" aria-label="교회 정보 자세히"></button></div>
         <div class="field">
           <label for="selTheme">테마</label>
           <div class="field-inline"><select id="selTheme"></select><button id="btnEditTheme" class="btn sm ico i-pencil" title="테마 편집기 열기">편집</button></div>
@@ -119,7 +120,11 @@
         </div>
         <div class="field">
           <label for="selSpeaker">설교자</label>
-          <div class="field-inline"><select id="selSpeaker"></select><input type="text" id="inpSpeaker" placeholder="직접 입력" style="display:none;"></div>
+          <div class="field-inline"><select id="selSpeaker"></select><input type="text" id="inpSpeaker" placeholder="직접 입력" style="display:none;"><button id="btnSaveSpeaker" class="btn sm icon-only ico i-plus" type="button" title="이 설교자를 목록에 저장" aria-label="설교자 목록에 저장" hidden></button></div>
+        </div>
+        <div class="field">
+          <label for="inpChurch">교회</label>
+          <div class="field-inline"><button id="btnChurchLogo" class="logo-btn" type="button" title="로고 이미지 바꾸기" aria-label="로고 이미지 바꾸기"><img id="imgChurchLogo" alt=""></button><input type="text" id="inpChurch" maxlength="60" placeholder="교회 이름" title="고치면 바로 미리보기에 반영되고 설정에도 저장됩니다"><button id="btnChurchShow" class="btn sm icon-only ico i-eye-off" type="button" aria-pressed="false" title="쇼츠에 교회 이름·로고 보이기" aria-label="쇼츠에 교회 이름·로고 보이기"></button></div>
         </div>
         <button id="btnSaveTemplate" class="btn" hidden>템플릿 저장 (미리보기 반영)</button>
       </section>
@@ -150,16 +155,19 @@
   <script src="exporter.js"></script>
   <script src="import.js"></script>
   <script src="settings-ui.js"></script>
+  <script src="church-ui.js"></script>
   <script src="syscheck-ui.js"></script>
   <script src="ai-ui.js"></script>
   <script src="../shared/caret.js"></script>
   <script src="../shared/caption-edit.js"></script>
   <script src="caption-blocks.js"></script>
   <script src="editor.js"></script>
+  <script src="playback.js"></script>
   <script src="keymap.js"></script>
   <script src="project-validation.js"></script>
   <script src="guide-capture.js"></script>
   <script src="theme-check.js"></script>
+  <script src="batch-check.js"></script>
   <script src="app.js"></script>
   <script src="theme-editor.js"></script>
   <script src="../shared/chat-plan.js"></script>

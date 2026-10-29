@@ -224,7 +224,7 @@
       body.innerHTML = html; modal.classList.remove('hidden');
     }
     keymap.setHandler('play_toggle', function() { preview.toggle(); });
-    keymap.setHandler('play_raw', function() { SS.setEditedPlayMode(false); preview.toggle(); });
+    keymap.setHandler('play_raw', function() { if (SS.playback) SS.playback.toggleRaw(); else preview.toggle(); });
     keymap.setHandler('stop', function() { preview.pause(); });
     keymap.setHandler('seek_backward_2s', function(e) { preview.seek(preview.currentTime - (e.shiftKey ? 5 : 2)); });
     keymap.setHandler('seek_forward_2s', function(e) { preview.seek(preview.currentTime + (e.shiftKey ? 5 : 2)); });
