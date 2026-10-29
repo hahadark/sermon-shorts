@@ -60,6 +60,14 @@ async function complete(provider, { system, messages, onDelta }) {
 let session = null;
 
 async function loadVideo(url) {
+  // 같은 영상을 다시 불러오면 앞의 대화(AI 기억·편집 계획)를 이어간다 ([새로]를 눌러도 잊지 않게)
+  if (session && session.url === url && Array.isArray(session.words) && session.words.length) {
+    return {
+      url, title: session.info.title || '', duration: session.info.duration || 0, resumed: true,
+      hasPlan: !!(session.plan && session.plan.ranges && session.plan.ranges.length),
+      words: session.words.map((w) => ({ text: w.text, start: w.start, end: w.end })),
+    };
+  }
   const subs = await youtube.fetchAutoSubs(url, { raw: true });
   if (!subs || !subs.raw) throw new Error('이 영상에서 한국어 자막을 찾지 못했습니다. 올린 직후라면 몇 시간 뒤 다시 해 주세요. (영상은 공개 또는 일부공개여야 합니다)');
   const { words, lines } = chatPlan.wordsFromJson3(subs.raw);

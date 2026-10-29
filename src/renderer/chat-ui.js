@@ -12,6 +12,7 @@
   let busy = false;
   let lastFetch = null;        // { url, path, map:[{src0,src1,file0}] }
   let lastRanges = null;       // 마지막으로 편집기에 반영한 구간 (같으면 다시 반영하지 않음)
+  let lastVideo = null;        // [새로] 전에 보던 영상 (같은 영상을 다시 불러오면 이어서)
   let stub = null;             // 테스트 훅에서만: { send, fetchClips }
   const chatSendImpl = (t) => (stub && stub.send ? stub.send(t) : api.chatSend(t));
   const fetchClipsImpl = (u, s) => (stub && stub.fetchClips ? stub.fetchClips(u, s) : api.chatFetchClips(u, s));
@@ -88,6 +89,11 @@
 .cand-text{margin-top:4px;line-height:1.5;color:#c9ced4}
 .cand-act{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .msg.sys .cq-btn{margin-top:6px}
+.chat-divider{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11.5px;margin:6px 0}
+.chat-divider::before,.chat-divider::after{content:'';flex:1;border-top:1px dashed var(--border)}
+.chat-divider .cq-btn{font-size:11.5px;padding:2px 8px}
+.chat-body .stale{opacity:.45;cursor:default;pointer-events:none}
+.chat-start.compact p{display:none}
 .chat-compose{border-top:1px solid var(--border);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
 .chat-compose textarea{resize:none;height:64px}
 .chat-actions{display:flex;gap:6px;justify-content:space-between}
@@ -118,7 +124,8 @@
     col.innerHTML = `
       <div class="chat-head">
         <div class="grow"><b>AI 편집 대화</b><span id="chatProvider" class="chat-chip warn">AI 연결 필요</span></div>
-        <button id="chatNew" class="btn sm" title="다른 영상으로 새로 시작">새로</button>
+        <button id="chatNew" class="btn sm" title="다른 영상으로 새로 시작 (지금 대화와 편집은 위에 남고, 편집은 자동 저장됩니다)">새로</button>
+        <button id="chatClear" class="btn sm" title="대화 기록 지우기">기록 지우기</button>
       </div>
       <div id="chatBody" class="chat-body"></div>
       <div id="chatQuick" class="chat-quick" style="display:none"></div>
@@ -132,6 +139,9 @@
     ws.appendChild(col);
     $('chatProvider').addEventListener('click', openConnect);
     $('chatNew').addEventListener('click', resetChat);
+    $('chatClear').addEventListener('click', clearLog);
+    // 기록 안의 [이 편집 다시 열기] (다시 켜도 동작하도록 위임)
+    $('chatBody').addEventListener('click', (e) => { const b = e.target.closest('[data-reopen]'); if (b) { e.preventDefault(); reopenEdit(b.dataset.reopen); } });
     $('chatSend').addEventListener('click', () => send());
     $('chatExport').addEventListener('click', () => { const b = $('btnExport'); if (b && !b.disabled) b.click(); else SS.toast && SS.toast('먼저 편집을 만들어 주세요'); });
     $('chatText').addEventListener('keydown', (e) => {
@@ -152,11 +162,13 @@
     return el;
   }
 
-  function showStart() {
+  function showStart(keep) {
     const body = $('chatBody');
-    body.innerHTML = '';
+    if (!keep) body.innerHTML = '';
+    body.querySelectorAll('.chat-start').forEach((x) => x.remove());
     const box = document.createElement('div');
-    box.className = 'chat-start';
+    // 기록이 있으면 설명 없이 주소 칸만
+    box.className = 'chat-start' + (body.querySelector('.msg, .chat-divider') ? ' compact' : '');
     box.innerHTML = `
       <p><b>1.</b> 오른쪽 위 <b>AI 연결</b>에서 챗GPT·클로드·제미나이·오픈라우터 중 하나를 연결합니다. (처음 한 번)</p>
       <p><b>2.</b> 유튜브에 올린 <b>설교 영상 주소</b>를 넣고 [불러오기]를 누릅니다.</p>
@@ -168,21 +180,105 @@
     inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') loadVideo(); });
     inp.addEventListener('keyup', (e) => e.stopPropagation());
     $('chatLoad').addEventListener('click', loadVideo);
+    if (keep && lastVideo && lastVideo.url) { inp.value = lastVideo.url; inp.addEventListener('focus', () => inp.select(), { once: true }); }
     $('chatQuick').style.display = 'none';
     setCompose(false);
+    body.scrollTop = body.scrollHeight;
   }
 
   function setCompose(on) {
     $('chatText').disabled = !on || busy;
     $('chatSend').disabled = !on || busy;
-    document.querySelectorAll('#chatQuick button, #chatBody .cand-act button, #chatBody .msg.sys .cq-btn').forEach((b) => { if (!b.classList.contains('cq-fold') && !b.dataset.yt) b.disabled = busy; });
+    document.querySelectorAll('#chatQuick button, #chatBody .cand-act button, #chatBody .msg.sys .cq-btn').forEach((b) => { if (!b.classList.contains('cq-fold') && !b.classList.contains('stale') && !b.dataset.yt) b.disabled = busy; });
   }
 
+  /**
+   * [새로]: 지금 대화는 지우지 않고 위에 남긴다. 편집은 자동 저장하고 [이 편집 다시 열기]를 둔다.
+   * 같은 영상을 다시 불러오면 AI 가 앞의 대화를 기억한 채 이어서 편집한다.
+   */
   async function resetChat() {
     if (busy) return;
-    await api.chatReset();
-    video = null; lastRanges = null;
-    showStart();
+    const title = video ? ((SS.state && SS.state.meta && SS.state.meta.title) || video.title || '설교 영상') : '';
+    let saved = null;
+    if (video && video.edited) { try { saved = await autosaveEdit(); } catch (e) { console.warn('편집 자동 저장 실패', e); } }
+    if (video) lastVideo = video;
+    video = null;
+    const body = $('chatBody');
+    body.querySelectorAll('.chat-start').forEach((x) => x.remove());
+    archive(body);
+    if (title) addDivider(`여기까지 「${title.replace(/\s*\/\s*/g, ' ')}」`, saved);
+    showStart(true);
+  }
+
+  // ---------------- 대화 기록: [새로]를 눌러도, 프로그램을 다시 켜도 남긴다 ----------------
+  const LOG_KEY = 'ss.chatLog.v1';
+  const LOG_MAX = 400000; // 글자 수. 넘으면 오래된 것부터 버린다
+  let logTimer = 0;
+  function saveLog() {
+    clearTimeout(logTimer);
+    logTimer = setTimeout(() => {
+      const body = $('chatBody');
+      if (!body) return;
+      const clone = body.cloneNode(true);
+      clone.querySelectorAll('.chat-start').forEach((x) => x.remove());
+      clone.querySelectorAll('[id]').forEach((x) => x.removeAttribute('id'));
+      clone.querySelectorAll('.msg i').forEach((x) => { if (/생각하는 중|답을 쓰는 중/.test(x.textContent)) x.closest('.msg').remove(); });
+      let html = clone.innerHTML;
+      while (html.length > LOG_MAX && clone.firstElementChild) { clone.firstElementChild.remove(); html = clone.innerHTML; }
+      try { if (html.trim()) localStorage.setItem(LOG_KEY, html); else localStorage.removeItem(LOG_KEY); } catch (e) { /* 저장 공간이 없으면 이번엔 건너뜀 */ }
+    }, 500);
+  }
+  /** 지난 대화의 버튼은 눌러도 안 되게 ([이 편집 다시 열기]만 남김) */
+  function archive(root) {
+    root.querySelectorAll('button, a, input').forEach((b) => {
+      if (b.closest('.chat-start') || b.dataset.reopen) return;
+      b.classList.add('stale'); b.disabled = true; b.setAttribute('tabindex', '-1');
+    });
+  }
+  function addDivider(text, savedPath) {
+    const el = document.createElement('div');
+    el.className = 'chat-divider';
+    el.innerHTML = `<span>${esc(text)}</span>` + (savedPath ? `<button class="cq-btn act" data-reopen="${esc(savedPath)}" title="자동 저장한 편집을 편집기에 다시 엽니다">이 편집 다시 열기</button>` : '');
+    $('chatBody').appendChild(el);
+    return el;
+  }
+  function restoreLog() {
+    let html = '';
+    try { html = localStorage.getItem(LOG_KEY) || ''; } catch (e) { html = ''; }
+    if (!html.trim()) return false;
+    const body = $('chatBody');
+    body.innerHTML = html;
+    archive(body);
+    addDivider('지난 기록');
+    return true;
+  }
+  function clearLog() {
+    if (busy) return;
+    if (!confirm('AI 편집 대화 기록을 모두 지울까요?\n(편집기에 열린 영상과 자동 저장한 편집 파일은 그대로 둡니다)')) return;
+    try { localStorage.removeItem(LOG_KEY); } catch (e) { /* */ }
+    $('chatBody').innerHTML = '';
+    if (video) addMsg('sys', '대화 기록을 지웠습니다. 지금 영상은 계속 편집할 수 있습니다.');
+    else showStart(false);
+  }
+  /** 지금 편집을 cache/chat_history 에 프로젝트로 자동 저장 (알림 없이) */
+  async function autosaveEdit() {
+    const st = SS.state;
+    if (!st || !st.source || !st.words || !st.words.some((w) => !w.del) || !SS.project) return null;
+    if (SS.flushCaptionEdit) SS.flushCaptionEdit();
+    const launch = await api.getLaunchInfo();
+    const dir = (launch.cache || launch.root + '/cache') + '/chat_history';
+    await api.mkdir(dir);
+    const d = new Date(), two = (n) => String(n).padStart(2, '0');
+    const stamp = `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`;
+    const name = String((st.meta && st.meta.title) || (video && video.title) || '편집').replace(/\s*\/\s*/g, ' ').replace(/[\\/:*?"<>|*]/g, '').replace(/\s+/g, ' ').trim().slice(0, 40) || '편집';
+    const p = `${dir}/${stamp} ${name}.sshorts`;
+    await api.writeText(p, JSON.stringify(SS.project.snapshot(st, SS.preview ? SS.preview.currentTime : 0)));
+    return p;
+  }
+  async function reopenEdit(p) {
+    if (busy || !p) return;
+    try { await SS.openProjectFrom(p); }
+    catch (e) { SS.toast && SS.toast('다시 열기 실패: ' + cleanErr(e) + ' (원본 영상 캐시를 지웠다면 영상을 다시 받아야 합니다)', 8000); }
   }
 
   // ---------------- 버튼: 편집 조건(길이·다듬기) + 바로 하기 ----------------
@@ -255,9 +351,18 @@
     if (!/youtu\.?be/.test(url)) { SS.toast && SS.toast('유튜브 주소가 아닌 것 같습니다'); return; }
     const btn = $('chatLoad'); btn.disabled = true; btn.textContent = '자막 불러오는 중…';
     try {
-      video = await api.chatLoad(url);
-      video.edited = false; lastRanges = null;
-      $('chatBody').innerHTML = '';
+      const prev = lastVideo;
+      video = await (stub && stub.load ? stub.load(url) : api.chatLoad(url));
+      // 같은 영상을 다시 불러오면 앞의 대화·편집을 이어간다
+      const resumed = !!(video.resumed && prev && prev.url === url);
+      video.edited = resumed ? !!(prev.edited || video.hasPlan) : false;
+      if (!resumed) lastRanges = null;
+      $('chatBody').querySelectorAll('.chat-start').forEach((x) => x.remove());
+      if (resumed) {
+        addMsg('sys', esc(`「${video.title || '설교 영상'}」 이어서 편집합니다. AI 가 앞의 대화를 기억합니다.`));
+        renderQuick(); setCompose(true); $('chatText').focus();
+        return;
+      }
       addMsg('sys', esc(`「${video.title || '설교 영상'}」 자막 ${video.words.length.toLocaleString()}단어를 불러왔습니다.`));
       addMsg('ai', '어떤 쇼츠를 만들까요? 아래 버튼으로 길이와 다듬기 조건을 고른 뒤 [구간 3곳 추천받기]를 누르거나, 원하는 내용을 말씀해 주세요.\n예: "결론 부분으로", "기도에 대한 부분으로"');
       renderQuick();
@@ -755,6 +860,82 @@
     }
   });
 
+  // ---------- 테스트 훅: SS_TEST_SCRIPT=chathistory ([새로]를 눌러도 기록·편집이 남는지, 같은 영상 이어서, 다시 켜도 기록) ----------
+  window.addEventListener('ss:run-test-script', async (e) => {
+    if (e.detail !== 'chathistory') return;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const waitFor = async (fn, ms, what) => { const t0 = Date.now(); while (!fn()) { if (Date.now() - t0 > ms) throw new Error('timeout: ' + what); await sleep(200); } };
+    const report = { checks: [] };
+    const check = (name, ok, extra) => { report.checks.push({ name, ok: !!ok, extra }); console.log('[chathistory] ' + (ok ? 'OK ' : 'NG ') + name + (extra ? ' ' + JSON.stringify(extra) : '')); if (!ok) throw new Error(name); };
+    try {
+      const launch = await api.getLaunchInfo();
+      await api.mkdir(launch.cache + '/chat_history_test');
+      const j3 = await api.readJson(launch.cache + '/yt/uSE5pZB3gtQ/uSE5pZB3gtQ.ko.json3');
+      const side = await api.readJson(launch.cache + '/yt/uSE5pZB3gtQ/part_4955_5100.json');
+      const words = CP().wordsFromJson3(j3).words;
+      const i0 = words.findIndex((w) => w.start >= side.start + 1);
+      const URL1 = 'https://www.youtube.com/live/uSE5pZB3gtQ';
+      let resumeNext = false;
+      const ranges = [{ from: i0, to: i0 + 20 }, { from: i0 + 24, to: i0 + 60 }];
+      stub = {
+        status: { active: 'claude', claude: { loggedIn: true } },
+        load: async (url) => ({ url, title: '테스트 설교', duration: 6000, resumed: resumeNext, hasPlan: resumeNext, words: words.map((w) => ({ text: w.text, start: w.start, end: w.end })) }),
+        send: async () => { await sleep(200); return { reply: '만들었습니다.', title: '기록 시험', verse: '마태복음 6:13', tighten: 'normal', ranges, corrections: [], warnings: [], candidates: [], questions: [], durationSec: CP().rangesDuration(ranges, words) }; },
+        fetchClips: async () => ({ path: launch.cache + '/yt/uSE5pZB3gtQ/part_4955_5100.mp4', duration: side.end - side.offset + 1, map: [{ src0: side.offset, src1: side.end + 0.9, file0: 0 }] }),
+      };
+      status = stub.status;
+      prefs = Object.assign({}, DEFAULT_PREFS);
+      try { localStorage.removeItem(LOG_KEY); } catch (_) { /* */ }
+      showStart(false);
+      $('chatUrl').value = URL1; $('chatLoad').click();
+      await waitFor(() => video && !busy && !$('chatText').disabled, 20000, 'load');
+      document.querySelector('#chatQuick [data-act="make"]').click();
+      await waitFor(() => !busy && /편집기에 반영했습니다/.test($('chatBody').textContent), 120000, 'make');
+      const n1 = $('chatBody').querySelectorAll('.msg').length;
+      check('편집 만듦', video.edited && n1 >= 4, { n1 });
+      // [새로]
+      $('chatNew').click();
+      await waitFor(() => !!document.querySelector('#chatBody .chat-start'), 10000, 'new');
+      const body = $('chatBody');
+      check('새로 눌러도 대화가 남음', body.querySelectorAll('.msg').length === n1, { n: body.querySelectorAll('.msg').length });
+      const reopen = body.querySelector('[data-reopen]');
+      check('이 편집 다시 열기 버튼', reopen && /chat_history\/.+\.sshorts$/.test(reopen.dataset.reopen), { path: reopen && reopen.dataset.reopen });
+      const saved = await api.readJson(reopen.dataset.reopen);
+      check('편집 자동 저장', saved && Array.isArray(saved.words) && saved.words.length > 10 && saved.meta && saved.meta.title === '기록 시험', { words: saved && saved.words && saved.words.length });
+      check('지난 버튼은 잠김', Array.from(body.querySelectorAll('.msg button')).every((b) => b.disabled));
+      check('주소 칸에 같은 영상', $('chatUrl').value === URL1);
+      await SS.testShot('cache/chat_history_test/1_after_new.png');
+      // 같은 영상 이어서
+      resumeNext = true;
+      $('chatLoad').click();
+      await waitFor(() => video && !busy && /이어서 편집합니다/.test($('chatBody').textContent), 20000, 'resume');
+      check('같은 영상은 이어서', video.edited && !!document.querySelector('#chatQuick [data-act="gaps-now"]'));
+      // 다시 켜도 기록: 저장된 기록을 되살려 본다
+      await sleep(900);
+      const stored = localStorage.getItem(LOG_KEY) || '';
+      check('기록이 저장됨', stored.includes('편집기에 반영했습니다') && stored.includes('data-reopen'), { len: stored.length });
+      const keepVideo = video; video = null;
+      body.innerHTML = '';
+      check('다시 켜면 기록 복원', restoreLog() && body.querySelectorAll('.msg').length >= n1);
+      showStart(true);
+      // 지난 기록의 [이 편집 다시 열기]
+      SS.state.meta = { title: '다른 제목' };
+      body.querySelector('[data-reopen]').click();
+      await waitFor(() => SS.state.meta && SS.state.meta.title === '기록 시험', 30000, 'reopen');
+      check('편집 다시 열림', SS.state.words.length === saved.words.length);
+      video = keepVideo;
+      await sleep(800);
+      await SS.testShot('cache/chat_history_test/2_restored.png');
+      await api.writeText(launch.cache + '/chat_history_test/report.json', JSON.stringify(report, null, 2));
+      stub = null;
+      api.notifyTestReady({ ok: true, checks: report.checks.length });
+    } catch (err) {
+      console.error(err);
+      try { const l = await api.getLaunchInfo(); await api.writeText(l.cache + '/chat_history_test/report.json', JSON.stringify(Object.assign(report, { error: String(err && err.stack || err) }), null, 2)); } catch (_) { /* */ }
+      api.notifyTestError(err && err.stack || err);
+    }
+  });
+
   // ---------- 테스트 훅: SS_TEST_SCRIPT=chatreal (실제 AI·실제 유튜브: 구간 3곳 추천 → 1번 후보로 만들기) ----------
   window.addEventListener('ss:run-test-script', async (e) => {
     if (e.detail !== 'chatreal') return;
@@ -800,6 +981,9 @@
   function init() {
     injectStyles();
     buildPanel();
+    // 지난 대화 기록을 되살리고, 이후 바뀌면 저장한다
+    if (restoreLog()) showStart(true);
+    new MutationObserver(saveLog).observe($('chatBody'), { childList: true, subtree: true, characterData: true });
     refreshStatus();
     const tb = document.querySelector('#topbar .toolbar');
     if (tb && !$('btnAiConnect')) {
