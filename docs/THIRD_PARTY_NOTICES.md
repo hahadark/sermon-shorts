@@ -1,5 +1,14 @@
 # Third-party software in the Windows beta
 
+## 배경음악 (앱에 포함하지 않음)
+
+배경음악 추천 목록(`src/shared/bgm-catalog.js`)에는 곡 이름·출처·라이선스와 원래 주소만 들어 있고 음악 파일은 설치 파일에 없습니다. 사용자가 들을 때 원래 사이트에서 스트리밍하고, 영상을 내보낼 때만 사용자 캐시에 받아 섞습니다.
+
+- Kevin MacLeod (incompetech.com) — Creative Commons Attribution 4.0. 영상 설명에 곡별 출처 문구를 적어야 합니다.
+- United States Air Force Band / U.S. Marine Band 녹음 (Wikimedia Commons) — 미국 연방 정부 저작물, 퍼블릭 도메인.
+- "Clair de lune" (Debussy), 연주 Laurens Goedhart (Wikimedia Commons) — Creative Commons Attribution 3.0.
+
+
 The application code is not granted an open-source license by this document. The repository is public for viewing only.
 
 - **Electron**: MIT. The distribution includes Electron's LICENSE and Chromium third-party notices. Source: https://github.com/electron/electron

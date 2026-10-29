@@ -31,6 +31,15 @@ window.addEventListener('ss:run-test-script',async e=>{
      await SS.openYoutubeImport();await wait(200);await shot('08-youtube');document.getElementById('yt-cancel')?.click();
      document.getElementById('btnAiRecommend').click();await wait(300);await shot('09-ai-options');document.querySelectorAll('.modal-overlay').forEach(el=>el.remove());
      await SS.openSysCheck();await wait(300);await shot('10-system-check');close();
+     // 배경음악 (설명서 그림): 목록 → 곡 넣기(파형) · 교인 자료 스튜디오 (예제 자료, AI 안 부름)
+     document.getElementById('tabMusic').click();SS.bgmUi.openLib();await wait(500);await shot('15-bgm-library');SS.bgmUi.closeLib();
+     SS.useBgm('meditation-impromptu-01');const tw=Date.now();while(!document.getElementById('bgmWaveMsg').hidden&&Date.now()-tw<40000)await wait(300);
+     SS.state.bgm.trackStart=12;SS.state.bgm.trackEnd=40;SS.state.bgm.align='end';SS.bgmUi.render();SS.bgmUi.drawWave();await wait(300);await shot('16-bgm-panel');
+     SS.state.bgm=null;document.getElementById('tabDesign').click();
+     await SS.openMaterials();await wait(500);await shot('17-materials');
+     const ex={title:'은혜로 사는 사람',verse:'고린도후서 12:9',summary:'하나님의 은혜는 우리의 약함 속에서 온전해집니다. 약함을 숨기지 않고 은혜를 의지할 때 믿음으로 살아갑니다.',icebreaker:'요즘 나를 가장 지치게 하는 일은 무엇인가요?',questions:[{q:'설교에서 은혜가 충분하다는 말은 어떤 뜻이었나요?',note:'약함 속에서 온전해지는 능력'},{q:'나의 약함을 하나님 앞에 내어놓기 어려운 까닭은 무엇일까요?',note:''},{q:'이번 주 믿음으로 살아가기 위해 붙들 한 문장을 나눠 봅시다.',note:''}],action:'날마다 감사 한 가지를 적고 함께 나누기',prayer:'주님, 우리의 약함 속에 주님의 은혜가 충분함을 믿고 살게 하소서.'};
+     const ms=SS._materialsTest.store();ms.results={smallgroup:{data:SS.materials.normalize('smallgroup',ex),options:ms.options,meta:{church:'우리 교회',title:'설교 쇼츠 예제',verse:'고린도후서 12:9',speaker:'홍길동 목사',date:'2026년 10월 25일'},made:new Date().toISOString(),provider:'예제'}};
+     SS._materialsTest.show('results');await wait(400);await shot('18-materials-doc');SS.closeMaterials();SS.state.materials=null;
    }
    SS.toast('오프라인 실행·자막 편집·MP4/SRT 출력 확인 완료');report.success=true;
  }catch(err){report.success=false;report.error=err.stack||err.message;}

@@ -184,7 +184,7 @@
     if (!m) {
       m = document.createElement('div'); m.id = 'bgmLib'; m.className = 'modal-overlay bgm-lib';
       m.innerHTML = `<div class="modal-dialog bgm-dialog" role="dialog" aria-label="배경음악 고르기">
-        <div class="bgm-lib-head"><div><h3>배경음악 고르기</h3><p>설교 쇼츠에 많이 쓰는 분위기로 골랐습니다. <b>퍼블릭 도메인·CC0·CC BY</b>처럼 저작권이 공개된 곡만 넣었고, 음악은 앱에 들어 있지 않아 원래 사이트에서 바로 재생합니다.</p></div>
+        <div class="bgm-lib-head"><div><h3>배경음악 고르기</h3><p>설교 쇼츠에 많이 쓰는 분위기로 골랐습니다. <b>퍼블릭 도메인과 CC BY</b>처럼 저작권이 공개된 곡만 넣었고, 음악은 앱에 들어 있지 않아 원래 사이트에서 바로 재생합니다.</p></div>
         <button class="btn ghost icon-only ico i-x" data-close title="닫기"></button></div>
         <div class="bgm-moods" id="bgmMoods"></div>
         <div class="bgm-list" id="bgmList"></div>
