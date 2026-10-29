@@ -26,6 +26,7 @@
     { key: 'verse', label: '성경 구절' },
     { key: 'video', label: '영상' },
     { key: 'subtitle', label: '자막' },
+    { key: 'badge', label: '이름표' },
     { key: 'churchName', label: '교회 이름' },
     { key: 'speaker', label: '설교자' },
     { key: 'logo', label: '로고' }
@@ -183,43 +184,119 @@
     updateSelectionOutline();
   }
 
+  // 고르기 목록: [값, 보이는 이름]
+  const ALIGN_OPTS = [['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']];
+  const MODE_OPTS = [['solid', '단색'], ['gradient', '그라데이션'], ['blur', '흐린 영상']];
+  const ANCHOR_OPTS = [['center', '가운데 기준'], ['top', '위 기준 (아래로 늘어남)'], ['bottom', '아래 기준 (위로 늘어남)']];
+  const KARAOKE_OPTS = [['none', '끄기'], ['current', '말하는 단어만'], ['progressive', '읽은 단어까지']];
+  const BOXMODE_OPTS = [['line', '줄마다'], ['block', '한 덩어리']];
+  const TEXT_KEYS = ['title', 'verse', 'subtitle'];
+
+  function addHint(text) {
+    const row = document.createElement('div');
+    row.className = 'te-prop-hint';
+    row.style.cssText = 'font-size:11px;color:#9aa;line-height:1.4;margin:2px 0 8px;';
+    row.textContent = text;
+    document.getElementById('teProps').appendChild(row);
+  }
+
+  function renderCanvasProps(c) {
+    const again = () => renderProps();
+    addPropSelect('배경 방식', 'mode', c.mode || 'solid', MODE_OPTS, (v) => { c.mode = v; again(); });
+    const mode = c.mode || 'solid';
+    if (mode === 'solid') addPropColor('배경색', 'background', c.background, (v) => c.background = v);
+    if (mode === 'gradient') {
+      c.gradient = c.gradient || { from: '#1B2A4A', to: '#05070C', angle: 180 };
+      addPropColor('시작 색', 'gradFrom', c.gradient.from, (v) => c.gradient.from = v);
+      addPropColor('끝 색', 'gradTo', c.gradient.to, (v) => c.gradient.to = v);
+      addPropNum('방향 (도)', 'gradAngle', c.gradient.angle != null ? c.gradient.angle : 180, (v) => c.gradient.angle = v, 15);
+      addHint('180도 = 위에서 아래로, 90도 = 왼쪽에서 오른쪽으로');
+    }
+    if (mode === 'blur') {
+      c.blur = c.blur || { amount: 30, dim: 0.55, tint: null };
+      addPropNum('흐림 정도', 'blurAmount', c.blur.amount != null ? c.blur.amount : 30, (v) => c.blur.amount = Math.max(0, Math.min(120, v || 0)), 5);
+      addPropNum('어둡게 (0~0.9)', 'blurDim', c.blur.dim != null ? c.blur.dim : 0.55, (v) => c.blur.dim = Math.max(0, Math.min(0.9, v || 0)), 0.05);
+      addPropCheck('색 덮기', 'hasTint', !!c.blur.tint, (v) => { c.blur.tint = v ? (c.blur.tint || '#1B2A4A66') : null; again(); });
+      if (c.blur.tint) addPropColor('덮는 색', 'tint', c.blur.tint, (v) => c.blur.tint = v);
+      addHint('영상 화면을 크게 키워 흐리게 깐 배경입니다. 영상을 열면 실제 화면으로 보입니다.');
+    }
+  }
+
+  function renderTextExtras(el) {
+    const again = () => renderProps();
+    addPropNum('최대 줄 수', 'maxLines', el.maxLines || 1, (v) => el.maxLines = Math.max(1, Math.min(4, Math.round(v || 1))));
+    addPropNum('줄 간격', 'lineGap', el.lineGap || 1.2, (v) => el.lineGap = v, 0.05);
+    addPropSelect('여러 줄일 때', 'anchor', el.anchor || 'center', ANCHOR_OPTS, (v) => el.anchor = v);
+    addPropCheck('기울임', 'italic', !!el.italic, (v) => el.italic = v);
+    addPropCheck('영문 대문자로', 'upper', el.transform === 'uppercase', (v) => el.transform = v ? 'uppercase' : null);
+    addPropCheck('줄마다 다른 색', 'hasLineColors', Array.isArray(el.lineColors), (v) => {
+      el.lineColors = v ? [el.color || '#FFFFFF', '#FFFFFF'] : null;
+      again();
+    });
+    if (Array.isArray(el.lineColors)) {
+      addPropColor('첫 줄 색', 'lineColor0', el.lineColors[0] || el.color, (v) => el.lineColors[0] = v);
+      addPropColor('둘째 줄 색', 'lineColor1', el.lineColors[1] || el.color, (v) => el.lineColors[1] = v);
+    }
+    addPropCheck('*강조* 색', 'hasHl', !!el.highlightColor, (v) => { el.highlightColor = v ? (el.highlightColor || '#FFE14D') : null; again(); });
+    if (el.highlightColor) {
+      addPropColor('강조 색', 'highlightColor', el.highlightColor, (v) => el.highlightColor = v);
+      addHint('강조할 말을 *별표*로 감싸세요. 예: 나라와 *권세와* 영광이');
+    }
+    addPropCheck('글자 상자', 'hasBox', !!el.box, (v) => {
+      el.box = v ? (el.box || { color: '#000000AA', radius: 8, padding: 12, mode: 'line' }) : null;
+      again();
+    });
+    if (el.box) {
+      addPropSelect('상자 모양', 'boxMode', el.box.mode || 'line', BOXMODE_OPTS, (v) => el.box.mode = v);
+      addPropColor('상자 색', 'boxColor', el.box.color, (v) => el.box.color = v);
+      addPropNum('상자 모서리', 'boxRadius', el.box.radius || 0, (v) => el.box.radius = v);
+      addPropNum('상자 여백', 'boxPadding', el.box.padding != null ? el.box.padding : 10, (v) => { el.box.padding = v; delete el.box.padX; delete el.box.padY; });
+    }
+    addPropCheck('가로 띠', 'hasBand', !!el.band, (v) => {
+      el.band = v ? (el.band || { color: '#000000', paddingY: 10 }) : null;
+      again();
+    });
+    if (el.band) {
+      addPropColor('띠 색', 'bandColor', el.band.color, (v) => el.band.color = v);
+      addPropNum('띠 여백', 'bandPadding', el.band.paddingY != null ? el.band.paddingY : 10, (v) => el.band.paddingY = v);
+    }
+  }
+
   function renderProps() {
     const props = document.getElementById('teProps');
     props.innerHTML = '';
     if (!selectedElKey) return;
-    
+
     const theme = currentTheme;
     const el = theme[selectedElKey];
-    
-    if (selectedElKey === 'canvas') {
-      addPropColor('배경색', 'background', theme.canvas.background, (v) => theme.canvas.background = v);
-      return;
-    }
+    const again = () => renderProps();
+
+    if (selectedElKey === 'canvas') { renderCanvasProps(theme.canvas); return; }
 
     addPropCheck('표시', 'show', el.show, (v) => el.show = v);
-    
+
     if (el.x !== undefined) addPropNum('X', 'x', el.x, (v) => el.x = v);
     if (el.y !== undefined) addPropNum('Y', 'y', el.y, (v) => el.y = v);
     if (el.width !== undefined) addPropNum('너비', 'width', el.width, (v) => el.width = v);
     if (el.height !== undefined) addPropNum('높이', 'height', el.height, (v) => el.height = v);
-    
-    if (el.align !== undefined) addPropSelect('정렬', 'align', el.align, ['left', 'center', 'right'], (v) => el.align = v);
-    
+
+    if (el.align !== undefined) addPropSelect('정렬', 'align', el.align, ALIGN_OPTS, (v) => el.align = v);
+
     if (el.font !== undefined) {
       const fontNames = fonts.map(f => f.family);
       addPropSelect('글꼴', 'font', el.font, fontNames, (v) => el.font = v);
     }
-    
+
     if (el.weight !== undefined) addPropSelect('굵기', 'weight', el.weight, [100, 200, 300, 400, 500, 600, 700, 800, 900], (v) => el.weight = parseInt(v));
     if (el.size !== undefined) addPropNum('크기', 'size', el.size, (v) => el.size = v);
     if (el.color !== undefined) addPropColor('색', 'color', el.color, (v) => el.color = v);
-    
+
     if (el.stroke !== undefined) {
       addPropNum('외곽선 두께', 'stroke', el.stroke, (v) => el.stroke = v);
       addPropColor('외곽선 색', 'strokeColor', el.strokeColor || '#000000', (v) => el.strokeColor = v);
     }
-    
-    if (el.shadow !== undefined) {
+
+    if (el.shadow !== undefined && selectedElKey !== 'video') {
       if (!el.shadow) el.shadow = { color: '#000000', blur: 0, offsetX: 0, offsetY: 0 };
       addPropColor('그림자 색', 'shadowColor', el.shadow.color, (v) => el.shadow.color = v);
       addPropNum('그림자 흐림', 'shadowBlur', el.shadow.blur, (v) => el.shadow.blur = v);
@@ -227,37 +304,43 @@
       addPropNum('그림자 Y', 'shadowY', el.shadow.offsetY, (v) => el.shadow.offsetY = v);
     }
 
+    if (TEXT_KEYS.includes(selectedElKey)) renderTextExtras(el);
+
     if (selectedElKey === 'subtitle') {
-      addPropCheck('배경 박스', 'hasBox', !!el.box, (v) => {
-        if (v) el.box = el.box || { color: '#000000AA', radius: 4, padding: 10 };
-        else el.box = null;
-        renderProps();
-      });
-      if (el.box) {
-        addPropColor('박스 색', 'boxColor', el.box.color, (v) => el.box.color = v);
-        addPropNum('박스 모서리', 'boxRadius', el.box.radius, (v) => el.box.radius = v);
-        addPropNum('박스 여백', 'boxPadding', el.box.padding, (v) => el.box.padding = v);
-      }
       addPropNum('자간', 'letterSpacing', el.letterSpacing || 0, (v) => el.letterSpacing = v, 0.01);
       addPropNum('최대 글자수', 'maxChars', el.maxChars, (v) => el.maxChars = v);
-      addPropNum('줄 간격', 'lineGap', el.lineGap, (v) => el.lineGap = v, 0.1);
-    }
-    
-    if (selectedElKey === 'verse') {
-      addPropCheck('밴드 배경', 'hasBand', !!el.band, (v) => {
-        if (v) el.band = el.band || { color: '#000000', paddingY: 10 };
-        else el.band = null;
-        renderProps();
+      const k = el.karaoke || {};
+      addPropSelect('단어 강조', 'karaoke', k.mode || 'none', KARAOKE_OPTS, (v) => {
+        el.karaoke = v === 'none' ? null : Object.assign({ color: '#FFE14D' }, el.karaoke || {}, { mode: v });
+        again();
       });
-      if (el.band) {
-        addPropColor('밴드 색', 'bandColor', el.band.color, (v) => el.band.color = v);
-        addPropNum('밴드 여백', 'bandPadding', el.band.paddingY, (v) => el.band.paddingY = v);
+      if (el.karaoke) {
+        addPropColor('강조 단어 색', 'karaokeColor', el.karaoke.color || '#FFE14D', (v) => el.karaoke.color = v);
+        addHint('말하는 단어의 색이 바뀝니다. 단어 시각은 자막의 단어 시각을 따릅니다.');
       }
     }
-    
+
+    if (selectedElKey === 'badge') {
+      addPropText('글', 'text', el.text, (v) => el.text = v);
+      addHint('{speaker} = 설교자, {church} = 교회 이름, {verse} = 성경 구절');
+      addPropColor('바탕 색', 'bg', el.bg || '#00000000', (v) => el.bg = v);
+      addPropNum('모서리', 'radius', el.radius != null ? el.radius : 999, (v) => el.radius = v);
+      addPropNum('좌우 여백', 'padX', el.padX != null ? el.padX : 20, (v) => el.padX = v);
+      addPropNum('위아래 여백', 'padY', el.padY != null ? el.padY : 8, (v) => el.padY = v);
+    }
+
     if (selectedElKey === 'video') {
       addPropSelect('Fit', 'fit', el.fit, ['cover', 'contain'], (v) => el.fit = v);
       addPropNum('모서리 둥글기', 'radius', el.radius, (v) => el.radius = v);
+      addPropCheck('그림자', 'hasVShadow', !!el.shadow, (v) => {
+        el.shadow = v ? (el.shadow || { color: '#000000AA', blur: 40, offsetX: 0, offsetY: 16 }) : null;
+        again();
+      });
+      if (el.shadow) {
+        addPropColor('그림자 색', 'vShadowColor', el.shadow.color, (v) => el.shadow.color = v);
+        addPropNum('그림자 흐림', 'vShadowBlur', el.shadow.blur, (v) => el.shadow.blur = v);
+        addPropNum('그림자 Y', 'vShadowY', el.shadow.offsetY, (v) => el.shadow.offsetY = v);
+      }
       addPropCheck('테두리', 'hasBorder', !!el.border, (v) => {
         if (v) el.border = el.border || { color: '#FFFFFF', width: 1 };
         else el.border = null;
@@ -273,13 +356,15 @@
         renderProps();
       });
       if (el.fade) {
-        addPropSelect('페이드 방향', 'fadeEdge', el.fade.edge, ['top', 'bottom'], (v) => el.fade.edge = v);
+        addPropSelect('페이드 방향', 'fadeEdge', el.fade.edge, [['top', '위'], ['bottom', '아래']], (v) => el.fade.edge = v);
         addPropNum('페이드 길이', 'fadeLength', el.fade.length, (v) => el.fade.length = v);
         addPropColor('페이드 색', 'fadeColor', el.fade.toColor, (v) => el.fade.toColor = v);
       }
     }
-    
+
     if (selectedElKey === 'logo') {
+      addPropCheck('교회 이름·설교자를 로고 옆에', 'inline', !!el.inline, (v) => el.inline = v);
+      if (el.inline) addHint('로고의 X·Y가 왼쪽 위 구석이 되고, 글자는 로고 오른쪽에 붙습니다.');
       addPropText('경로', 'path', el.path, (v) => el.path = v);
       const btn = document.createElement('button');
       btn.className = 'btn sm';
@@ -295,11 +380,11 @@
       };
       props.appendChild(btn);
     }
-    
+
     if (selectedElKey === 'speaker') {
       addPropText('포맷', 'format', el.format, (v) => el.format = v);
     }
-    
+
     if (selectedElKey === 'churchName') {
       addPropNum('자간', 'letterSpacing', el.letterSpacing || 0, (v) => el.letterSpacing = v, 0.01);
     }
@@ -385,7 +470,7 @@
   function addPropSelect(label, id, val, options, onChange) {
     const row = document.createElement('div');
     row.className = 'te-prop-row';
-    const opts = options.map(o => `<option value="${esc(o)}" ${o == val ? 'selected' : ''}>${esc(o)}</option>`).join('');
+    const opts = options.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${v == val ? 'selected' : ''}>${esc(l)}</option>`; }).join('');
     row.innerHTML = `<span class="te-prop-label">${esc(label)}</span><select class="te-prop-input">${opts}</select>`;
     const input = row.querySelector('select');
     input.onchange = (e) => { onChange(e.target.value); pushHistory(); render(); };
@@ -427,18 +512,23 @@
   async function render() {
     if (!ctx) return;
     ctx.clearRect(0, 0, 1080, 1920);
+    const t = currentTheme;
+    const vidEl0 = document.getElementById('video');
     const params = {
-      title: '설교 제목 샘플',
-      verse: '성경 구절 샘플 1:1',
-      speaker: '설교자 샘플',
-      subtitleText: '자막 샘플입니다. 최대 글자수를 확인하세요.',
-      theme: currentTheme,
-      churchName: '교회 이름 샘플'
+      // 줄마다 색을 쓰는 테마는 두 줄 제목으로 보여 준다
+      title: Array.isArray(t.title && t.title.lineColors) ? '오늘의 말씀\n하나님 중심의 기도' : '하나님 중심의 기도',
+      verse: '마태복음 6:13',
+      speaker: '설교자 이름',
+      subtitleText: '나라와 권세와 *영광이* 아버지께',
+      karaokeIndex: SS.usesKaraoke && SS.usesKaraoke(t) ? 1 : null,
+      theme: t,
+      churchName: '교회 이름',
+      blurSource: vidEl0 && vidEl0.videoWidth ? vidEl0 : 'placeholder'
     };
     await SS.ensureFonts(currentTheme);
     
-    // 1. Draw background
-    SS.drawTemplate(ctx, ['background'], params);
+    // 1. Draw background (+ 영상 밑 층: 색 덮기·영상 그림자)
+    SS.drawTemplate(ctx, ['background', 'under'], params);
     
     // 2. Draw placeholder/video
     const v = currentTheme.video;

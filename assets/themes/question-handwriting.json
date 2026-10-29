@@ -1,0 +1,143 @@
+{
+  "id": "question-handwriting",
+  "name": "흐린 배경 + 손글씨 질문",
+  "source": [
+    "https://www.youtube.com/shorts/Ar7XkEKFCh8",
+    "https://www.youtube.com/shorts/xraJUaLBdrY"
+  ],
+  "note": "설교 영상을 흐리게 키워 배경으로 깔고, 맨 위 노란 손글씨 제목(질문), 그 아래 흰 굵은 자막 두 줄(*강조*는 노란색), 가운데 설교 영상.",
+  "canvas": {
+    "background": "#10224A",
+    "mode": "blur",
+    "blur": {
+      "amount": 40,
+      "dim": 0.35,
+      "tint": "#1E4FA066"
+    }
+  },
+  "title": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 190,
+    "anchor": "center",
+    "font": "Nanum Pen Script",
+    "weight": 400,
+    "size": 104,
+    "color": "#FFE14D",
+    "stroke": 0,
+    "strokeColor": null,
+    "shadow": {
+      "color": "#00000088",
+      "blur": 10,
+      "offsetX": 0,
+      "offsetY": 4
+    },
+    "maxLines": 1
+  },
+  "verse": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1600,
+    "font": "Noto Sans KR",
+    "weight": 500,
+    "size": 40,
+    "color": "#E6ECF5",
+    "band": null,
+    "shadow": {
+      "color": "#00000099",
+      "blur": 8,
+      "offsetX": 0,
+      "offsetY": 2
+    }
+  },
+  "video": {
+    "show": true,
+    "x": 0,
+    "y": 520,
+    "width": 1080,
+    "height": 1000,
+    "fit": "cover",
+    "radius": 0,
+    "border": null,
+    "fade": null,
+    "shadow": {
+      "color": "#00000088",
+      "blur": 40,
+      "offsetX": 0,
+      "offsetY": 12
+    }
+  },
+  "subtitle": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 980,
+    "y": 300,
+    "anchor": "top",
+    "font": "Noto Sans KR",
+    "weight": 800,
+    "size": 62,
+    "color": "#FFFFFF",
+    "stroke": 0,
+    "strokeColor": "#000000",
+    "shadow": {
+      "color": "#000000AA",
+      "blur": 10,
+      "offsetX": 0,
+      "offsetY": 3
+    },
+    "box": null,
+    "maxChars": 14,
+    "maxLines": 2,
+    "lineGap": 1.25,
+    "highlightColor": "#FFE14D"
+  },
+  "churchName": {
+    "show": false,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1700,
+    "font": "Noto Sans KR",
+    "size": 40,
+    "color": "#FFFFFF",
+    "letterSpacing": 0,
+    "text": ""
+  },
+  "speaker": {
+    "show": false,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1770,
+    "font": "Noto Sans KR",
+    "size": 44,
+    "color": "#FFFFFF",
+    "text": "",
+    "format": "{speaker}"
+  },
+  "logo": {
+    "show": false,
+    "x": 540,
+    "y": 1620,
+    "height": 120,
+    "path": ""
+  },
+  "fadeInSec": 0.5,
+  "fonts": [
+    {
+      "name": "Nanum Pen Script",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Nanum+Pen+Script"
+    },
+    {
+      "name": "Noto Sans KR",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Noto+Sans+KR"
+    }
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "id": "channel-header-blur",
+  "name": "채널 머리띠 + 흐린 배경",
+  "source": [
+    "https://www.youtube.com/shorts/t5-c7h4FLC0"
+  ],
+  "note": "흐린 영상 배경(푸른 빛), 맨 위 왼쪽에 로고와 교회 이름·설교자 머리띠, 검은 외곽선의 큰 흰 제목 두 줄, 가운데 영상 띠, 아래 굵은 자막.",
+  "canvas": {
+    "background": "#0E2A5C",
+    "mode": "blur",
+    "blur": {
+      "amount": 36,
+      "dim": 0.5,
+      "tint": "#0E3A8C40"
+    }
+  },
+  "title": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1020,
+    "y": 420,
+    "anchor": "bottom",
+    "font": "Black Han Sans",
+    "weight": 400,
+    "size": 96,
+    "color": "#FFFFFF",
+    "stroke": 8,
+    "strokeColor": "#000000",
+    "shadow": null,
+    "maxLines": 2,
+    "lineGap": 1.1,
+    "highlightColor": "#FFE14D"
+  },
+  "verse": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 505,
+    "font": "Noto Sans KR",
+    "weight": 600,
+    "size": 38,
+    "color": "#FFFFFF",
+    "band": null,
+    "shadow": {
+      "color": "#000000AA",
+      "blur": 8,
+      "offsetX": 0,
+      "offsetY": 2
+    }
+  },
+  "video": {
+    "show": true,
+    "x": 0,
+    "y": 570,
+    "width": 1080,
+    "height": 760,
+    "fit": "cover",
+    "radius": 0,
+    "border": null,
+    "fade": null,
+    "shadow": {
+      "color": "#00000099",
+      "blur": 36,
+      "offsetX": 0,
+      "offsetY": 10
+    }
+  },
+  "subtitle": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1420,
+    "anchor": "top",
+    "font": "Noto Sans KR",
+    "weight": 800,
+    "size": 62,
+    "color": "#FFFFFF",
+    "stroke": 6,
+    "strokeColor": "#000000",
+    "box": null,
+    "maxChars": 14,
+    "maxLines": 2,
+    "lineGap": 1.2,
+    "highlightColor": "#FFE14D"
+  },
+  "churchName": {
+    "show": true,
+    "align": "left",
+    "x": 160,
+    "width": 760,
+    "y": 84,
+    "font": "Noto Sans KR",
+    "weight": 800,
+    "size": 36,
+    "color": "#FFFFFF",
+    "letterSpacing": 0.02,
+    "text": ""
+  },
+  "speaker": {
+    "show": true,
+    "align": "left",
+    "x": 160,
+    "width": 760,
+    "y": 126,
+    "font": "Noto Sans KR",
+    "weight": 400,
+    "size": 28,
+    "color": "#D6E0F0",
+    "text": "",
+    "format": "{speaker}"
+  },
+  "logo": {
+    "show": true,
+    "inline": true,
+    "x": 60,
+    "y": 60,
+    "height": 84,
+    "path": ""
+  },
+  "fadeInSec": 0.4,
+  "fonts": [
+    {
+      "name": "Black Han Sans",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Black+Han+Sans"
+    },
+    {
+      "name": "Noto Sans KR",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Noto+Sans+KR"
+    }
+  ]
+}

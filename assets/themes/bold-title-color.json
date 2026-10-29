@@ -26,7 +26,7 @@
       "offsetX": 8,
       "offsetY": 8
     },
-    "maxLines": 2
+    "maxLines": 1
   },
   "verse": {
     "show": true,

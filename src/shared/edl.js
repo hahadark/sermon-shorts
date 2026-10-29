@@ -309,7 +309,8 @@
     var out = [];
     for (var i = 0; i < lines.length; i++) {
       var l = lines[i];
-      out.push((i + 1) + '\n' + srtTime(l.outStart) + ' --> ' + srtTime(l.outEnd) + '\n' + l.text + '\n');
+      // 자막의 *강조* 표시는 화면에서만 쓰고 SRT 에는 별표를 뺀다
+      out.push((i + 1) + '\n' + srtTime(l.outStart) + ' --> ' + srtTime(l.outEnd) + '\n' + String(l.text).replace(/\*/g, '') + '\n');
     }
     return out.join('\n');
   }

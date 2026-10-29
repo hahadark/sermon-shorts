@@ -59,7 +59,7 @@
           <button id="btnEditTheme" class="btn sm">테마 편집</button>
         </div>
         <div style="display:flex; gap: 10px;">
-          <input type="text" id="inpTitle" placeholder="설교 제목" style="flex:1;">
+          <input type="text" id="inpTitle" placeholder="설교 제목 (줄바꿈: / · 강조: *말*)" title="제목 가운데 ' / '를 넣으면 화면에서 줄이 바뀌고, *별표*로 감싼 말은 테마의 강조 색으로 보입니다." style="flex:1;">
           <input type="text" id="inpVerse" placeholder="성경 구절" style="flex:1;">
         </div>
         <div style="display:flex; gap: 10px;">
@@ -96,6 +96,7 @@
   <script src="waveform.js"></script>
   <script src="../shared/edl.js"></script>
   <script src="../shared/theme.js"></script>
+  <script src="../shared/textfx.js"></script>
   <script src="../shared/crop.js"></script>
   <script src="template.js"></script>
   <script src="../shared/project.js"></script>
@@ -112,6 +113,7 @@
   <script src="keymap.js"></script>
   <script src="project-validation.js"></script>
   <script src="guide-capture.js"></script>
+  <script src="theme-check.js"></script>
   <script src="app.js"></script>
   <script src="theme-editor.js"></script>
   <script src="chat-ui.js"></script>

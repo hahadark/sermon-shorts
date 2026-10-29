@@ -1,0 +1,119 @@
+{
+  "id": "wide-karaoke",
+  "name": "넓은 영상 + 단어 강조 자막",
+  "source": [
+    "https://www.youtube.com/shorts/4bUBfqbimnI",
+    "https://www.youtube.com/shorts/tG7Bh3kYQNI",
+    "https://www.youtube.com/shorts/OzufruLNGu4"
+  ],
+  "note": "검은 바탕 가운데 16:9 영상을 자르지 않고 넓게, 위에 굵은 제목과 성경 구절, 영상 아래 큰 자막에서 지금 말하는 단어만 노랗게.",
+  "canvas": {
+    "background": "#000000",
+    "mode": "solid"
+  },
+  "title": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 440,
+    "anchor": "bottom",
+    "font": "Noto Sans KR",
+    "weight": 900,
+    "size": 66,
+    "color": "#FFFFFF",
+    "transform": "uppercase",
+    "stroke": 0,
+    "strokeColor": null,
+    "shadow": null,
+    "maxLines": 2,
+    "lineGap": 1.15
+  },
+  "verse": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 520,
+    "font": "Noto Sans KR",
+    "weight": 500,
+    "size": 36,
+    "color": "#9C9C9C",
+    "letterSpacing": 0.06,
+    "band": null
+  },
+  "video": {
+    "show": true,
+    "x": 0,
+    "y": 600,
+    "width": 1080,
+    "height": 608,
+    "fit": "cover",
+    "radius": 0,
+    "border": null,
+    "fade": null
+  },
+  "subtitle": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1300,
+    "anchor": "top",
+    "font": "Noto Sans KR",
+    "weight": 800,
+    "size": 66,
+    "color": "#FFFFFF",
+    "stroke": 0,
+    "strokeColor": "#000000",
+    "box": null,
+    "maxChars": 14,
+    "maxLines": 2,
+    "lineGap": 1.2,
+    "highlightColor": null,
+    "karaoke": {
+      "mode": "current",
+      "color": "#FFD400"
+    }
+  },
+  "churchName": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1600,
+    "font": "Noto Sans KR",
+    "weight": 500,
+    "size": 32,
+    "color": "#777777",
+    "letterSpacing": 0.3,
+    "text": ""
+  },
+  "speaker": {
+    "show": false,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1650,
+    "font": "Noto Sans KR",
+    "size": 32,
+    "color": "#777777",
+    "text": "",
+    "format": "{speaker}"
+  },
+  "logo": {
+    "show": false,
+    "x": 540,
+    "y": 1620,
+    "height": 120,
+    "path": ""
+  },
+  "fadeInSec": 0.4,
+  "fonts": [
+    {
+      "name": "Noto Sans KR",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Noto+Sans+KR"
+    }
+  ]
+}

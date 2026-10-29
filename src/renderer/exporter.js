@@ -32,10 +32,31 @@
         if (layers.length) SS.drawTemplate(ctx,layers,{...params,...extra});
         await window.api.writeImage({dataUrl:canvas.toDataURL('image/png'),filename:tempDir+'/'+name});
       };
+      // 추가 층: 그라데이션 배경, 영상 밑(색 덮기·그림자), 둥근 모서리 마스크
+      const extra=SS.theme.exportLayers(theme);
+      if (extra.bgImage) await image('bg.png',['background']);
+      if (extra.under) await image('under.png',['under']);
+      if (extra.mask) {
+        const v=theme.video, m=document.createElement('canvas');m.width=v.width;m.height=v.height;
+        SS.drawVideoMask(m.getContext('2d'),v);
+        await window.api.writeImage({dataUrl:m.toDataURL('image/png'),filename:tempDir+'/mask.png'});
+      }
       await image('top.png',['top']);
       await image('footer.png',['footer']);
       await image('empty.png',[]);
-      for(let i=0;i<lines.length;i++) await image(`line_${i}.png`,['subtitle'],{subtitleText:lines[i].text});
+      // 단어 강조(가라오케): 줄마다 단어가 바뀔 때마다 그림을 따로 만든다
+      const karaoke=SS.usesKaraoke&&SS.usesKaraoke(theme);
+      for(let i=0;i<lines.length;i++){
+        const k=karaoke?SS.karaokeOf(lines[i],words,segments):null;
+        if(k&&k.frames.length){
+          lines[i].images=[];
+          for(let j=0;j<k.frames.length;j++){
+            const f=k.frames[j],name=`line_${i}_${j}.png`;
+            await image(name,['subtitle'],{subtitleText:lines[i].text,subtitleGroups:k.groups,karaokeIndex:f.index});
+            lines[i].images.push({name,start:f.start,end:f.end});
+          }
+        } else await image(`line_${i}.png`,['subtitle'],{subtitleText:lines[i].text});
+      }
       const result=await window.api.startExport({sourcePath:st.source.path,outPath,segments,lines,crop:st.crop||{scale:1,x:.5,y:.5},fadeMs:st.settings.fadeMs??10,tempDir,theme});
       if (!result.success) return result;
       const srtPath=outPath.replace(/\.mp4$/i,'')+'.srt';
@@ -73,7 +94,9 @@
     window.api.onProgress(p=>{if(p?.task==='export'&&busy&&Number.isFinite(p.pct))btn.textContent='내보내는 중... '+Math.round(p.pct)+'%';});
     btn.addEventListener('click',async()=>{
       if(busy||!SS.state?.source)return;
-      const p=await window.api.saveExportDialog({defaultPath:(SS.state.meta?.title||'쇼츠')+'.mp4'});
+      // 파일 이름에 쓸 수 없는 글자(줄바꿈 / , 강조 * 등)는 뺀다
+      const base=String(SS.state.meta?.title||'').replace(/\s+\/\s+/g,' ').replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,' ').trim()||'쇼츠';
+      const p=await window.api.saveExportDialog({defaultPath:base+'.mp4'});
       if(!p)return;
       btn.disabled=true;btn.textContent='내보내는 중...';
       const result=await SS.doExport(p);
