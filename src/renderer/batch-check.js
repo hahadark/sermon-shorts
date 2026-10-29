@@ -184,6 +184,81 @@
       const tb = Date.now();
       while (!(SS.state.words[50].del && document.querySelector('.cut-marker.gap-cut'))) { if (Date.now() - tb > 20000) throw new Error('자동 정리 단추 안 됨'); await sleep(200); }
       check('자동 정리 단추 = 군말·공백 정리', SS.state.words[90].del && document.querySelectorAll('.cut-marker.gap-cut').length > 0);
+
+      // ---------- 4) 두 번 눌러 미세 조정 ----------
+      window.dispatchEvent(new CustomEvent('ss:transcript-ready', { detail: { path: SS.state.path, offset: 0, words: JSON.parse(JSON.stringify(orig)).map((w) => Object.assign(w, { del: false, cutBefore: false })) } }));
+      SS.state.overrides = {}; SS.renderTranscript(); await sleep(300);
+      const W4 = SS.state.words;
+      const blocks = Array.from(body.querySelectorAll('.caption-block'));
+      const blk = blocks.find((b, k) => k > 8 && +b.dataset.to - +b.dataset.from >= 3);
+      const a = +blk.dataset.from, b2 = +blk.dataset.to - 1;
+      blk.scrollIntoView({ block: 'center' });
+      const segsBefore = SS.getSegments().length, durBefore = SS.edl.segmentsDuration(SS.getSegments());
+      blk.querySelector('.caption-source [data-wid]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+      let tw4 = Date.now(); while (!(SS.getTrimState() && document.getElementById('trimTitle').textContent.includes('자막'))) { if (Date.now() - tw4 > 8000) throw new Error('미세 조정이 안 열림'); await sleep(100); }
+      await sleep(300);
+      const ts = SS.getTrimState();
+      check('STT 원문 두 번 누르기 → 자막 미세 조정', ts.kind === 'range' && ts.idxB === a && ts.idxA === b2 && SS.state.trimOpen, [ts.kind, ts.idxB, ts.idxA, a, b2]);
+      check('패널 보임·자막 표시', $('trimPanel').style.display === 'flex' && !!body.querySelector('.caption-block.fine-active'));
+      check('제목에 번호·시간', /\d{3}번 자막 미세 조정/.test($('trimTitle').textContent), $('trimTitle').textContent);
+      const nat = SS.getBStart();
+      SS.updateTrimValue('B', nat + 0.15); await sleep(150);
+      check('시작을 당기면 그 앞에 컷', SS.state.words[a].cutBefore && SS.state.words[a].fineCut && SS.getSegments().length === segsBefore + 1, [SS.getSegments().length, segsBefore]);
+      check('잘린 길이 반영', Math.abs((durBefore - SS.edl.segmentsDuration(SS.getSegments())) - 0.15) < 0.02, durBefore - SS.edl.segmentsDuration(SS.getSegments()));
+      check('목록에 가위 표시', !!body.querySelector(`.cut-marker[data-c2="${W4[a].id}"]`));
+      { const fe = body.querySelector('.caption-block.fine-active').getBoundingClientRect(), pr = $('trimPanel').getBoundingClientRect(); check('조정 중인 자막이 패널 위에 보임', fe.bottom <= pr.top + 1 && fe.top >= body.getBoundingClientRect().top - 1, [fe.top, fe.bottom, pr.top]); }
+      await shot('4_fine');
+      SS.undo(); await sleep(150);
+      check('되돌리기', !SS.state.words[a].cutBefore && SS.getSegments().length === segsBefore);
+      SS.redo(); await sleep(150);
+      check('다시 실행', SS.state.words[a].cutBefore);
+      SS.updateTrimValue('B', nat - 0.3); await sleep(100);
+      check('앞말 쪽으로는 겹치지 않음(컷 없앰)', !SS.state.words[a].cutBefore && !SS.state.words[a].fineCut);
+      // 끝 손잡이: Tab 으로 바꾸고 0.12초 당기기, R 로 원래대로
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', bubbles: true })); await sleep(50);
+      check('Tab 으로 끝 손잡이', SS.getTrimState().activeHandle === 'A' && $('trimHandleName').textContent === '끝');
+      const natE = SS.getAEnd();
+      SS.updateTrimValue('A', natE - 0.12); await sleep(100);
+      check('끝을 당기면 뒤에 컷', SS.state.words[b2 + 1].cutBefore && SS.state.words[b2 + 1].fineCut);
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', code: 'KeyR', bubbles: true })); await sleep(100);
+      check('R 원래대로', !SS.state.words[b2 + 1].cutBefore && Math.abs(SS.getAEnd() - natE) < 1e-6);
+      // Shift+→ 10ms 이동
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft', shiftKey: true, bubbles: true })); await sleep(80);
+      check('Shift+← 10ms', Math.abs(SS.getAEnd() - (natE - 0.01)) < 1e-6, SS.getAEnd() - natE);
+      // Space 미리듣기: 편집 결과로 자막 앞뒤를 틀고 저절로 멈춤
+      report.ev = [];
+      { const vv = SS.preview.video; const origPause = vv.pause.bind(vv); vv.pause = function () { report.ev.push('pause() ' + vv.currentTime.toFixed(2) + ' ' + new Error().stack.split('\n').slice(2, 5).map(s => s.trim()).join(' < ')); return origPause(); };
+        ['play', 'pause', 'seeked'].forEach((n) => vv.addEventListener(n, () => report.ev.push(n + ' ' + vv.currentTime.toFixed(2)))); }
+      const tSp = Date.now();
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true }));
+      await sleep(300);
+      while (!report.ev.some((x) => x.startsWith('play'))) { if (Date.now() - tSp > 5000) break; await sleep(50); }
+      await sleep(300);
+      report.previewStartMs = Date.now() - tSp;
+      check('미리듣기 재생', !SS.preview.paused, SS.preview.currentTime);
+      const tp = Date.now(); while (!SS.preview.paused) { if (Date.now() - tp > 15000) break; await sleep(100); }
+      check('미리듣기 끝나면 멈춤', SS.preview.paused && SS.preview.currentTime > W4[b2].start, [SS.preview.currentTime, W4[b2].end]);
+      // ] 다음 자막
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: ']', code: 'BracketRight', bubbles: true })); await sleep(500);
+      check('] 다음 자막', SS.getTrimState().idxB > b2, SS.getTrimState().idxB);
+      // Esc 닫기
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })); await sleep(100);
+      check('Esc 닫기', !SS.state.trimOpen && $('trimPanel').style.display === 'none' && !body.querySelector('.caption-block.fine-active'));
+      // 출력 자막 칸 두 번 누르기 / 머리줄 단추
+      const out = Array.from(body.querySelectorAll('.caption-block')).find((x) => +x.dataset.from === a).querySelector('.caption-output');
+      out.focus(); out.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+      tw4 = Date.now(); while (!SS.state.trimOpen) { if (Date.now() - tw4 > 8000) throw new Error('출력 자막 두 번 누르기 안 됨'); await sleep(100); }
+      await sleep(300);
+      check('출력 자막 두 번 누르기 → 미세 조정', SS.getTrimState().kind === 'range' && SS.getTrimState().idxB === a && document.activeElement !== out);
+      SS.closeTrim();
+      const fineBtn = body.querySelector('.caption-fine'); fineBtn.click(); await sleep(500);
+      check('머리줄 미세 조정 단추', SS.state.trimOpen && SS.getTrimState().kind === 'range');
+      SS.closeTrim();
+      // 컷 표시 누르면 예전처럼 컷 미세 조정
+      SS.state.words[a + 1].del = true; SS.renderTranscript(); await sleep(200);
+      body.querySelector('.cut-marker').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); await sleep(500);
+      check('가위 표시 → 컷 미세 조정', SS.getTrimState() && SS.getTrimState().kind === 'cut' && /컷 미세 조정/.test($('trimTitle').textContent), $('trimTitle').textContent);
+      SS.closeTrim();
       report.success = true;
     } catch (err) {
       report.success = false; report.error = err.stack || String(err);

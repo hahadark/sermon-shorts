@@ -58,7 +58,7 @@
     { id: 'ai_term_correct', keys: ['Ctrl+Shift+T'], mode: 'editor', label: 'AI 용어 교정', group: '편집' },
     { id: 'cut_prev', keys: ['['], mode: 'editor', label: '이전 컷 이동', group: '컷' },
     { id: 'cut_next', keys: [']'], mode: 'editor', label: '다음 컷 이동', group: '컷' },
-    { id: 'trim_open', keys: ['t', 'T'], mode: 'editor', label: '트림 패널 열기', group: '컷' },
+    { id: 'trim_open', keys: ['t', 'T'], mode: 'editor', label: '가까운 컷 미세 조정', group: '컷' },
     { id: 'file_save', keys: ['Ctrl+S'], mode: 'global', label: '프로젝트 저장', group: '파일' },
     { id: 'file_save_as', keys: ['Ctrl+Shift+S'], mode: 'global', label: '다른 이름으로 저장', group: '파일' },
     { id: 'file_open', keys: ['Ctrl+O'], mode: 'global', label: '프로젝트 열기', group: '파일' },
@@ -120,12 +120,15 @@
       let mode = 'editor';
       if (SS.state && SS.state.trimOpen) mode = 'trim';
       else if (SS.state && SS.state.dialogOpen) mode = 'dialog';
-      for (let i = 0; i < this.bindings.length; i++) {
-        const b = this.bindings[i];
-        if (b.mode !== 'global' && b.mode !== mode) continue;
-        const keys = this.overrides[b.id] || b.keys;
-        for (let j = 0; j < keys.length; j++) {
-          if (this.keyMatches(keys[j], norm.mods, norm.key, norm.code)) return b;
+      // 지금 모드(예: 미세 조정 패널)의 단축키가 전역 단축키보다 먼저 (Space: 재생 → 패널 미리듣기)
+      for (const want of [mode, 'global']) {
+        for (let i = 0; i < this.bindings.length; i++) {
+          const b = this.bindings[i];
+          if (b.mode !== want) continue;
+          const keys = this.overrides[b.id] || b.keys;
+          for (let j = 0; j < keys.length; j++) {
+            if (this.keyMatches(keys[j], norm.mods, norm.key, norm.code)) return b;
+          }
         }
       }
       return null;
@@ -287,7 +290,7 @@
     keymap.setHandler('trim_reset', function() { SS.resetTrim(); });
     keymap.setHandler('trim_cut_prev', function() { SS.trimPrevCut(); });
     keymap.setHandler('trim_cut_next', function() { SS.trimNextCut(); });
-    keymap.setHandler('trim_confirm', function() { const st = SS.getTrimState(); SS.closeTrim(); if (st) { preview.seek(SS.getAEnd() - 1); preview.play(); } });
+    keymap.setHandler('trim_confirm', function() { const st = SS.getTrimState(); if (!st) return; if (st.kind === 'range') { const r = SS.fineRangeOut(); SS.closeTrim(); if (r && SS.playback) SS.playback.playOutRange(r.from - 0.5, r.to + 0.5); return; } const t = SS.getAEnd(); SS.closeTrim(); preview.seek(t - 1); preview.play(); });
     keymap.setHandler('trim_cancel', function() { SS.closeTrim(); });
     const tips = keymap.getTooltips();
     const btnMap = { 'btnSave':'file_save', 'btnOpen':'file_open_video', 'btnOpenProject':'file_open', 'btnExport':'file_export', 'btnSettings':'settings_open', 'btnAiRecommend':'ai_recommend', 'btnAutoClean':'auto_clean', 'btnAiCorrect':'ai_term_correct' };

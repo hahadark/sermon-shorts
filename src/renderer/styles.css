@@ -329,6 +329,18 @@ input[type=checkbox], input[type=range] { accent-color: var(--primary); }
 .ed-set-row select { height: 28px; }
 .ed-num, .ed-check { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 .ed-sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
+/* 미세 조정 패널 (자막·컷) */
+.trim-panel { position: absolute; left: 0; right: 0; bottom: 0; height: 244px; z-index: 100; flex-direction: column; background: var(--panel); border-top: 1px solid var(--border-strong, #3a3e46); box-shadow: 0 -10px 28px rgba(0,0,0,.5); }
+.trim-head { display: flex; align-items: center; gap: 5px; padding: 6px 10px; flex-wrap: wrap; border-bottom: 1px solid var(--border); }
+.trim-title { font-weight: 700; font-size: 13px; color: var(--text); margin-right: 6px; }
+.trim-sep { width: 1px; height: 18px; background: var(--border); margin: 0 3px; }
+.trim-handle { font-size: 12px; color: var(--muted); margin-right: 2px; }
+.trim-handle b { color: #9fd0ff; }
+.trim-help { font-size: 11px; color: var(--muted); padding: 3px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trim-body { flex: 1 1 auto; position: relative; min-height: 0; }
+.trim-body canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: ew-resize; }
+#transcriptBody.trim-open { padding-bottom: 260px; }
+#transcriptBody .caption-block.fine-active { border-color: #4aa8ff; box-shadow: 0 0 0 2px rgba(74,168,255,.35); }
 .follow-btn { position: absolute; right: 30px; bottom: 22px; z-index: 50; box-shadow: 0 4px 14px rgba(0,0,0,.45); background: var(--accent2); border-color: var(--accent2); color: #fff; }
 .follow-btn:hover:not(:disabled) { filter: brightness(1.1); }
 .ed-hint { font-size: 11.5px; color: var(--muted); padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

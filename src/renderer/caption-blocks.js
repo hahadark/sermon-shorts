@@ -66,7 +66,7 @@
       .caption-source .word-selected{background:rgba(255,222,80,.3)} .caption-source .deleted-run{background:rgba(180,65,65,.15);border-radius:3px;color:#be8080}
       .caption-source .deleted-run [data-wid]{text-decoration:line-through;color:#be8080}.restore-run{font-size:10px;padding:0 4px;margin-left:4px;cursor:pointer}
       .caption-output{display:block;width:100%;max-width:640px;box-sizing:border-box;resize:vertical;min-height:34px;line-height:1.6;font:inherit;font-size:16px;padding:4px 7px;color:#fff;background:#222a34;border:1px solid #526278;border-radius:4px}
-      .caption-output:focus{outline:1px solid #7bb9e9;border-color:#7bb9e9}.caption-count{margin-left:auto;color:#8aa79b}.caption-count.over-limit{color:#edc17e}
+      .caption-output:focus{outline:1px solid #7bb9e9;border-color:#7bb9e9}.caption-count{margin-left:auto;color:#8aa79b}.caption-fine{width:24px;height:22px;opacity:.65}.caption-block:hover .caption-fine,.caption-fine:focus{opacity:1}.caption-count.over-limit{color:#edc17e}
       .caption-word-editor:empty{display:none}.caption-word-editor{margin:5px 0 0 82px;color:#9bc4e6;font-size:11px}
       .caption-empty{color:#8d929b;font-size:12px;padding:4px 0}.hide-scissors,.cut-marker{cursor:pointer;padding:0 5px;background:#343b43;border-radius:3px;font-size:11px;color:#c5ccd6}
       .cut-marker.ico{display:inline-flex;align-items:center;gap:3px;vertical-align:1px;line-height:18px}.cut-marker.gap-cut{background:rgba(227,182,92,.14);color:#e3b65c;border:1px solid rgba(227,182,92,.4)}
@@ -106,7 +106,7 @@
     blocks.forEach((block,n)=>{
       const first=ws[block.indices[0]],last=ws[block.indices.at(-1)];const live=block.indices.filter(i=>!ws[i].del);
       const row=block.line||{text:'',words:live.map(i=>ws[i].id),parts:live.map(i=>({id:ws[i].id,text:ws[i].text,from:0,to:Array.from(ws[i].text).length}))};block.editorLine=row;
-      html+=`<section class="caption-block" data-block="${n}" data-from="${block.indices[0]}" data-to="${block.indices.at(-1)+1}"><div class="caption-head"><label title="같은 STT 단어를 나눠 표시한 구간은 함께 선택됩니다"><input type="checkbox" class="caption-check" data-check-block="${n}" aria-label="${n+1}번 구간 선택" style="width:auto;cursor:pointer"> <strong>${String(n+1).padStart(3,'0')}</strong></label><button class="caption-seek" data-seek="${first.start}">${esc(SS.fmtTime(first.start+(SS.state.source?.offset||0)))} ~ ${esc(SS.fmtTime(last.end+(SS.state.source?.offset||0)))}</button><span class="caption-count">${count(row.text)} / ${max}자${row.manualMerge?' · 수동 병합':count(row.text)>max?' · 적용 시 자동 분할':''}</span></div>`;
+      html+=`<section class="caption-block" data-block="${n}" data-from="${block.indices[0]}" data-to="${block.indices.at(-1)+1}"><div class="caption-head"><label title="같은 STT 단어를 나눠 표시한 구간은 함께 선택됩니다"><input type="checkbox" class="caption-check" data-check-block="${n}" aria-label="${n+1}번 구간 선택" style="width:auto;cursor:pointer"> <strong>${String(n+1).padStart(3,'0')}</strong></label><button class="caption-seek" data-seek="${first.start}">${esc(SS.fmtTime(first.start+(SS.state.source?.offset||0)))} ~ ${esc(SS.fmtTime(last.end+(SS.state.source?.offset||0)))}</button><span class="caption-count">${count(row.text)} / ${max}자${row.manualMerge?' · 수동 병합':count(row.text)>max?' · 적용 시 자동 분할':''}</span>${live.length?`<button class="caption-fine btn sm ghost icon-only ico i-audio-waveform" data-fine="${n}" title="시작·끝 미세 조정 (STT 원문·출력 자막 두 번 누르기)" aria-label="${n+1}번 자막 미세 조정"></button>`:''}</div>`;
       if(row.manualMerge)html+=`<button class="caption-unmerge" data-unmerge="${n}" style="font-size:11px;margin-bottom:5px">${max}자로 다시 나누기</button>`;
       html+='<div class="caption-track"><span class="caption-track-label">STT 원문</span><div class="caption-source">';
       let openRun=null;
@@ -125,12 +125,13 @@
       }
       if(openRun)html+='</span>';
       html+='</div></div><div class="caption-word-editor"></div><div class="caption-track"><span class="caption-track-label" style="color:#9ac7af">출력 자막</span>';
-      html+=live.length?`<textarea class="caption-output" rows="1" maxlength="2000" data-caption-editor="${n}" data-caption-anchor="${esc(row.parts[0]?String(row.parts[0].id)+':'+row.parts[0].from:'')}" title="Enter: 커서 자리에서 자막 나누기 · 맨 앞 Backspace: 위 자막과 합치기 · Ctrl+Enter: 적용 · 영상은 유지됩니다" aria-label="${n+1}번 출력 자막" placeholder="빈칸이면 자막만 숨김 · 영상 유지">${esc(row.text)}</textarea>`:'<div class="caption-empty">삭제된 영상 구간 · 되살리면 자막도 복원됩니다</div>';
+      html+=live.length?`<textarea class="caption-output" rows="1" maxlength="2000" data-caption-editor="${n}" data-caption-anchor="${esc(row.parts[0]?String(row.parts[0].id)+':'+row.parts[0].from:'')}" title="Enter: 커서 자리에서 자막 나누기 · 맨 앞 Backspace: 위 자막과 합치기 · Ctrl+Enter: 적용 · 두 번 누르기: 시작·끝 미세 조정" aria-label="${n+1}번 출력 자막" placeholder="빈칸이면 자막만 숨김 · 영상 유지">${esc(row.text)}</textarea>`:'<div class="caption-empty">삭제된 영상 구간 · 되살리면 자막도 복원됩니다</div>';
       html+='</div></section>';
     });
     body.innerHTML=html;body.scrollTop=scroll;
     body.querySelectorAll('.caption-check').forEach(el=>el.onchange=()=>{commit(false);const b=blocks[+el.dataset.checkBlock];b.indices.forEach(i=>{if(!ws[i].del){if(el.checked)checked.add(ws[i].id);else checked.delete(ws[i].id);}});syncChecks(body);});
     body.querySelectorAll('.caption-unmerge').forEach(el=>el.onclick=()=>{commit(false);SS.pushUndo();SS.state.words=SS.captionEdit.unmerge(SS.state.words,blocks[+el.dataset.unmerge].editorLine);needsRender=false;SS.renderTranscript();SS.updateTemplatePreview();});
+    body.querySelectorAll('.caption-fine').forEach(btn=>btn.onclick=()=>{commit(false);SS.openFineTuneBlock(btn.closest('.caption-block'));});
     body.querySelectorAll('.gap-restore').forEach(btn=>btn.onmousedown=e=>{e.preventDefault();e.stopPropagation();commit(false);SS.restoreGap(+btn.dataset.gap);});
     body.querySelectorAll('.pause-chip').forEach(btn=>btn.onmousedown=e=>{e.preventDefault();e.stopPropagation();commit(false);SS.cutPause(+btn.dataset.cutgap);});
     body.querySelectorAll('.restore-run').forEach(btn=>btn.onmousedown=e=>{e.preventDefault();e.stopPropagation();commit(false);let i=+btn.dataset.runstart;while(ws[i]?.del)ws[i++].del=false;SS.renderTranscript();SS.updateTemplatePreview();});

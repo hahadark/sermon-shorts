@@ -13,6 +13,7 @@
 
   let rawOnce = false;     // 이번 한 번 원본 재생
   let stopAtOut = null;    // 편집 결과 시각 이 지점에서 멈춤 (미세 조정 미리듣기)
+  let pendingStop = null;  // 다음 재생이 시작되면 stopAtOut 으로
   let skipping = false;
   let mutedBySkip = false;
   let timer = 0;
@@ -88,6 +89,7 @@
 
   /** 재생 시작: 지운 곳이면 다음 남은 곳, 끝이면 처음부터 */
   function onPlay() {
+    if (pendingStop != null) { stopAtOut = pendingStop; pendingStop = null; }
     if (!active()) return;
     const s = segs();
     const p = plan(video().currentTime);
@@ -151,8 +153,10 @@
     if (!r) return;
     if (SS.setEditedPlayMode && !SS.getEditedPlayMode()) SS.setEditedPlayMode(true);
     rawOnce = false;
-    SS.preview.pause();
-    SS.preview.seek(r.t).then(() => { stopAtOut = b; SS.preview.play(); });
+    pendingStop = b;
+    if (!SS.preview.paused) SS.preview.pause();
+    SS.preview.seek(r.t);      // 자리 옮기기를 기다리지 않고 바로 재생 (준비되는 대로 그 자리부터)
+    SS.preview.play();
   }
 
   function init() {

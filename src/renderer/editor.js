@@ -37,7 +37,7 @@
       SS.state.markI = history[historyIdx].markI; SS.state.markO = history[historyIdx].markO;
       if (history[historyIdx].captionSettings) Object.assign(SS.state.settings, history[historyIdx].captionSettings);
       SS.syncCaptionUI();
-      renderTranscript(false); if (SS.updateTemplatePreview) SS.updateTemplatePreview(); if (trimState) renderTrim();
+      renderTranscript(false); if (SS.updateTemplatePreview) SS.updateTemplatePreview(); if (trimState) { renderTrim(); trimHeader(); }
     }
   }
 
@@ -49,7 +49,7 @@
       SS.state.markI = history[historyIdx].markI; SS.state.markO = history[historyIdx].markO;
       if (history[historyIdx].captionSettings) Object.assign(SS.state.settings, history[historyIdx].captionSettings);
       SS.syncCaptionUI();
-      renderTranscript(false); if (SS.updateTemplatePreview) SS.updateTemplatePreview(); if (trimState) renderTrim();
+      renderTranscript(false); if (SS.updateTemplatePreview) SS.updateTemplatePreview(); if (trimState) { renderTrim(); trimHeader(); }
     }
   }
 
@@ -126,22 +126,27 @@
         <label class="ed-check" title="음성 인식(자막 만들기)이 끝나면 군말(음·어·아)과 0.3초 넘는 말 사이 공백을 바로 지웁니다. 지운 곳은 노란 표시로 보이고 누르면 되살립니다."><input type="checkbox" id="chkAutoTidy" checked> 음성 인식 뒤 군말·말 사이 공백 자동으로 지우기</label>
       </div>
     </div>
-    <div class="ed-hint">STT 원문: 단어 클릭 → Backspace 지우기 · 출력 자막: Enter 나누기 · 맨 앞 Backspace 합치기 · Ctrl+Enter 적용 · Ctrl+Z 취소 · F1 단축키</div>
+    <div class="ed-hint">두 번 누르기: 시작·끝 미세 조정 · STT 원문: 단어 클릭 → Backspace 지우기 · 출력 자막: Enter 나누기 · 맨 앞 Backspace 합치기 · Ctrl+Z 취소 · F1 단축키</div>
 
     <div id="transcriptBody">${emptyStateHtml()}</div>
-    <div id="trimPanel" style="display:none; position:absolute; bottom:0; left:0; width:100%; height:200px; background:#1e1e1e; border-top:1px solid #444; z-index:100; flex-direction:column;">
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; background:#2a2a2a; font-size:12px;">
-        <div style="display:flex; gap:8px; align-items:center;">
-          <button id="btnPrevCut" class="btn" style="padding:2px 8px;">이전 컷 ([)</button>
-          <button id="btnNextCut" class="btn" style="padding:2px 8px;">다음 컷 (])</button>
-          <button id="btnPreviewLoop" class="btn" style="padding:2px 8px;">미리듣기 (Space)</button>
-          <span style="color:#aaa;">S: 무음 스냅 | Alt+S: 제로 스냅 | R: 초기화 | Tab: 핸들전환 | ←/→: 이동</span>
-        </div>
-        <button id="btnCloseTrim" style="background:none; border:none; color:#fff; cursor:pointer;">닫기 (Esc)</button>
+    <div id="trimPanel" class="trim-panel" style="display:none;" role="region" aria-label="미세 조정">
+      <div class="trim-head">
+        <span id="trimTitle" class="trim-title">컷 미세 조정</span>
+        <button id="btnPrevCut" class="btn sm ghost">이전 컷 ([)</button>
+        <button id="btnNextCut" class="btn sm ghost">다음 컷 (])</button>
+        <span class="trim-sep"></span>
+        <span class="trim-handle">움직일 곳 <b id="trimHandleName">시작</b></span>
+        <button class="btn sm" data-nudge="-0.1" title="0.1초 앞으로">−0.1</button>
+        <button class="btn sm" data-nudge="-0.01" title="0.01초 앞으로 (Shift+←)">−0.01</button>
+        <button class="btn sm" data-nudge="0.01" title="0.01초 뒤로 (Shift+→)">+0.01</button>
+        <button class="btn sm" data-nudge="0.1" title="0.1초 뒤로">+0.1</button>
+        <button id="btnTrimReset" class="btn sm ghost ico i-rotate-ccw" title="자동 위치로 (R)">원래대로</button>
+        <button id="btnPreviewLoop" class="btn sm primary ico i-play" title="편집 결과로 들어 보기 (Space)">미리듣기</button>
+        <span class="tb-spacer"></span>
+        <button id="btnCloseTrim" class="btn sm ghost ico i-x" title="닫기 (Esc)">닫기</button>
       </div>
-      <div style="display:flex; flex:1; position:relative; overflow:hidden;">
-        <canvas id="trimCanvas" style="width:100%; height:100%; cursor:crosshair;"></canvas>
-      </div>
+      <div class="trim-help">파형을 누르거나 끌어서 옮기기 · ←/→ 1프레임 · Shift 10ms · Alt 1ms · Tab 시작↔끝 · S 무음에 맞추기 · Enter 적용하고 들어 보기 · 초록=남는 소리, 빨강=잘려 나가는 소리</div>
+      <div class="trim-body"><canvas id="trimCanvas"></canvas></div>
     </div>
   `;
 
@@ -400,6 +405,7 @@
     const body = $('transcriptBody'); body.tabIndex = 0;
     if (!SS.state.words?.length) { body.innerHTML = emptyStateHtml(); return; }
     SS.renderCaptionBlocks(body, SS.state.words, lines, segments);
+    if (SS.markFineBlock && SS.state.trimOpen) SS.markFineBlock();
   }
 
   window.addEventListener('ss:words-changed', () => { pushHistory(); renderTranscript(); });
@@ -480,12 +486,11 @@
   });
 
 
+  // STT 원문·출력 자막을 두 번 누르면 그 자막의 시작·끝 미세 조정 (단어 글자 고치기는 F2·E 또는 출력 자막 칸)
   $('transcriptBody').addEventListener('dblclick', e => {
-    if (e.target.dataset.wid) {
-      const wid = parseInt(e.target.dataset.wid);
-      SS.state.caret = wid;
-      SS.editWord(wid);
-    }
+    const blk = e.target.closest && e.target.closest('.caption-block');
+    if (!blk || e.target.closest('button, input[type=checkbox]')) return;
+    if (e.target.closest('.caption-source') || e.target.classList.contains('caption-output')) { e.preventDefault(); SS.openFineTuneBlock(blk); }
   });
 
 
@@ -649,6 +654,11 @@
     v.addEventListener('pause', () => { followBtn.hidden = true; });
   })();
 
+  // ================= 미세 조정 패널 =================
+  // kind 'cut'  : 컷(두 구간 사이) — 왼쪽 A=앞 구간 끝, 오른쪽 B=뒤 구간 시작 (자막 목록의 가위 표시·T 키)
+  // kind 'range': 자막 하나 — 왼쪽 B=자막 시작, 오른쪽 A=자막 끝 (STT 원문·출력 자막 더블클릭)
+  //   자막 시작·끝이 이웃 말과 붙어 있으면(가운데 자막) 그 사이를 잘라야 움직일 수 있으므로,
+  //   안쪽으로 당기면 그 자리에 컷을 만들고(fineCut 표시) 원래 자리로 돌려놓으면 컷을 없앤다.
   let trimState = null;
   SS.getTrimState = () => trimState;
   let trimBufA = null, trimBufB = null;
@@ -668,18 +678,110 @@
   }
   SS.getCuts = getCuts;
 
-  async function openTrimPanel(idxA, idxB) {
+  const isRange = () => !!trimState && trimState.kind === 'range';
+  function prevLiveIdx(i) { const ws = SS.state.words; for (let k = i - 1; k >= 0; k--) if (!ws[k].del) return k; return -1; }
+  function nextLiveIdx(i) { const ws = SS.state.words; for (let k = i + 1; k < ws.length; k++) if (!ws[k].del) return k; return -1; }
+  function joinedBefore(a) { const ws = SS.state.words, p = prevLiveIdx(a); return p >= 0 && p === a - 1 && (!ws[a].cutBefore || !!ws[a].fineCut); }
+  function joinedAfter(b) { const ws = SS.state.words, n = nextLiveIdx(b); return n >= 0 && n === b + 1 && (!ws[n].cutBefore || !!ws[n].fineCut); }
+  function boundary(x, y) { const ws = SS.state.words, e = ws[x].end, s = ws[y].start; return e <= s ? (e + s) / 2 : s; }
+  function leftHandle() { return isRange() ? 'B' : 'A'; }
+  // 손잡이마다 화면에 보이는 시간 범위
+  function viewOf(h) {
+    const c = h === 'A' ? trimState.centerA : trimState.centerB;
+    if (isRange()) return [c - 1.0, c + 1.0];
+    return h === 'A' ? [c - 1.5, c + 0.5] : [c - 0.5, c + 1.5];
+  }
+
+  function trimHeader() {
+    const title = $('trimTitle');
+    if (!trimState || !title) return;
+    if (isRange()) {
+      const ws = SS.state.words, off = (SS.state.source && SS.state.source.offset) || 0;
+      const li = lines.findIndex(l => l.words.includes(ws[trimState.idxB].id));
+      title.textContent = (li >= 0 ? String(li + 1).padStart(3, '0') + '번 자막 ' : '자막 ') + '미세 조정 · ' + SS.fmtTime(SS.getBStart() + off) + ' ~ ' + SS.fmtTime(SS.getAEnd() + off);
+      $('btnPrevCut').textContent = '이전 자막 ([)'; $('btnNextCut').textContent = '다음 자막 (])';
+    } else {
+      title.textContent = '컷 미세 조정 · 잘라 낸 길이 ' + Math.max(0, SS.getBStart() - SS.getAEnd()).toFixed(2) + '초';
+      $('btnPrevCut').textContent = '이전 컷 ([)'; $('btnNextCut').textContent = '다음 컷 (])';
+    }
+    const h = trimState.activeHandle;
+    $('trimHandleName').textContent = isRange() ? (h === 'B' ? '시작' : '끝') : (h === 'A' ? '앞 끝' : '뒤 시작');
+  }
+
+  // 조정 중인 자막이 패널에 가리면 그만큼만 올린다
+  function ensureFineVisible() {
+    if (!isRange()) return;
+    const body = $('transcriptBody'), el = body.querySelector('.caption-block.fine-active');
+    if (!el) return;
+    const r = el.getBoundingClientRect(), pr = $('trimPanel').getBoundingClientRect(), br = body.getBoundingClientRect();
+    if (r.bottom > pr.top - 8) body.scrollTop += Math.min(r.bottom - pr.top + 16, r.top - br.top - 8);
+    else if (r.top < br.top) body.scrollTop -= br.top - r.top + 8;
+  }
+  function markFineBlock() {
+    const body = $('transcriptBody');
+    body.querySelectorAll('.caption-block.fine-active').forEach(el => el.classList.remove('fine-active'));
+    if (!isRange()) return null;
+    const i = trimState.idxB;
+    const el = Array.from(body.querySelectorAll('.caption-block')).find(b => +b.dataset.from <= i && i < +b.dataset.to);
+    if (el) el.classList.add('fine-active');
+    return el;
+  }
+  SS.markFineBlock = markFineBlock;
+
+  function showPanel() {
     SS.state.trimOpen = true;
     $('trimPanel').style.display = 'flex';
-    trimState = { idxA, idxB, activeHandle: 'B' };
+    $('transcriptBody').classList.add('trim-open');
+  }
+
+  async function openTrimPanel(idxA, idxB) {
+    showPanel();
+    trimState = { kind: 'cut', idxA, idxB, activeHandle: 'B' };
     trimBufA = null; trimBufB = null; trimPcmA = null; trimPcmB = null;
-    stopLoop(); await fetchTrimBuffers(); renderTrim();
+    stopLoop(); markFineBlock(); await fetchTrimBuffers(); renderTrim(); trimHeader();
   }
   SS.openTrimPanel = openTrimPanel;
-  $('btnCloseTrim').addEventListener('click', () => { $('trimPanel').style.display = 'none'; SS.state.trimOpen = false; trimState = null; stopLoop(); });
+
+  /** 자막(단어 a..b) 미세 조정 열기. 지운 단어는 빼고 남은 첫·끝 단어로 */
+  async function openFineTune(a, b) {
+    const ws = SS.state.words;
+    a = Math.max(0, a); b = Math.min(ws.length - 1, b);
+    while (a <= b && ws[a].del) a++;
+    while (b >= a && ws[b].del) b--;
+    if (a > b) { if (SS.toast) SS.toast('지운 구간이라 조정할 소리가 없습니다. 먼저 되살려 주세요.'); return false; }
+    if (SS.flushCaptionEdit) SS.flushCaptionEdit(false);
+    if (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('caption-output')) { document.activeElement.blur(); $('transcriptBody').focus({ preventScroll: true }); }
+    SS.preview.pause();
+    showPanel();
+    trimState = { kind: 'range', idxA: b, idxB: a, activeHandle: 'B' };
+    trimBufA = null; trimBufB = null; trimPcmA = null; trimPcmB = null;
+    stopLoop();
+    markFineBlock(); ensureFineVisible();
+    await fetchTrimBuffers(); renderTrim(); trimHeader(); ensureFineVisible();
+    return true;
+  }
+  SS.openFineTune = openFineTune;
+  /** 자막 목록의 n번째 묶음(caption-block) 미세 조정 */
+  SS.openFineTuneBlock = (el) => el ? openFineTune(+el.dataset.from, +el.dataset.to - 1) : false;
+
+  function closeTrimPanel() {
+    $('trimPanel').style.display = 'none'; SS.state.trimOpen = false; trimState = null; stopLoop();
+    $('transcriptBody').classList.remove('trim-open');
+    markFineBlock();
+  }
+  $('btnCloseTrim').addEventListener('click', closeTrimPanel);
   SS.closeTrim = () => $('btnCloseTrim').click();
+
+  function stepRange(dir) {
+    const li = lines.findIndex(l => l.words.includes(SS.state.words[trimState.idxB].id));
+    const next = lines[li + dir];
+    if (!next) return;
+    const ids = next.words.map(id => SS.state.words.findIndex(w => w.id === id)).filter(i => i >= 0);
+    if (ids.length) openFineTune(Math.min(...ids), Math.max(...ids));
+  }
   $('btnPrevCut').addEventListener('click', () => {
     if (!trimState) return;
+    if (isRange()) { stepRange(-1); return; }
     const cuts = getCuts();
     const idx = cuts.findIndex(c => c.keyEnd === 'e:'+trimState.idxA && c.keyStart === 's:'+trimState.idxB);
     if (idx > 0) { const p = cuts[idx-1]; openTrimPanel(parseInt(p.keyEnd.split(':')[1]), parseInt(p.keyStart.split(':')[1])); }
@@ -687,6 +789,7 @@
   SS.trimPrevCut = () => $('btnPrevCut').click();
   $('btnNextCut').addEventListener('click', () => {
     if (!trimState) return;
+    if (isRange()) { stepRange(1); return; }
     const cuts = getCuts();
     const idx = cuts.findIndex(c => c.keyEnd === 'e:'+trimState.idxA && c.keyStart === 's:'+trimState.idxB);
     if (idx >= 0 && idx < cuts.length - 1) { const n = cuts[idx+1]; openTrimPanel(parseInt(n.keyEnd.split(':')[1]), parseInt(n.keyStart.split(':')[1])); }
@@ -694,23 +797,64 @@
   SS.trimNextCut = () => $('btnNextCut').click();
   $('btnPreviewLoop').addEventListener('click', toggleLoop);
   SS.toggleTrimLoop = toggleLoop;
+  $('trimPanel').querySelectorAll('[data-nudge]').forEach(btn => btn.addEventListener('click', () => {
+    if (!trimState) return;
+    const h = trimState.activeHandle;
+    updateTrimValue(h, (h === 'A' ? SS.getAEnd() : SS.getBStart()) + Number(btn.dataset.nudge));
+  }));
+  $('btnTrimReset').addEventListener('click', () => SS.resetTrim());
+
   async function fetchTrimBuffers() {
     if (!trimState) return;
-    const ws = SS.state.words;
-    let autoAEnd = ws[trimState.idxA].end + SS.state.settings.padAfter, autoBStart = ws[trimState.idxB].start - SS.state.settings.padBefore;
-    trimState.centerA = autoAEnd; trimState.centerB = autoBStart;
+    const ws = SS.state.words, st = SS.state.settings;
+    if (isRange()) {
+      const a = trimState.idxB, b = trimState.idxA;
+      trimState.centerB = joinedBefore(a) ? boundary(a - 1, a) : Math.max(0, ws[a].start - st.padBefore);
+      trimState.centerA = joinedAfter(b) ? boundary(b, b + 1) : ws[b].end + st.padAfter;
+    } else {
+      trimState.centerA = ws[trimState.idxA].end + st.padAfter;
+      trimState.centerB = ws[trimState.idxB].start - st.padBefore;
+    }
     trimBufA = await window.api.getPcm(SS.state.path, trimState.centerA - 2, trimState.centerA + 2, 48000);
     trimBufB = await window.api.getPcm(SS.state.path, trimState.centerB - 2, trimState.centerB + 2, 48000);
     trimPcmA = new Float32Array(trimBufA); trimPcmB = new Float32Array(trimBufB);
   }
   SS.getAEnd = () => (typeof SS.state.overrides['e:' + trimState.idxA] === 'number' ? SS.state.overrides['e:' + trimState.idxA] : trimState.centerA);
   SS.getBStart = () => (typeof SS.state.overrides['s:' + trimState.idxB] === 'number' ? SS.state.overrides['s:' + trimState.idxB] : trimState.centerB);
+
+  // 자막 미세 조정: 시작(B)·끝(A) 값을 넣는다. 이웃 말과 붙어 있으면 안쪽으로 당길 때만 컷을 만든다
+  function setRangeValue(handle, val) {
+    const ws = SS.state.words, ov = SS.state.overrides;
+    if (handle === 'B') {
+      const a = trimState.idxB;
+      if (joinedBefore(a)) {
+        const p = a - 1, nat = trimState.centerB;
+        if (val > nat + 0.004) { ws[a].cutBefore = true; ws[a].fineCut = true; ov['e:' + ws[p].id] = nat; ov['s:' + ws[a].id] = val; }
+        else { if (ws[a].fineCut) { ws[a].cutBefore = false; delete ws[a].fineCut; delete ov['e:' + ws[p].id]; } delete ov['s:' + ws[a].id]; }
+      } else ov['s:' + ws[a].id] = Math.max(0, val);
+    } else {
+      const b = trimState.idxA;
+      if (joinedAfter(b)) {
+        const n = b + 1, nat = trimState.centerA;
+        if (val < nat - 0.004) { ws[n].cutBefore = true; ws[n].fineCut = true; ov['s:' + ws[n].id] = nat; ov['e:' + ws[b].id] = val; }
+        else { if (ws[n].fineCut) { ws[n].cutBefore = false; delete ws[n].fineCut; delete ov['s:' + ws[n].id]; } delete ov['e:' + ws[b].id]; }
+      } else ov['e:' + ws[b].id] = val;
+    }
+  }
   function updateTrimValue(handle, val) {
-    if (handle === 'A') SS.state.overrides['e:' + trimState.idxA] = val; else SS.state.overrides['s:' + trimState.idxB] = val;
-    if (!dragging) pushHistory(); updateOutput(); renderTrim();
+    if (!trimState || !isFinite(val)) return;
+    if (isRange()) {
+      // 시작은 끝보다 0.05초 앞, 끝은 시작보다 0.05초 뒤까지만
+      if (handle === 'B') val = Math.min(val, SS.getAEnd() - 0.05); else val = Math.max(val, SS.getBStart() + 0.05);
+      setRangeValue(handle, val);
+    } else if (handle === 'A') SS.state.overrides['e:' + trimState.idxA] = val; else SS.state.overrides['s:' + trimState.idxB] = val;
+    if (!dragging) { pushHistory(); createAfterTrim(); } else updateOutput();
+    renderTrim(); trimHeader();
     if (loopPlaying) { stopLoop(); startLoop(); }
   }
   SS.updateTrimValue = updateTrimValue;
+  // 자막 목록도 새로 (가위 표시·시간 바뀜). 미세 조정 중인 자막 표시는 유지
+  function createAfterTrim() { updateOutput(); createTranscriptDOMFull(); markFineBlock(); ensureFineVisible(); }
   SS.snapTrim = (mode) => {
     if (!trimState || !trimPcmA || !trimPcmB) return;
     let handle = trimState.activeHandle, pcm = handle === 'A' ? trimPcmA : trimPcmB, center = handle === 'A' ? trimState.centerA : trimState.centerB, t = handle === 'A' ? SS.getAEnd() : SS.getBStart();
@@ -719,33 +863,60 @@
   };
   SS.resetTrim = () => {
     if (!trimState) return;
-    if (trimState.activeHandle === 'A') delete SS.state.overrides['e:' + trimState.idxA]; else delete SS.state.overrides['s:' + trimState.idxB];
-    pushHistory(); updateOutput(); renderTrim();
+    const h = trimState.activeHandle;
+    if (isRange()) { setRangeValue(h, h === 'A' ? trimState.centerA : trimState.centerB); }
+    else if (h === 'A') delete SS.state.overrides['e:' + trimState.idxA]; else delete SS.state.overrides['s:' + trimState.idxB];
+    pushHistory(); createAfterTrim(); renderTrim(); trimHeader();
     if (loopPlaying) { stopLoop(); startLoop(); }
   };
-  SS.switchTrimHandle = (h) => { if (!trimState) return; if (h) trimState.activeHandle = h; else trimState.activeHandle = trimState.activeHandle === 'A' ? 'B' : 'A'; renderTrim(); };
+  SS.switchTrimHandle = (h) => {
+    if (!trimState) return;
+    // 숫자 1·2 는 화면의 왼쪽·오른쪽 (자막 미세 조정은 왼쪽이 시작)
+    if (h && isRange()) h = h === 'A' ? 'B' : 'A';
+    trimState.activeHandle = h || (trimState.activeHandle === 'A' ? 'B' : 'A');
+    renderTrim(); trimHeader();
+  };
   let dragging = false;
   $('trimCanvas').addEventListener('mousedown', e => {
     if (!trimState) return;
     const rect = e.target.getBoundingClientRect(), x = e.clientX - rect.left, w = rect.width;
-    if (x < w / 2) trimState.activeHandle = 'A'; else trimState.activeHandle = 'B';
+    const left = leftHandle();
+    trimState.activeHandle = x < w / 2 ? left : (left === 'A' ? 'B' : 'A');
     dragging = true; handleDrag(e);
   });
   function handleDrag(e) {
     if (!dragging || !trimState) return;
     const rect = $('trimCanvas').getBoundingClientRect(), x = e.clientX - rect.left, w = rect.width;
-    if (trimState.activeHandle === 'A') {
-      let center = trimState.centerA, minT = center - 1.5, maxT = center + 0.5, p = Math.max(0, Math.min(1, x / (w / 2)));
-      updateTrimValue('A', minT + p * (maxT - minT));
-    } else {
-      let center = trimState.centerB, minT = center - 0.5, maxT = center + 1.5, p = Math.max(0, Math.min(1, (x - w/2) / (w / 2)));
-      updateTrimValue('B', minT + p * (maxT - minT));
-    }
+    const h = trimState.activeHandle, onLeft = h === leftHandle();
+    const [minT, maxT] = viewOf(h);
+    const p = Math.max(0, Math.min(1, (x - (onLeft ? 0 : w / 2)) / (w / 2)));
+    updateTrimValue(h, minT + p * (maxT - minT));
   }
-  window.addEventListener('mousemove', handleDrag); window.addEventListener('mouseup', () => { if (dragging) { dragging = false; pushHistory(); } });
-  async function toggleLoop() { if (loopPlaying) stopLoop(); else startLoop(); }
+  window.addEventListener('mousemove', handleDrag);
+  window.addEventListener('mouseup', () => { if (dragging) { dragging = false; pushHistory(); if (trimState) { createAfterTrim(); renderTrim(); trimHeader(); } } });
+
+  // 미리듣기: 컷은 앞 2초+뒤 2초를 이어서 반복, 자막은 편집 결과로 앞뒤 조금 붙여 재생
+  function fineRangeOut() {
+    const segs = segments, ws = SS.state.words;
+    const s = edl.srcToOut(segs, SS.getBStart() + 0.002), e = edl.srcToOut(segs, SS.getAEnd() - 0.002);
+    const a = s != null ? s : (edl.srcToOut(segs, ws[trimState.idxB].start) || 0);
+    const b = e != null ? e : (edl.srcToOut(segs, ws[trimState.idxA].end) || a);
+    return { from: a, to: Math.max(a, b) };
+  }
+  SS.fineRangeOut = () => (isRange() ? fineRangeOut() : null);
+  async function toggleLoop() {
+    if (isRange()) {
+      if (!SS.preview.paused) { SS.preview.pause(); return; }
+      const r = fineRangeOut();
+      if (SS.playback) SS.playback.playOutRange(r.from - 1.0, r.to + 0.8);
+      requestAnimationFrame(renderTrim);
+      return;
+    }
+    if (loopPlaying) stopLoop(); else startLoop();
+  }
   function stopLoop() { loopPlaying = false; if (trimSourceA) { try { trimSourceA.stop(); } catch(e){} trimSourceA = null; } if (trimSourceB) { try { trimSourceB.stop(); } catch(e){} trimSourceB = null; } }
   async function startLoop() {
+    if (isRange()) return;
     if (!actCtx) actCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
     if (actCtx.state === 'suspended') await actCtx.resume();
     let endA = SS.getAEnd(), startB = SS.getBStart(), fadeMs = SS.state.settings.fadeMs / 1000;
@@ -765,14 +936,21 @@
   function renderTrim() {
     if (!trimState || !trimPcmA || !trimPcmB) return;
     const canvas = $('trimCanvas'), ctx = canvas.getContext('2d'), w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
     canvas.width = w * window.devicePixelRatio; canvas.height = h * window.devicePixelRatio; ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(0, 0, w, h);
-    let endA = SS.getAEnd(), startB = SS.getBStart(), viewAMin = trimState.centerA - 1.5, viewAMax = trimState.centerA + 0.5, viewBMin = trimState.centerB - 0.5, viewBMax = trimState.centerB + 1.5;
-    function drawPane(pcm, minT, maxT, xOffset, width, isA) {
-      let bufStart = (isA ? trimState.centerA : trimState.centerB) - 2, sp = 48000;
-      if (isA) { let hX = ((endA - minT) / (maxT - minT)) * width; ctx.fillStyle = '#223822'; ctx.fillRect(xOffset, 0, hX, h); ctx.fillStyle = '#382222'; ctx.fillRect(xOffset + hX, 0, width - hX, h); }
-      else { let hX = ((startB - minT) / (maxT - minT)) * width; ctx.fillStyle = '#382222'; ctx.fillRect(xOffset, 0, hX, h); ctx.fillStyle = '#223822'; ctx.fillRect(xOffset + hX, 0, width - hX, h); }
-      let samplesPerPixel = (maxT - minT) * sp / width; ctx.beginPath(); ctx.strokeStyle = '#888'; ctx.lineWidth = 1;
+    ctx.fillStyle = '#16181c'; ctx.fillRect(0, 0, w, h);
+    const range = isRange();
+    let endA = SS.getAEnd(), startB = SS.getBStart();
+    function drawPane(pcm, handle, xOffset, width) {
+      const isA = handle === 'A';
+      const [minT, maxT] = viewOf(handle);
+      const bufStart = (isA ? trimState.centerA : trimState.centerB) - 2, sp = 48000;
+      const X = t => xOffset + ((t - minT) / (maxT - minT)) * width;
+      // 남는 곳(초록)·잘려 나가는 곳(빨강): 지금 편집 결과의 구간 그대로
+      ctx.fillStyle = '#35191c'; ctx.fillRect(xOffset, 0, width, h);
+      ctx.fillStyle = '#163222';
+      segments.forEach(s => { const a = Math.max(minT, s.start), b = Math.min(maxT, s.end); if (b > a) ctx.fillRect(X(a), 0, X(b) - X(a), h); });
+      let samplesPerPixel = (maxT - minT) * sp / width; ctx.beginPath(); ctx.strokeStyle = '#8f99a6'; ctx.lineWidth = 1;
       for (let px = 0; px < width; px++) {
         let t = minT + (px / width) * (maxT - minT), sIdx = Math.floor((t - bufStart) * sp);
         if (sIdx >= 0 && sIdx < pcm.length) {
@@ -781,24 +959,41 @@
           ctx.moveTo(xOffset + px, h/2 - maxV * (h/2)); ctx.lineTo(xOffset + px, h/2 - minV * (h/2));
         }
       }
-      ctx.stroke(); ctx.fillStyle = '#666'; ctx.font = '10px sans-serif'; ctx.textBaseline = 'top';
-      let startTick = Math.ceil(minT * 10) / 10; for (let tk = startTick; tk < maxT; tk += 0.1) { let x = xOffset + ((tk - minT) / (maxT - minT)) * width; ctx.fillRect(x, h - 15, 1, 15); if (Math.abs(Math.round(tk * 10) % 5) === 0) ctx.fillText(tk.toFixed(1), x + 2, h - 15); }
-      ctx.fillStyle = '#fff'; let ws = SS.state.words;
-      for (let i = (isA ? Math.max(0, trimState.idxA - 5) : trimState.idxB); i <= (isA ? trimState.idxA : Math.min(ws.length-1, trimState.idxB + 5)); i++) {
-        if (!ws[i]) continue; if (ws[i].start >= minT && ws[i].start <= maxT) { let wx = xOffset + ((ws[i].start - minT) / (maxT - minT)) * width; ctx.fillText(ws[i].text, wx, 10 + (i % 2)*12); ctx.fillStyle = '#555'; ctx.fillRect(wx, 25, 1, h/2 - 25); ctx.fillStyle = '#fff'; }
+      ctx.stroke(); ctx.fillStyle = '#6b7380'; ctx.font = '10px sans-serif'; ctx.textBaseline = 'top';
+      let startTick = Math.ceil(minT * 10) / 10; for (let tk = startTick; tk < maxT; tk += 0.1) { let x = X(tk); ctx.fillRect(x, h - 15, 1, 15); if (Math.abs(Math.round(tk * 10) % 5) === 0) ctx.fillText(tk.toFixed(1), x + 2, h - 15); }
+      // 단어 이름과 시작선 (지운 단어는 흐리게)
+      const ws = SS.state.words;
+      const from = Math.max(0, (isA ? trimState.idxA : trimState.idxB) - 6), to = Math.min(ws.length - 1, (isA ? trimState.idxA : trimState.idxB) + 6);
+      ctx.font = '12px sans-serif';
+      for (let i = from; i <= to; i++) {
+        if (!ws[i] || ws[i].start < minT || ws[i].start > maxT) continue;
+        const wx = X(ws[i].start);
+        ctx.fillStyle = ws[i].del ? '#7a5050' : '#dfe5ec'; ctx.fillText(ws[i].text, wx + 2, 6 + (i % 2) * 14);
+        ctx.fillStyle = '#4a515c'; ctx.fillRect(wx, 22, 1, h / 2 - 22);
       }
-      let handleT = isA ? endA : startB, hx = xOffset + ((handleT - minT) / (maxT - minT)) * width, isActive = isA ? (trimState.activeHandle === 'A') : (trimState.activeHandle === 'B');
-      ctx.strokeStyle = isActive ? '#4af' : '#ccc'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(hx, 0); ctx.lineTo(hx, h); ctx.stroke();
-      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(xOffset + 10, h - 40, 150, 20); ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif';
-      let delta = (handleT - (isA ? trimState.centerA : trimState.centerB)), label = isA ? `A끝: ${handleT.toFixed(3)}` : `B시작: ${handleT.toFixed(3)}`;
-      label += ` (자동 대비 ${delta > 0 ? '+' : ''}${delta.toFixed(3)}s)`; ctx.fillText(label, xOffset + 14, h - 35);
+      const handleT = isA ? endA : startB, hx = X(handleT), isActive = trimState.activeHandle === handle;
+      ctx.strokeStyle = isActive ? '#4aa8ff' : '#c8cdd4'; ctx.lineWidth = isActive ? 3 : 2; ctx.beginPath(); ctx.moveTo(hx, 0); ctx.lineTo(hx, h); ctx.stroke();
+      const delta = handleT - (isA ? trimState.centerA : trimState.centerB);
+      const name = range ? (isA ? '끝' : '시작') : (isA ? '앞 끝' : '뒤 시작');
+      const label = `${name} ${handleT.toFixed(3)}초 (자동 대비 ${delta > 0 ? '+' : ''}${delta.toFixed(3)})`;
+      ctx.font = '11px sans-serif'; const lw = ctx.measureText(label).width + 12;
+      ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(xOffset + 8, h - 40, lw, 20); ctx.fillStyle = isActive ? '#9fd0ff' : '#fff'; ctx.fillText(label, xOffset + 14, h - 35);
     }
-    drawPane(trimPcmA, viewAMin, viewAMax, 0, w/2, true); ctx.fillStyle = '#000'; ctx.fillRect(w/2 - 1, 0, 2, h); drawPane(trimPcmB, viewBMin, viewBMax, w/2, w/2, false);
+    const left = leftHandle(), right = left === 'A' ? 'B' : 'A';
+    drawPane(left === 'A' ? trimPcmA : trimPcmB, left, 0, w / 2);
+    ctx.fillStyle = '#000'; ctx.fillRect(w/2 - 1, 0, 2, h);
+    drawPane(right === 'A' ? trimPcmA : trimPcmB, right, w / 2, w / 2);
     if (loopPlaying && actCtx) {
+      const [aMin, aMax] = viewOf('A'), [bMin, bMax] = viewOf('B');
       let elap = actCtx.currentTime - loopStartTime, px = 0, aDur = 2.0;
-      if (elap < aDur) { let curA = (endA - 2) + elap; px = ((curA - viewAMin) / (viewAMax - viewAMin)) * (w/2); }
-      else { let curB = startB + (elap - aDur); px = w/2 + ((curB - viewBMin) / (viewBMax - viewBMin)) * (w/2); }
+      if (elap < aDur) { let curA = (endA - 2) + elap; px = ((curA - aMin) / (aMax - aMin)) * (w/2); }
+      else { let curB = startB + (elap - aDur); px = w/2 + ((curB - bMin) / (bMax - bMin)) * (w/2); }
       ctx.fillStyle = '#ff0'; ctx.fillRect(px - 1, 0, 2, h); requestAnimationFrame(renderTrim);
+    } else if (range && SS.preview && !SS.preview.paused) {
+      // 자막 미리듣기 중: 영상 재생 위치를 노란 선으로
+      const t = SS.preview.currentTime;
+      [[left, 0], [right, w / 2]].forEach(([hd, xo]) => { const [mn, mx] = viewOf(hd); if (t >= mn && t <= mx) { ctx.fillStyle = '#ff0'; ctx.fillRect(xo + ((t - mn) / (mx - mn)) * (w / 2) - 1, 0, 2, h); } });
+      requestAnimationFrame(renderTrim);
     }
   }
 
