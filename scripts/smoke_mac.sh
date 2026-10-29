@@ -27,4 +27,15 @@ echo "---- validation ----"; cat "$OUT/validation.json" 2>/dev/null || echo "(va
 [ "$code" = "0" ] || { echo "앱 종료 코드 $code"; exit 1; }
 grep -q '"success": *true' "$OUT/validation.json" || { echo "실행 시험 실패"; exit 1; }
 [ -s "$OUT/smoke.png" ] || { echo "화면 캡처 없음"; exit 1; }
+"$APP/Contents/Resources/app/bin/ffprobe" -v error -show_streams -of json "$OUT/ud/runtime/cache/guide/example.mp4" > "$OUT/output-probe.json" || exit 1
+node - "$OUT" <<'NODE'
+const fs = require('fs'), path = require('path'), out = process.argv[2];
+const streams = JSON.parse(fs.readFileSync(path.join(out, 'output-probe.json'))).streams;
+const video = streams.find(s => s.codec_type === 'video'), audio = streams.find(s => s.codec_type === 'audio');
+if (!video || video.codec_name !== 'h264' || video.width !== 1080 || video.height !== 1920 || !audio || audio.codec_name !== 'aac') throw Error('출력 규격 오류');
+if (!fs.readFileSync(path.join(out, 'ud/runtime/cache/guide/example.srt'), 'utf8').includes('-->')) throw Error('SRT 없음');
+console.log('H.264 1080×1920 / AAC / SRT 확인');
+NODE
+[ "$?" = 0 ] || exit 1
+ELECTRON_RUN_AS_NODE=1 "$APP/Contents/MacOS/SermonShorts" -p process.version || { echo "유튜브용 내장 JS 런타임 실행 실패"; exit 1; }
 echo "Mac 실행 시험 통과"
