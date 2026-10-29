@@ -254,6 +254,7 @@ function setMacMenu() {
   ]));
 }
 
+require('./bgm').registerScheme(); // 배경음악 재생 통로 ssbgm:// (준비 전에 등록해야 함)
 app.whenReady().then(() => {
   setMacMenu();
   initSettings();

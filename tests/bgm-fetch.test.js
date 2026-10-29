@@ -33,10 +33,10 @@ function server(mode) {
   const hits = { range: 0, full: 0, head: 0 };
   const srv = http.createServer((req, res) => {
     if (req.method === 'HEAD') { hits.head++; res.writeHead(200, { 'Content-Length': body.length, 'Accept-Ranges': mode === 'norange' ? 'none' : 'bytes' }); return res.end(); }
-    const m = /bytes=(\d+)-(\d+)/.exec(req.headers.range || '');
+    const m = /bytes=(\d+)-(\d*)/.exec(req.headers.range || '');
     if (m && mode === 'ranges') {
       hits.range++;
-      const a = +m[1], b = Math.min(body.length - 1, +m[2]);
+      const a = +m[1], b = m[2] ? Math.min(body.length - 1, +m[2]) : body.length - 1;
       res.writeHead(206, { 'Content-Length': b - a + 1, 'Content-Range': `bytes ${a}-${b}/${body.length}` });
       return res.end(body.subarray(a, b + 1));
     }

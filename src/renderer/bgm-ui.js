@@ -15,11 +15,13 @@
   const lib = new Audio();      // 목록·구간 듣기
   lib.preload = 'none';
   let libId = null, libStop = null, peaks = null, peaksFor = null, drag = null;
+  let libLoading = null, libGen = 0; // 누르고 소리 나기 전인 곡 / 듣기 요청 번호 (멈추면 앞 요청 무시)
   // 음악 파일 받기: 곡을 고르면 바로 뒤에서 받는다(내보내기에 필요). 받은 뒤엔 미리보기도 내 컴퓨터 파일로 재생해
   // 영상을 앞뒤로 옮겨도 음악이 바로 따라온다. 받기 전에는 원래 사이트에서 스트리밍.
   const local = {};               // id → file:// 주소
   const dl = {};                  // id → { got, total, state: 'loading'|'done'|'error', error }
-  const srcOf = (t) => local[t.id] || t.url;
+  // 듣기는 앱 안 통로로: 받은 파일이 있으면 그것, 없으면 여러 갈래로 받는 대로 바로 (main/bgm.js serve)
+  const srcOf = (t) => 'ssbgm://track/' + encodeURIComponent(t.id);
   function showDl() {
     const el = $('bgmDl'); const b = cur(); if (!el) return;
     const d = b && dl[b.id];
@@ -158,15 +160,14 @@
   }
 
   // ---------------- 영상과 함께 재생 (미리보기) ----------------
-  let lastSrc = '';
+  let lastSrc = '', mixDirect = null;
   function sync(force) {
     const b = cur(), t = b && track(b.id);
     const v = SS.preview && SS.preview.video;
     const playing = v && !v.paused && SS.playback && SS.playback.active();
     if (!t || !playing) { if (!mix.paused) mix.pause(); return; }
-    const want = srcOf(t);
-    // 받은 파일로 바꾸기는 멈춰 있을 때만 (재생 중 바꾸면 소리가 끊긴다)
-    if (lastSrc !== want && (mix.paused || !lastSrc || !lastSrc.startsWith(t.url))) { mix.src = want; lastSrc = want; }
+    const want = mixDirect === t.id ? t.url : srcOf(t);
+    if (lastSrc !== want) { mix.src = want; lastSrc = want; }
     const p = planNow(), info = SS.playback.timeInfo();
     const tt = B().trackTimeAt(p, info.cur);
     if (tt == null) { if (!mix.paused) mix.pause(); return; }
@@ -189,8 +190,10 @@
   }
   function playLib(t, from, to, fade) {
     stopLib();
-    libId = t.id; lib.src = srcOf(t); lib.volume = 0.8;
-    const startAt = () => { try { lib.currentTime = from || 0; } catch (_) {} lib.play().catch((e) => toast('재생하지 못했습니다: ' + e.message)); };
+    libId = t.id; libLoading = t.id; lib.src = srcOf(t); lib.volume = 0.8;
+    refreshLibButtons();
+    const gen = libGen;
+    const startAt = () => { if (gen !== libGen) return; try { lib.currentTime = from || 0; } catch (_) {} lib.play().catch((e) => { if (gen === libGen) toast('재생하지 못했습니다: ' + e.message); }); };
     if (lib.readyState >= 1) startAt(); else lib.addEventListener('loadedmetadata', startAt, { once: true });
     lib.load && lib.readyState === 0 && lib.load();
     libStop = () => {
@@ -203,11 +206,21 @@
     lib.addEventListener('playing', () => requestAnimationFrame(libStop), { once: true });
     refreshLibButtons();
   }
-  function stopLib() { if (!lib.paused) lib.pause(); }
+  // 멈추기: 불러오는 중이던 것도 취소 (다 불러온 뒤 저절로 재생되지 않게)
+  function stopLib() { libGen++; if (libLoading) { libLoading = null; refreshLibButtons(); } if (!lib.paused) lib.pause(); }
   lib.addEventListener('pause', refreshLibButtons);
   lib.addEventListener('play', refreshLibButtons);
-  lib.addEventListener('error', () => { if (libId) toast('음악을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.'); refreshLibButtons(); });
-  mix.addEventListener('error', () => { if (cur()) toast('배경음악을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.'); });
+  // 앱 안 통로가 안 되면 한 번은 원래 사이트에서 바로 듣기 (mixDirect 는 위에)
+  lib.addEventListener('error', () => {
+    const t = libId && track(libId);
+    if (t && /^ssbgm:/.test(lib.currentSrc || lib.src)) { lib.src = t.url; lib.play().catch(() => {}); return; }
+    if (libId) toast('음악을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.'); libLoading = null; refreshLibButtons();
+  });
+  mix.addEventListener('error', () => {
+    const b = cur();
+    if (b && /^ssbgm:/.test(mix.currentSrc || mix.src) && mixDirect !== b.id) { mixDirect = b.id; sync(true); return; }
+    if (b) toast('배경음악을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.');
+  });
 
   // ---------------- 음악 고르기 (목록) ----------------
   let mood = '전체';
@@ -247,6 +260,7 @@
       </div>`).join('') : '<div class="bgm-empty">이 분위기의 음악이 아직 없습니다.</div>';
     $('bgmList').querySelectorAll('[data-play]').forEach((b) => b.addEventListener('click', () => {
       const t = track(b.dataset.play);
+      if (libLoading === t.id) { stopLib(); return; } // 불러오는 중에 다시 누르면 취소
       if (!lib.paused && libId === t.id) { lib.pause(); return; }
       playLib(t, 0, 0, null);
     }));
@@ -255,12 +269,17 @@
   }
   function refreshLibButtons() {
     document.querySelectorAll('[data-play]').forEach((b) => {
-      const on = !lib.paused && libId === b.dataset.play;
-      b.classList.toggle('i-play', !on); b.classList.toggle('i-pause', on); b.classList.toggle('playing', on);
+      const id = b.dataset.play, load = libLoading === id, on = !load && !lib.paused && libId === id;
+      b.classList.toggle('i-play', !on); b.classList.toggle('i-pause', on); b.classList.toggle('playing', on); b.classList.toggle('loading', load);
+      b.title = load ? '불러오는 중…' : '듣기 / 일시정지';
     });
     const lb = $('btnBgmListen');
-    if (lb) { const on = !lib.paused && cur() && libId === cur().id; lb.classList.toggle('i-play', !on); lb.classList.toggle('i-pause', on); lb.textContent = on ? '멈추기' : '구간 듣기'; }
+    if (lb) { const mine = cur() && libId === cur().id, load = mine && libLoading === libId, on = !load && !lib.paused && mine; lb.classList.toggle('i-play', !on); lb.classList.toggle('i-pause', on); lb.classList.toggle('loading', !!load); lb.textContent = load ? '불러오는 중' : on ? '멈추기' : '구간 듣기'; }
   }
+  // 누른 뒤 소리가 날 때까지 '불러오는 중' 표시
+  const libLoaded = () => { if (libLoading) { libLoading = null; refreshLibButtons(); } };
+  lib.addEventListener('playing', libLoaded);
+  lib.addEventListener('emptied', () => { if (libLoading && libLoading !== libId) libLoaded(); });
   function use(id) {
     const t = track(id); if (!t) return;
     if (SS.pushUndo) SS.pushUndo();

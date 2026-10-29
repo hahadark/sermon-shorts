@@ -72,11 +72,17 @@
       check('분위기 거르기', hymnRows === SS.bgmCatalog.tracks.filter((t) => t.mood === '찬송가 연주').length, hymnRows);
       // 스트리밍 듣기 (CC BY 피아노 = incompetech) → 일시정지
       document.querySelector('#bgmMoods [data-mood="잔잔한 피아노"]').click(); await sleep(150);
-      const playBtn = document.querySelector('#bgmList [data-play]');
-      playBtn.click();
       const lib = SS.bgmUi.lib; let tw = Date.now();
+      // 불러오는 중에 다시 누르면 취소 (나중에 저절로 재생되지 않음)
+      { const b2 = document.querySelectorAll('#bgmList [data-play]')[1]; b2.click(); const l1 = b2.classList.contains('loading'); b2.click(); await sleep(3000);
+        check('불러오는 중 다시 누르면 취소', l1 && !b2.classList.contains('loading') && lib.paused, { l1, paused: lib.paused }); }
+      const playBtn = document.querySelector('#bgmList [data-play]');
+      tw = Date.now(); playBtn.click();
+      check('누르자마자 불러오는 중 표시', playBtn.classList.contains('loading'), playBtn.className);
+      await shot('2a_bgm_loading');
       while (!(lib.currentTime > 0.5)) { if (Date.now() - tw > 20000) throw new Error('스트리밍 재생 안 됨 ' + (lib.error && lib.error.code)); await sleep(200); }
-      check('목록에서 스트리밍 재생', !lib.paused && lib.currentTime > 0.5, lib.currentTime);
+      check('목록에서 스트리밍 재생 (앱 안 통로)', !lib.paused && lib.currentTime > 0.5 && /^ssbgm:/.test(lib.currentSrc), { t: lib.currentTime, src: lib.currentSrc });
+      check('소리 나면 불러오는 중 표시 사라짐', !playBtn.classList.contains('loading') && playBtn.classList.contains('playing'), playBtn.className);
       check('재생 단추가 일시정지로', document.querySelector('#bgmList [data-play]').classList.contains('i-pause'));
       await shot('2_bgm_library');
       document.querySelector('#bgmList [data-play]').click(); await sleep(200);
@@ -127,7 +133,7 @@
       report.sync = { mix: mix.currentTime, expect, vol: mix.volume };
       check('영상과 함께 음악 재생 (위치 맞음)', Math.abs(mix.currentTime - expect) < 0.45, report.sync);
       check('음악 크기 = 설정 크기', Math.abs(mix.volume - 0.3) < 0.02, mix.volume);
-      check('미리보기 음악이 받은 파일에서', /^file:/.test(mix.currentSrc || mix.src), mix.currentSrc || mix.src);
+      check('미리보기 음악이 앱 안 통로로', /^ssbgm:/.test(mix.currentSrc || mix.src), mix.currentSrc || mix.src);
       // 재생 중 위치를 옮기면 음악이 얼마나 빨리 따라오나
       { const p2 = SS.edl.outToSrc(SS.getSegments(), p.delay + 20).t; const t1 = Date.now(); await SS.preview.seek(p2); let ok = false;
         while (Date.now() - t1 < 5000) { const i2 = SS.playback.timeInfo(), e2 = SS.bgm.trackTimeAt(p, i2.cur); if (e2 != null && !mix.paused && Math.abs(mix.currentTime - e2) < 0.3 && mix.readyState >= 3) { ok = true; break; } await sleep(30); }
@@ -273,6 +279,38 @@
       if (!report.success) report.error = '실패: ' + report.checks.filter((c) => !c.ok).map((c) => c.name).join(', ');
     } catch (err) { report.success = false; report.error = err.stack || String(err); }
     report.finishedAt = new Date().toISOString();
+    if (dir) await window.api.writeText(dir + '/report.json', JSON.stringify(report, null, 2));
+    if (report.success) window.api.notifyTestReady({ success: true }); else window.api.notifyTestError(report.error);
+  });
+  // 음악 고르기 ▶ 를 누르고 소리가 나기까지 (SS_TEST_SCRIPT=bgmlib-speed)
+  window.addEventListener('ss:run-test-script', async (e) => {
+    if (e.detail !== 'bgmlib-speed') return;
+    const report = { startedAt: new Date().toISOString(), runs: [] };
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    let dir = '';
+    try {
+      const launch = await window.api.getLaunchInfo();
+      dir = launch.cache + '/bgmlib_speed'; await window.api.mkdir(dir);
+      document.getElementById('tabMusic').click(); await sleep(150);
+      document.getElementById('btnBgmPick').click(); await sleep(300);
+      const lib = SS.bgmUi.lib;
+      { const pb = document.querySelector('#bgmList [data-play]'); pb.classList.remove('i-play'); pb.classList.add('loading'); await sleep(250); await SS.testShot('cache/bgmlib_speed/loading.png'); const r = pb.getBoundingClientRect(), d = window.devicePixelRatio || 1; report.btn = [r.left * d, r.top * d, r.right * d, r.bottom * d].map(Math.round); pb.classList.remove('loading'); pb.classList.add('i-play'); }
+      const ids = (window.__speedIds || SS.bgmCatalog.tracks.map((x) => x.id));
+      for (const id of ids) {
+        const ev = {}; const t0 = performance.now();
+        const mark = (k) => () => { if (ev[k] == null) ev[k] = Math.round(performance.now() - t0); };
+        const names = ['loadstart', 'loadedmetadata', 'canplay', 'playing', 'waiting', 'stalled'];
+        const hs = names.map((k) => { const h = mark(k); lib.addEventListener(k, h); return [k, h]; });
+        const btn = document.querySelector('#bgmList [data-play="' + id + '"]');
+        btn.click();
+        let sound = null;
+        while (performance.now() - t0 < 25000) { if (!lib.paused && lib.currentTime > 0.2) { sound = Math.round(performance.now() - t0); break; } await sleep(20); }
+        hs.forEach(([k, h]) => lib.removeEventListener(k, h));
+        report.runs.push({ id, host: new URL(SS.bgmCatalog.tracks.find((x) => x.id === id).url).host, src: (lib.currentSrc || lib.src).split(':')[0], sound, ...ev });
+        lib.pause(); await sleep(300);
+      }
+      report.success = true;
+    } catch (err) { report.success = false; report.error = err.stack || String(err); }
     if (dir) await window.api.writeText(dir + '/report.json', JSON.stringify(report, null, 2));
     if (report.success) window.api.notifyTestReady({ success: true }); else window.api.notifyTestError(report.error);
   });
