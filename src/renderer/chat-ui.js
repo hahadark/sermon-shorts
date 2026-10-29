@@ -331,7 +331,7 @@
         <p>유료 구독이 없어도 구글 계정만 있으면 <b>무료 키</b>로 쓸 수 있습니다.</p>
         <ol><li>[키 발급 페이지 열기] → 구글 계정으로 로그인합니다.</li><li><b>Create API key</b>(API 키 만들기)를 눌러 나온 키를 복사합니다.</li><li>아래 칸에 붙여 넣고 [저장]을 누릅니다.</li></ol>
         <div class="row"><button class="btn" data-link="geminiKey">키 발급 페이지 열기</button>
-          <input type="password" id="geminiKey" class="chat-input" placeholder="AIza… 로 시작하는 키"><button class="btn primary" data-act="gmSave">저장</button>${useBtn('gemini')}</div>
+          <input type="password" id="geminiKey" class="chat-input" placeholder="복사한 API 키 전체를 붙여 넣으세요"><button class="btn primary" data-act="gmSave">저장</button>${useBtn('gemini')}</div>
         <p class="note">키는 이 컴퓨터에 암호화되어 저장됩니다. 무료 사용량을 넘으면 잠시 쉬었다가 다시 쓰면 됩니다.</p>
       </div>
       <div id="aiConnMsg" class="note" style="min-height:18px"></div>`;
@@ -358,7 +358,7 @@
         await api.llmClaudeLogin(); msg('로그인 창이 열렸습니다. 브라우저에서 로그인을 마친 뒤 [다시 확인]을 누르세요.');
       } else if (what === 'gmSave') {
         const k = ($('geminiKey').value || '').trim();
-        if (!/^AIza[0-9A-Za-z_\-]{20,}$/.test(k)) { msg('키 모양이 이상합니다. AIza 로 시작하는 키 전체를 붙여 넣어 주세요.'); return; }
+        if (!k || /\s/.test(k) || k.length < 20) { msg('키가 너무 짧거나 띄어쓰기가 들어 있습니다. 복사한 키 전체를 그대로 붙여 넣어 주세요.'); return; }
         await api.saveSettings({ geminiApiKey: k });
         msg('저장했습니다. 연결을 확인하는 중…');
         const t = await api.llmTest('gemini').catch((e) => ({ ok: false, text: cleanErr(e) }));

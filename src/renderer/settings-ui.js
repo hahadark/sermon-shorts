@@ -44,7 +44,7 @@
           <div class="settings-pane" data-pane="ai">
             <div class="settings-row">
               <label>Gemini API 키</label>
-              <input type="password" id="setGeminiKey" autocomplete="off" placeholder="${s.hasApiKey ? '새 키로 바꿀 때만 입력' : 'AIza... 로 시작하는 키를 붙여넣으세요'}">
+              <input type="password" id="setGeminiKey" autocomplete="off" placeholder="${s.hasApiKey ? '새 키로 바꿀 때만 입력' : '복사한 API 키를 붙여넣으세요'}">
               <div class="settings-note">현재: ${keyState} · 키 만들기: https://aistudio.google.com/apikey</div>
             </div>
             <div class="settings-row">
