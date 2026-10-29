@@ -2,7 +2,7 @@
 // 앱 자동 업데이트 (GitHub 릴리스의 latest.yml 을 읽는다).
 //  - 설치판(NSIS): 새 버전을 뒤에서 받아 두고, [지금 다시 시작] 또는 앱을 닫을 때 설치한다.
 //  - 압축 해제판(zip): 스스로 바꿀 수 없으니 새 버전이 있다고만 알리고 내려받기 페이지를 연다.
-//  - 개발 실행·테스트 캡처·Mac 에서는 하지 않는다. (Mac 판은 당분간 만들지 않는다)
+//  - 개발 실행·테스트 캡처·Mac 에서는 하지 않는다. (Mac 베타는 DMG·ZIP으로 수동 교체)
 const fs = require('fs');
 const path = require('path');
 const { app, ipcMain, shell } = require('electron');
