@@ -13,3 +13,4 @@ engine/install.log
 *.log
 test_log.txt
 bin-mac/
+src/main/google-client.json

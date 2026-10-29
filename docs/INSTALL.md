@@ -45,4 +45,4 @@ Mac 빌드: `npm run build:mac` (macOS 또는 Linux, Linux에서는 `rcodesign` 
 ## API와 글꼴
 - 기본 편집·로컬 음성 인식에는 Gemini 키가 필요하지 않습니다. AI 추천·교정·연결 확인은 별도 Google API 요금이 발생할 수 있습니다.
 - 키는 설정 AI 탭에서 사용자 본인의 키를 등록합니다. 배포본에는 키나 개인 설정을 넣지 않습니다.
-- 배포본에 구세군체는 포함하지 않습니다. 권한이 있는 사용자만 별도로 추가하세요. 공개 글꼴 및 영상 도구 고지는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 참고하세요.
+- 배포본에는 재배포가 허용된 공개 글꼴만 들어 있습니다. 교단·교회 전용 글꼴은 권한이 있는 사용자만 [글꼴 추가]로 넣으세요. 공개 글꼴 및 영상 도구 고지는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 참고하세요.

@@ -83,7 +83,7 @@ async function send(text, onDelta) {
   const provider = activeProvider();
   const s = settingsMod.loadSettings();
   const tpl = s.template || {};
-  const system = chatPlan.buildSystemPrompt({ church: tpl.churchName, speaker: s.defaultSpeaker || tpl.defaultSpeaker, videoTitle: session.info.title })
+  const system = chatPlan.buildSystemPrompt({ church: tpl.churchName, speaker: s.defaultSpeaker || tpl.defaultSpeaker, terms: s.churchTerms, videoTitle: session.info.title })
     + '\n\n[설교 자막]\n' + chatPlan.transcriptText(session.words, session.lines, transcriptRange());
   const current = session.plan ? {
     title: session.plan.title, verse: session.plan.verse, tighten: session.plan.tighten,

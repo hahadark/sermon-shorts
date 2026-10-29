@@ -12,7 +12,7 @@ function err(code, message) { const e = new Error(message); e.code = code; retur
 
 function resultPage(ok, msg) {
   const title = ok ? '로그인이 끝났습니다' : '로그인하지 못했습니다';
-  const body = ok ? '로그인이 끝났습니다. 설교쇼츠편집기로 돌아가세요.' : (msg || '다시 시도해 주세요.');
+  const body = ok ? '로그인이 끝났습니다. SermonShorts로 돌아가세요.' : (msg || '다시 시도해 주세요.');
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${title}</title>
 <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:90vh;background:#f5f5f5}
 div{background:#fff;padding:32px 40px;border-radius:12px;box-shadow:0 2px 12px #0002;font-size:18px}</style></head>

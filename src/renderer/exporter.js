@@ -44,9 +44,30 @@
     } catch(e) { console.error('Export failed',e);return {success:false,error:e.message}; }
     finally { busy=false; if (SS.refreshExportUI) SS.refreshExportUI(); }
   };
+  // 내보낸 뒤 유튜브 업로드: 로그인되어 있으면 [영상 만들면 바로 올리기]일 때 바로, 아니면 물어보고 올린다
+  let uploading=false,refresh=()=>{};
+  const cleanIpc=e=>String(e&&e.message||e).replace(/^Error invoking remote method '[^']+': (Error: )?/,'');
+  SS.afterExportUpload = async function(outPath) {
+    let st; try { st=await window.api.ytupStatus(); } catch(_) { return; }
+    if(!st.loggedIn||uploading)return;
+    const names={unlisted:'일부공개',private:'비공개',public:'공개'};
+    if(!st.autoUpload&&!confirm('유튜브('+(st.channel||'내 채널')+')에 '+(names[st.privacy]||'')+'로 올릴까요?'))return;
+    const btn=document.getElementById('btnExport');
+    uploading=true;btn.disabled=true;btn.textContent='유튜브 업로드 준비 중...';
+    const off=window.api.onProgress(p=>{if(p?.task==='ytupload'&&Number.isFinite(p.pct))btn.textContent='유튜브 업로드 '+p.pct+'%';});
+    const meta=SS.state?.meta||{};
+    try {
+      const r=await window.api.ytupUpload(outPath,{title:meta.title||'',verse:meta.verse||'',speaker:meta.speaker||SS.appSettings?.defaultSpeaker||'',church:SS.appSettings?.template?.churchName||''});
+      const forced=r.privacy&&r.privacy!==st.privacy?" (유튜브가 '"+(names[r.privacy]||r.privacy)+"'로 바꿨습니다)":'';
+      SS.toast('유튜브에 올렸습니다: '+r.url+forced,9000);
+      if(confirm('유튜브에 올렸습니다'+forced+'.\n유튜브 스튜디오에서 확인할까요?'))window.api.ytupOpenUrl(r.studio);
+    } catch(e) {
+      SS.toast('유튜브 업로드 실패: '+cleanIpc(e),9000);
+    } finally { off(); uploading=false; refresh(); }
+  };
   SS.initExporter = function() {
     const btn=document.getElementById('btnExport');
-    const refresh=()=>{if(!busy){btn.disabled=!(SS.state?.source&&SS.state.words?.some(w=>!w.del));btn.textContent='내보내기';}};
+    refresh=()=>{if(!busy&&!uploading){btn.disabled=!(SS.state?.source&&SS.state.words?.some(w=>!w.del));btn.textContent='내보내기';}};
     SS.refreshExportUI=refresh;
     for(const event of ['ss:transcript-ready','ss:source-loaded','ss:video-opened','ss:words-changed'])window.addEventListener(event,()=>setTimeout(refresh,0));
     window.api.onProgress(p=>{if(p?.task==='export'&&busy&&Number.isFinite(p.pct))btn.textContent='내보내는 중... '+Math.round(p.pct)+'%';});
@@ -58,6 +79,7 @@
       const result=await SS.doExport(p);
       SS.toast(result.success?'MP4와 SRT를 저장했습니다':'내보내기 실패: '+result.error,result.success?3000:7000);
       refresh();
+      if(result.success&&SS.afterExportUpload)SS.afterExportUpload(result.outPath);
     });
   };
 })();

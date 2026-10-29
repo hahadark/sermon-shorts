@@ -20,6 +20,7 @@ const guard = require('./fs-guard');
 const setup = require('./setup');
 const { initLlm } = require('./llm');
 const { initUpdater } = require('./updater');
+const { initYoutubeUpload } = require('./youtube-upload');
 
 ai.setKeyProvider(() => {
   const k = getGeminiApiKey();
@@ -61,7 +62,7 @@ function createWindow() {
     minHeight: 760,
     backgroundColor: '#15171a',
     icon: path.join(__dirname, '..', '..', 'assets', 'images', 'app-icon.png'),
-    title: '설교쇼츠편집기',
+    title: 'SermonShorts',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -246,7 +247,7 @@ function registerIpc() {
 function setMacMenu() {
   if (process.platform !== 'darwin') return;
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: app.name, submenu: [{ role: 'about', label: '설교쇼츠편집기 정보' }, { type: 'separator' }, { role: 'hide', label: '가리기' }, { role: 'hideOthers', label: '기타 가리기' }, { type: 'separator' }, { role: 'quit', label: '종료' }] },
+    { label: app.name, submenu: [{ role: 'about', label: 'SermonShorts 정보' }, { type: 'separator' }, { role: 'hide', label: '가리기' }, { role: 'hideOthers', label: '기타 가리기' }, { type: 'separator' }, { role: 'quit', label: '종료' }] },
     { label: '편집', submenu: [{ role: 'cut', label: '잘라내기' }, { role: 'copy', label: '복사' }, { role: 'paste', label: '붙여넣기' }, { role: 'selectAll', label: '모두 선택' }] },
     { label: '윈도우', submenu: [{ role: 'minimize', label: '최소화' }, { role: 'togglefullscreen', label: '전체 화면' }] },
   ]));
@@ -260,6 +261,7 @@ app.whenReady().then(() => {
   initLlm();
   registerIpc();
   initUpdater({ getWindow: () => mainWindow, log, disabled: !!SCREENSHOT });
+  initYoutubeUpload();
   // yt-dlp: 처음이면 준비하고, 하루에 한 번 최신으로 (유튜브가 바뀌면 오래된 yt-dlp 는 403 으로 실패한다)
   const ytdlpManager = require('./ytdlp-manager');
   ytdlpManager.setLogger((m) => log(m));

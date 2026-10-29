@@ -1,6 +1,6 @@
 # SermonShorts 설계 (v0.1)
 
-구세군대구사랑교회 "대구사랑설교쇼츠" 제작용 Electron 앱. 긴 예배 영상 → 1~2분 세로 쇼츠(1080x1920 MP4 + SRT).
+교회 설교 쇼츠 제작용 Electron 앱(SermonShorts). 긴 예배 영상 → 1~2분 세로 쇼츠(1080x1920 MP4 + SRT).
 UI 문구는 모두 한국어. 코드는 순수 JS(CommonJS, 프레임워크/번들러 없음), Electron 44.7.2. WorshipCue와 같은 스타일.
 
 ## 폴더
@@ -40,7 +40,7 @@ tests/
                "del": false, "br": false } ],
   "overrides": { "s:w0040": 55.120, "e:w0039": 50.300 },
   "settings": { "padBefore": 0.10, "padAfter": 0.15, "fadeMs": 10, "maxLineChars": 14 },
-  "meta": { "title": "증인들", "verse": "행 5:27-32", "speaker": "김택근 사관" },
+  "meta": { "title": "증인들", "verse": "행 5:27-32", "speaker": "홍길동 목사" },
   "crop": { "scale": 1.0, "x": 0.5, "y": 0.4 },
   "template": "default"
 }
@@ -75,9 +75,9 @@ tests/
 - 배경 #000. 제목 중심 y≈205, 구절 중심 y≈280, 색 #39FF5A, 붓글씨체, 약 68px, 가운데.
 - 영상 영역 y=353..1311 (1080x958).
 - 자막 중심 y≈1390, 흰색 굵은 고딕 약 62px.
-- 하단: 문장(로고) 약 110px 높이, 그 오른쪽에 "구세군대구사랑교회"(자간 넓게, 약 40px) 위, 설교자 "이름 직분"(약 56px 굵게) 아래. 묶음 가운데 정렬, y≈1620..1730.
+- 하단: 문장(로고) 약 110px 높이, 그 오른쪽에 교회 이름(자간 넓게, 약 40px) 위, 설교자 "이름 직분"(약 56px 굵게) 아래. 묶음 가운데 정렬, y≈1620..1730.
 - 템플릿 값은 settings에 JSON으로 저장 (글꼴, 색, 크기, 위치, 로고 경로).
-- 글꼴 (쇼츠36 비교로 확정, assets/fonts, OFL): 제목·구절 = Yeon Sung(YeonSung-Regular.ttf, 약간 굵게 보이도록 같은 색 1~2px 외곽선), 자막·교회명·설교자 = 구세군체 (assets/fonts/구세군체Bold.otf, 사용자 지정. 레퍼런스보다 얇아서 같은 색 외곽선 2~3px로 굵기 맞춤). 대체 글꼴 NanumGothic. 렌더러에서 @font-face로 로드.
+- 글꼴 (쇼츠36 비교로 확정, assets/fonts, OFL): 제목·구절 = Yeon Sung(YeonSung-Regular.ttf, 약간 굵게 보이도록 같은 색 1~2px 외곽선), 자막·교회명·설교자 = Noto Sans KR (사용자가 [글꼴 추가]로 바꿀 수 있음). 대체 글꼴 NanumGothic. 렌더러에서 @font-face로 로드.
 
 ## 엔진 (engine/transcribe.py)
 - `python transcribe.py --input <file> [--start s --end e] --out <json> [--model large-v3] [--lang ko]`

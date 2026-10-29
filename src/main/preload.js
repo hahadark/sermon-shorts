@@ -79,6 +79,15 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('chat:delta', listener);
     return () => ipcRenderer.removeListener('chat:delta', listener);
   },
+  // 유튜브 업로드 — 토큰은 오지 않는다. 상태 { hasClient, ownClient, loggedIn, channel, privacy, autoUpload }
+  ytupStatus: () => ipcRenderer.invoke('ytup:status'),
+  ytupSignIn: () => ipcRenderer.invoke('ytup:signIn'),
+  ytupSignOut: () => ipcRenderer.invoke('ytup:signOut'),
+  ytupSetOptions: (o) => ipcRenderer.invoke('ytup:setOptions', o),
+  ytupOpenLink: (key) => ipcRenderer.invoke('ytup:openLink', key),
+  ytupOpenUrl: (url) => ipcRenderer.invoke('ytup:openUrl', url),
+  /** meta: { title, verse, church, speaker, privacy? } → { ok, id, url, studio, privacy, title } */
+  ytupUpload: (filePath, meta) => ipcRenderer.invoke('ytup:upload', filePath, meta),
   // 앱 자동 업데이트: 상태 { state, version, percent, current }
   updateGet: () => ipcRenderer.invoke('update:get'),
   updateCheck: () => ipcRenderer.invoke('update:check'),

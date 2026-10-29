@@ -8,7 +8,7 @@ const ai = require('./ai');
 const youtube = require('./youtube');
 const setup = require('./setup');
 
-const TEST_URL = 'https://www.youtube.com/watch?v=9Tmjg3ESEyc';
+const TEST_URL = 'https://www.youtube.com/watch?v=jNQXAC9IVRw'; // 유튜브 첫 영상 ("Me at the zoo"), 어느 교회와도 상관없는 공개 영상
 
 function run(exe, args, opts = {}) {
   return new Promise((resolve) => {

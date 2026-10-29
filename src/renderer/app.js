@@ -229,7 +229,7 @@
             const cx = c.getContext('2d');
             const s = await api.getSettings();
             const tpl = (s && s.template) || {};
-            SS.drawTemplate(cx, ['all'], { title: '증인들', verse: '행 5:27-32', speaker: s.defaultSpeaker || (s.speakers && s.speakers[0]) || '김택근 사관', subtitleText: '우리가 이 일에 증인이요', settings: tpl });
+            SS.drawTemplate(cx, ['all'], { title: '증인들', verse: '행 5:27-32', speaker: s.defaultSpeaker || (s.speakers && s.speakers[0]) || '홍길동 목사', subtitleText: '우리가 이 일에 증인이요', settings: tpl });
             const out = document.createElement('canvas'); out.width = 1080; out.height = 1920;
             const ox = out.getContext('2d'); ox.fillStyle = '#000'; ox.fillRect(0, 0, 1080, 1920);
             ox.fillStyle = '#333'; ox.fillRect(0, 353, 1080, 958); ox.drawImage(c, 0, 0);
@@ -326,7 +326,7 @@
               SS.state.settings = { padBefore: 0, padAfter: 0, fadeMs: 0, maxLineChars: 14 };
               SS.state.overrides = {};
               SS.state.source = SS.state.source || { duration: 1500, fps: 30, width: 1920, height: 1080 };
-              SS.state.meta = { title: "세상이 교인에게 바라는 것", verse: "행 5:27-32", speaker: "김택근 사관" };
+              SS.state.meta = { title: "세상이 교인에게 바라는 것", verse: "행 5:27-32", speaker: "홍길동 목사" };
 
               console.log('[Test] Starting 3-second export at 1416s');
               const exportPath = launchInfo.cache + '/themeedit_test.mp4';

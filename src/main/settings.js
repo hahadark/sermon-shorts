@@ -9,7 +9,7 @@ const themeLib = require('../shared/theme');
 
 const DEFAULT_CHURCH = '우리 교회';
 const DEFAULT_LOGO = 'assets/images/logo-default.png'; // 앱 폴더 기준 상대경로
-const DEFAULT_SPEAKERS = ['차재수 사관', '김택근 사관'];
+const DEFAULT_SPEAKERS = []; // 처음에는 비워 둔다. 사용자가 [설정 → 교회 정보]에서 넣는다
 
 let settingsCache = null;
 
@@ -49,9 +49,17 @@ function defaults() {
     defaultSpeaker: DEFAULT_SPEAKERS[0],
     lastExportDir: '',
     sysCheckSeen: false,
+    churchTerms: '', // 자주 나오는 교회 용어 (쉼표로 구분). 음성 인식·AI 에 알려 준다
     geminiApiKeyEnc: '',
     openrouterApiKeyEnc: '',
     openrouterModel: '',
+    // 유튜브 업로드 (토큰·비밀번호는 암호화, 렌더러로 보내지 않음)
+    ytClientId: '',
+    ytClientSecretEnc: '',
+    ytRefreshEnc: '',
+    ytChannel: '',
+    ytPrivacy: 'unlisted',
+    ytAutoUpload: false,
   };
 }
 
@@ -163,6 +171,8 @@ function getPublicSettings() {
   const pub = JSON.parse(JSON.stringify(s));
   delete pub.geminiApiKeyEnc;
   delete pub.openrouterApiKeyEnc;
+  delete pub.ytClientSecretEnc;
+  delete pub.ytRefreshEnc;
   const orKey = getOpenrouterApiKey();
   pub.hasOpenrouterKey = !!orKey;
   pub.openrouterKeySuffix = orKey ? orKey.slice(-4) : '';
@@ -214,7 +224,12 @@ async function chooseLogo(win) {
 
 function initSettings() {
   ipcMain.handle('get-settings', () => getPublicSettings());
-  ipcMain.handle('save-settings', (_e, s) => saveSettings(s));
+  ipcMain.handle('save-settings', (_e, s) => {
+    // 유튜브 로그인 정보는 youtube-upload.js 만 바꾼다 (렌더러가 덮어쓰지 못하게)
+    const incoming = { ...(s || {}) };
+    for (const k of ['ytClientId', 'ytClientSecretEnc', 'ytRefreshEnc', 'ytChannel']) delete incoming[k];
+    return saveSettings(incoming);
+  });
   ipcMain.handle('settings:logoDataUrl', (_e, p) => getLogoDataUrl(p));
   ipcMain.handle('settings:chooseLogo', (e) => chooseLogo(BrowserWindow.fromWebContents(e.sender)));
 }

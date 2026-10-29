@@ -80,9 +80,11 @@ const AUDIENCE = {
 };
 
 function buildSystem(churchName) {
+  let terms = '';
+  try { terms = String(require('./settings').loadSettings().churchTerms || '').trim(); } catch (_) { /* 설정 없음 */ }
   return `너는 ${churchName || '교회'}의 설교 쇼츠 편집자다.
 예배 영상 자동 자막을 읽고 설교 부분을 찾은 뒤, 유튜브 쇼츠로 만들 구간을 사용자가 정한 조건에 맞게 고른다.
-교회 용어 예: 사관(구세군 목회자 직분), 영문(구세군 교회), 하나님, 예수님, 성령, 말씀.
+교회 용어 예: 하나님, 예수님, 성령, 말씀${terms ? ', ' + terms : ''}.
 항상 지킬 기준:
 1. 앞뒤 맥락 없이 혼자 들어도 이해되는 한 덩어리 이야기.
 2. 첫 문장이 귀를 붙잡는다(질문, 강한 주장, 이야기의 시작). "자, 그리고, 그래서, 그러니까"로 시작하지 않는다.

@@ -65,10 +65,10 @@ async function status() {
 function openInstall() {
   if (process.platform === 'win32') {
     spawn('cmd.exe', ['/c', 'start', '"Claude Code 설치"', 'powershell.exe', '-NoExit', '-NoProfile', '-Command',
-      `Write-Host 'Claude Code 공식 설치를 시작합니다...'; ${INSTALL.win32}; Write-Host ''; Write-Host '설치가 끝났습니다. 이 창을 닫고 설교쇼츠편집기에서 [다시 확인]을 누르세요.'`],
+      `Write-Host 'Claude Code 공식 설치를 시작합니다...'; ${INSTALL.win32}; Write-Host ''; Write-Host '설치가 끝났습니다. 이 창을 닫고 SermonShorts에서 [다시 확인]을 누르세요.'`],
     { detached: true, windowsHide: false, shell: false }).unref();
   } else if (process.platform === 'darwin') {
-    const script = `tell application "Terminal" to do script "${INSTALL.other}; echo; echo 설치가 끝났습니다. 설교쇼츠편집기에서 [다시 확인]을 누르세요."`;
+    const script = `tell application "Terminal" to do script "${INSTALL.other}; echo; echo 설치가 끝났습니다. SermonShorts에서 [다시 확인]을 누르세요."`;
     execFile('osascript', ['-e', script, '-e', 'tell application "Terminal" to activate']);
   } else {
     throw new Error('이 운영체제에서는 터미널에서 직접 설치해 주세요: ' + INSTALL.other);
@@ -81,7 +81,7 @@ function openLogin() {
   const bin = findClaude();
   if (!bin) throw new Error('Claude Code 가 설치되어 있지 않습니다. 먼저 설치해 주세요.');
   if (process.platform === 'win32') {
-    spawn('cmd.exe', ['/c', 'start', '"Claude 로그인"', 'cmd.exe', '/k', `"${bin}" auth login && echo. && echo 로그인이 끝났습니다. 이 창을 닫고 설교쇼츠편집기에서 [다시 확인]을 누르세요.`],
+    spawn('cmd.exe', ['/c', 'start', '"Claude 로그인"', 'cmd.exe', '/k', `"${bin}" auth login && echo. && echo 로그인이 끝났습니다. 이 창을 닫고 SermonShorts에서 [다시 확인]을 누르세요.`],
       { detached: true, windowsHide: false, windowsVerbatimArguments: true }).unref();
   } else if (process.platform === 'darwin') {
     const script = `tell application "Terminal" to do script "'${bin.replace(/'/g, "'\\''")}' auth login"`;

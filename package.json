@@ -87,9 +87,9 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "설교쇼츠편집기",
+      "shortcutName": "SermonShorts",
       "artifactName": "SermonShorts-Setup-${version}-x64.${ext}",
-      "runAfterFinish": false
+      "runAfterFinish": true
     },
     "artifactName": "SermonShorts-${version}-win-x64.${ext}",
     "mac": {
@@ -128,7 +128,7 @@
       ]
     },
     "dmg": {
-      "title": "설교쇼츠편집기 ${version}",
+      "title": "SermonShorts ${version}",
       "artifactName": "SermonShorts-${version}-mac-${arch}.${ext}"
     }
   },

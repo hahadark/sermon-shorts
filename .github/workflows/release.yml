@@ -54,6 +54,14 @@ jobs:
           7z e ff.7z -obin ffmpeg.exe ffprobe.exe -r -y
           Invoke-WebRequest https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -OutFile bin/yt-dlp.exe
           Get-ChildItem bin
+      # 유튜브 업로드용 구글 OAuth 클라이언트(데스크톱 앱). 저장소 Secrets 에 GOOGLE_CLIENT_JSON 이 있을 때만 넣는다.
+      # 없으면 사용자가 [설정 → 유튜브 → 고급]에서 자기 클라이언트를 넣어야 로그인할 수 있다.
+      - name: 구글 OAuth 클라이언트 넣기
+        shell: pwsh
+        env:
+          GOOGLE_CLIENT_JSON: ${{ secrets.GOOGLE_CLIENT_JSON }}
+        run: |
+          if ($env:GOOGLE_CLIENT_JSON) { Set-Content -Path src/main/google-client.json -Value $env:GOOGLE_CLIENT_JSON -Encoding utf8NoBOM; 'google-client.json 넣음' } else { 'GOOGLE_CLIENT_JSON 없음: 기본 클라이언트 없이 빌드' }
       - name: 설치 파일·ZIP 빌드
         run: npx electron-builder --win nsis zip --x64 --publish never
         env:
@@ -112,7 +120,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
-          name: 설교쇼츠편집기 ${{ inputs.tag || github.ref_name }}
+          name: SermonShorts ${{ inputs.tag || github.ref_name }}
           prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
           overwrite_files: true
           files: out/*

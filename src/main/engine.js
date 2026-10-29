@@ -4,7 +4,8 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const { python, ffmpeg, root, paths, ensureDir } = require('./tools');
+const tools = require('./tools');
+const { python, root, paths, ensureDir } = tools;
 
 function getCachePath(inputPath, start, end) {
   const hash = crypto.createHash('md5').update(`${inputPath}_${start}_${end}`).digest('hex');
@@ -34,7 +35,10 @@ async function transcribe(inputPath, range = {}, onProgress) {
   }
 
   return new Promise((resolve, reject) => {
-    const args = [path.join(root, 'engine', 'transcribe.py'), '--input', inputPath, '--out', outPath, '--ffmpeg', ffmpeg];
+    const args = [path.join(root, 'engine', 'transcribe.py'), '--input', inputPath, '--out', outPath, '--ffmpeg', tools.ffmpeg];
+    let terms = '';
+    try { terms = String(require('./settings').loadSettings().churchTerms || '').trim(); } catch (_) { /* 설정 없음 */ }
+    if (terms) args.push('--terms', terms);
     if (start !== undefined) args.push('--start', start.toString());
     if (end !== undefined) args.push('--end', end.toString());
 

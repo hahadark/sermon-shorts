@@ -37,7 +37,7 @@ async function run() {
     const params = {
       title: "세상이 교인에게 바라는 것",
       verse: "행 5:27-32",
-      speaker: "김택근 사관",
+      speaker: "홍길동 목사",
       churchName: "우리 교회",
       subtitleText: "우리가 세상 속에서 증인으로 살아가는",
       theme: theme

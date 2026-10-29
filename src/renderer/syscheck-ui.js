@@ -70,7 +70,7 @@
           <h3>시스템 점검</h3>
           <button class="modal-close" title="닫기">&times;</button>
         </div>
-        <div class="syscheck-sub">이 PC에서 설교쇼츠편집기에 필요한 도구를 확인합니다.</div>
+        <div class="syscheck-sub">이 PC에서 SermonShorts에 필요한 도구를 확인합니다.</div>
         <div class="syscheck-list"><div class="syscheck-loading">점검 중...</div></div>
         <div class="modal-footer">
           <button class="btn" data-act="install-all" disabled>필요한 것 모두 설치</button>

@@ -26,6 +26,7 @@ def parse_args():
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--ffmpeg", default="ffmpeg", help="ffmpeg 실행 파일 경로 (기본: PATH의 ffmpeg)")
     parser.add_argument("--no-align", action="store_true")
+    parser.add_argument("--terms", default="", help="자주 나오는 교회 용어 (쉼표로 구분, 설정의 교회 정보에서)")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
 
@@ -67,7 +68,9 @@ def main():
     model_dir = os.path.join(engine_dir, "models")
     os.makedirs(model_dir, exist_ok=True)
     
-    initial_prompt = "구세군, 사관, 영문, 하나님, 예수님, 성령, 말씀, 기도, 아멘, 사도행전"
+    initial_prompt = "하나님, 예수님, 성령, 말씀, 기도, 아멘"
+    if args.terms.strip():
+        initial_prompt += ", " + args.terms.strip()
     
     device = args.device
     compute_type = "int8_float16"

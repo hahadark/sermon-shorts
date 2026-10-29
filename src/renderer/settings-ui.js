@@ -39,6 +39,7 @@
           <div class="settings-tab" data-tab="ai">AI</div>
           <div class="settings-tab" data-tab="church">교회 정보</div>
           <div class="settings-tab" data-tab="design">디자인</div>
+          <div class="settings-tab" data-tab="youtube">유튜브</div>
         </div>
         <div class="settings-content">
           <div class="settings-pane" data-pane="ai">
@@ -83,6 +84,11 @@
               <label>기본 설교자</label>
               <select id="setDefaultSpeaker"></select>
             </div>
+            <div class="settings-row">
+              <label>우리 교회에서 자주 쓰는 말 (쉼표로 구분, 선택)</label>
+              <input type="text" id="setChurchTerms" value="${esc(s.churchTerms || '')}" placeholder="예: 구역장, 셀모임, 권사, 사관, 영문">
+              <div class="settings-note">교단 직분·교회 이름처럼 자동 자막이 자주 틀리는 말을 넣으면 음성 인식과 AI 편집이 더 정확해집니다.</div>
+            </div>
           </div>
 
           <div class="settings-pane" data-pane="design">
@@ -94,6 +100,40 @@
               </div>
               <div class="settings-note">각 교회만의 디자인을 직접 편집할 수 있습니다.</div>
             </div>
+          </div>
+
+          <div class="settings-pane" data-pane="youtube">
+            <div class="settings-row">
+              <label>유튜브 계정</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <span id="ytState" class="settings-note" style="flex:1">확인 중…</span>
+                <button id="btnYtSignIn" class="btn sm primary">구글로 로그인</button>
+                <button id="btnYtSignOut" class="btn sm">로그아웃</button>
+              </div>
+              <div class="settings-note">브라우저에서 구글 공식 화면으로 로그인합니다. 이 앱은 비밀번호를 받지 않습니다.</div>
+            </div>
+            <div class="settings-row inline">
+              <input type="checkbox" id="ytAuto">
+              <label for="ytAuto" style="font-size:13px; color:#ddd">영상을 만들면 바로 유튜브에 올리기</label>
+            </div>
+            <div class="settings-row">
+              <label>공개 범위</label>
+              <select id="ytPrivacy">
+                <option value="unlisted">일부공개 (링크가 있는 사람만, 확인 후 공개로 바꾸기 권장)</option>
+                <option value="private">비공개 (나만)</option>
+                <option value="public">공개</option>
+              </select>
+            </div>
+            <details class="settings-row">
+              <summary style="cursor:pointer; font-size:12px; color:#aaa">고급: 내 구글 OAuth 클라이언트 쓰기</summary>
+              <div class="settings-note" style="margin:6px 0">앱에 기본 클라이언트가 없거나, 업로드한 영상이 계속 '비공개'로 묶이면 교회 구글 계정으로 만든 클라이언트를 넣으세요.
+                Google Cloud 에서 <b>YouTube Data API v3</b> 사용 설정 → 사용자 인증 정보 → OAuth 클라이언트 ID(<b>데스크톱 앱</b>) 만들기.</div>
+              <div style="display:flex; gap:6px; margin-bottom:6px"><button class="btn sm" id="btnYtApi">API 사용 설정 페이지</button><button class="btn sm" id="btnYtConsole">사용자 인증 정보 페이지</button></div>
+              <input type="text" id="ytClientId" placeholder="클라이언트 ID (….apps.googleusercontent.com)" style="width:100%; margin-bottom:6px">
+              <input type="password" id="ytClientSecret" placeholder="클라이언트 보안 비밀번호" style="width:100%; margin-bottom:6px">
+              <button class="btn sm" id="btnYtClientSave">클라이언트 저장</button>
+            </details>
+            <div id="ytMsg" class="test-result"></div>
           </div>
         </div>
         <div class="modal-footer">
@@ -110,7 +150,37 @@
       modal.querySelectorAll('.settings-pane').forEach((x) => x.classList.toggle('active', x.dataset.pane === name));
     }
     modal.querySelectorAll('.settings-tab').forEach((x) => { x.onclick = () => showTab(x.dataset.tab); });
-    showTab(tab === 'church' ? 'church' : (tab === 'design' ? 'design' : 'ai'));
+    showTab(['church', 'design', 'youtube'].includes(tab) ? tab : 'ai');
+
+    // 유튜브 (이 탭의 바꾼 값은 [저장]을 누르지 않아도 바로 적용된다)
+    const cleanIpc = (e) => String(e && e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+    const ytMsg = (t, ok) => { const el = $('#ytMsg'); el.textContent = t || ''; el.className = 'test-result' + (ok === true ? ' ok' : ok === false ? ' error' : ' busy'); };
+    const ytRender = (st) => {
+      $('#ytState').textContent = !st.hasClient ? '클라이언트 없음 (아래 고급에서 넣어 주세요)' : st.loggedIn ? '로그인됨' + (st.channel ? ' · ' + st.channel : '') : '로그인 안 됨';
+      $('#btnYtSignIn').style.display = st.loggedIn ? 'none' : '';
+      $('#btnYtSignIn').disabled = !st.hasClient;
+      $('#btnYtSignOut').style.display = st.loggedIn ? '' : 'none';
+      $('#ytAuto').checked = st.autoUpload;
+      $('#ytPrivacy').value = st.privacy;
+      if (st.ownClient && !$('#ytClientId').value) $('#ytClientId').placeholder = '저장됨: ' + st.clientIdSuffix + '…';
+    };
+    api.ytupStatus().then(ytRender).catch((e) => ytMsg(cleanIpc(e), false));
+    $('#btnYtSignIn').onclick = async () => {
+      ytMsg('브라우저에서 구글 로그인을 마쳐 주세요… (5분 안에)');
+      try { ytRender(await api.ytupSignIn()); ytMsg('유튜브에 로그인했습니다.', true); } catch (e) { ytMsg(cleanIpc(e), false); }
+    };
+    $('#btnYtSignOut').onclick = async () => { ytRender(await api.ytupSignOut()); ytMsg('로그아웃했습니다.', true); };
+    $('#ytAuto').onchange = async (e) => ytRender(await api.ytupSetOptions({ autoUpload: e.target.checked }));
+    $('#ytPrivacy').onchange = async (e) => ytRender(await api.ytupSetOptions({ privacy: e.target.value }));
+    $('#btnYtApi').onclick = () => api.ytupOpenLink('api');
+    $('#btnYtConsole').onclick = () => api.ytupOpenLink('console');
+    $('#btnYtClientSave').onclick = async () => {
+      try {
+        ytRender(await api.ytupSetOptions({ clientId: $('#ytClientId').value, clientSecret: $('#ytClientSecret').value }));
+        $('#ytClientSecret').value = '';
+        ytMsg('클라이언트를 저장했습니다. 이제 [구글로 로그인]을 누르세요.', true);
+      } catch (e) { ytMsg(cleanIpc(e), false); }
+    };
 
     // 디자인
     const themeSel = $('#setThemeSelect');
@@ -174,7 +244,7 @@
         const inp = document.createElement('input');
         inp.type = 'text';
         inp.value = sp;
-        inp.placeholder = '예: 홍길동 사관';
+        inp.placeholder = '예: 홍길동 목사';
         inp.oninput = () => {
           const wasDefault = defaultSpeaker === speakers[i];
           speakers[i] = inp.value;
@@ -218,6 +288,7 @@
         },
         speakers: names,
         defaultSpeaker: names.includes(defaultSpeaker) ? defaultSpeaker : names[0] || '',
+        churchTerms: $('#setChurchTerms').value.split(/[,，]/).map((x) => x.trim()).filter(Boolean).join(', '),
       };
       const key = $('#setGeminiKey').value.trim();
       if (key) newS.geminiApiKey = key;
