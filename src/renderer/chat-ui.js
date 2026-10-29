@@ -14,7 +14,8 @@
   let lastRanges = null;       // 마지막으로 편집기에 반영한 구간 (같으면 다시 반영하지 않음)
   let lastVideo = null;        // [새로] 전에 보던 영상 (같은 영상을 다시 불러오면 이어서)
   let stub = null;             // 테스트 훅에서만: { send, fetchClips }
-  const chatSendImpl = (t) => (stub && stub.send ? stub.send(t) : api.chatSend(t));
+  const chatSendImpl = (t, emit) => (stub && stub.send ? stub.send(t, emit) : api.chatSend(t));
+  const chatCancelImpl = () => (stub && stub.cancel ? stub.cancel() : api.chatCancel ? api.chatCancel() : Promise.resolve(false));
   const fetchClipsImpl = (u, s) => (stub && stub.fetchClips ? stub.fetchClips(u, s) : api.chatFetchClips(u, s));
   const CP = () => SS.chatPlan;
   const clock = (s) => { s = Math.max(0, Math.floor(s || 0)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
@@ -91,6 +92,28 @@
 .cand-text{margin-top:4px;line-height:1.55;color:#475569}
 .cand-act{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .msg.sys .cq-btn{margin-top:6px}
+.msg.prog{white-space:normal;width:100%;max-width:100%;box-sizing:border-box;padding:12px 14px;border-color:#cddcfb;box-shadow:0 1px 2px rgba(15,23,42,.04),0 6px 18px rgba(37,99,235,.06)}
+.pg-head{display:flex;align-items:center;gap:8px}
+.pg-title{flex:1;font-weight:700;font-size:13.5px;color:var(--text)}
+.pg-time{font-size:12px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums;background:var(--bg);border-radius:999px;padding:1px 8px}
+.pg-bar{position:relative;height:5px;border-radius:999px;background:#e6ebf2;overflow:hidden;margin:9px 0}
+.pg-bar i{position:absolute;top:0;bottom:0;left:-40%;width:40%;border-radius:999px;background:var(--primary);animation:pg-slide 1.5s ease-in-out infinite}
+.pg-bar.det i{left:0;animation:none;width:var(--w,0%);transition:width .25s}
+@keyframes pg-slide{0%{left:-40%}100%{left:100%}}
+@keyframes pg-spin{to{transform:rotate(360deg)}}
+.pg-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:#94a3b8}
+.pg-steps li{display:flex;align-items:center;gap:8px;line-height:1.35}
+.pg-dot{width:14px;height:14px;flex:0 0 auto;box-sizing:border-box;border-radius:50%;border:1.5px solid #cbd5e1;display:inline-flex;align-items:center;justify-content:center}
+.pg-steps li.on{color:var(--text);font-weight:600}
+.pg-steps li.on .pg-dot{border:2px solid var(--primary);border-right-color:transparent;animation:pg-spin .8s linear infinite}
+.pg-steps li.ok{color:#475569}
+.pg-steps li.ok .pg-dot{background:#16a34a;border-color:#16a34a}
+.pg-steps li.ok .pg-dot::after{content:"";width:6px;height:3px;margin-top:-2px;border:solid #fff;border-width:0 0 1.7px 1.7px;transform:rotate(-45deg)}
+.pg-sub{font-weight:500;color:var(--muted)}
+.pg-hint{margin-top:9px;font-size:12px;line-height:1.5;color:var(--muted)}
+.pg-hint.slow{color:#b45309}
+.pg-foot{margin-top:8px;display:flex;justify-content:flex-end}
+@media (prefers-reduced-motion:reduce){.pg-bar i{animation:none;left:0;width:100%;opacity:.35}.pg-steps li.on .pg-dot{animation:none}}
 .chat-divider{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11.5px;margin:6px 0}
 .chat-divider::before,.chat-divider::after{content:'';flex:1;border-top:1px dashed var(--border)}
 .chat-divider .cq-btn{font-size:11.5px;padding:2px 8px}
@@ -186,6 +209,73 @@
     return el;
   }
 
+  // ---------------- 진행 카드: 기다리는 동안 무엇을 하는지·얼마나 지났는지 ----------------
+  const clockOf = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  /**
+   * 기다리는 동안 안내 글. s: 지난 초, idle: 마지막 신호(생각량·글자) 뒤로 지난 초, streams: 신호를 보내 주는 AI 인지, stage
+   * 실제로 클로드는 설교 전체(약 6,700단어)를 읽고 2분 30초쯤 생각한 뒤 답을 쓴다 (2026-10-29 측정) → 신호가 오면 안심 글, 끊기면 주황 글
+   */
+  function aiHint(s, idle, streams, stage) {
+    if (s >= 300) return ['많이 늦어지고 있어요. 조금 더 기다리거나 [멈추기]를 누른 뒤 다시 보내 보세요. (6분이 지나면 저절로 멈춥니다)', 'slow'];
+    if (s < 20) return ['설교 전체를 읽고 고르느라 보통 1~3분 걸립니다. 문제가 생기면 바로 알려 드려요.', ''];
+    if (streams) {
+      if (idle >= 60) return ['AI 의 응답이 1분 넘게 멈춰 있어요. 조금 더 기다려 보고, 계속 그대로면 [멈추기]를 누른 뒤 다시 보내 보세요.', 'slow'];
+      if (stage === 'write') return ['답을 쓰고 있어요. 다 쓰면 바로 보여 드립니다.', ''];
+      return ['멈춘 것이 아니에요. 생각량이 계속 늘고 있어요. 길게 생각할수록 고르는 구간이 좋아집니다.', ''];
+    }
+    if (s < 180) return ['이 AI 는 답을 다 쓴 뒤 한 번에 보내서 중간 진행이 안 보입니다. 오류가 나면 바로 알려 드려요.', ''];
+    return ['조금 오래 걸리고 있어요. AI 가 붐비면 3~4분 걸리기도 합니다. 계속 그대로면 [멈추기]를 누른 뒤 다시 보내 보세요.', 'slow'];
+  }
+  /** 받침 있으면 '이', 없으면 '가' (영문으로 끝나면 '가') */
+  const iga = (w) => { const c = String(w || '').slice(-1).charCodeAt(0); return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 ? '이' : '가'; };
+  /**
+   * steps: [{k, label}] · onStop: 누르면 부를 함수(없으면 멈추기 단추 없음) · hints(s) → [글, 'slow'|'']
+   * 반환: step(k, {title, sub}) / sub(k, 글) / pct(0~100|null) / stopping() / done()
+   */
+  function progressCard({ title, steps, hints, onStop }) {
+    const el = addMsg('ai prog', '');
+    el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+    el.innerHTML = `<div class="pg-head"><b class="pg-title"></b><span class="pg-time" title="지난 시간">0:00</span></div>
+      <div class="pg-bar"><i></i></div>
+      <ol class="pg-steps">${steps.map((s) => `<li data-k="${esc(s.k)}"><span class="pg-dot"></span><span class="pg-lbl">${esc(s.label)}</span><span class="pg-sub"></span></li>`).join('')}</ol>
+      <div class="pg-hint"></div>${onStop ? '<div class="pg-foot"><button type="button" class="cq-btn pg-stop">멈추기</button></div>' : ''}`;
+    const q = (s) => el.querySelector(s);
+    q('.pg-title').textContent = title || '';
+    const t0 = Date.now();
+    let stopped = false;
+    const tick = () => {
+      const s = Math.floor((Date.now() - t0) / 1000);
+      q('.pg-time').textContent = clockOf(s);
+      if (hints && !stopped) { const [h, cls] = hints(s); const n = q('.pg-hint'); if (n.textContent !== h) n.textContent = h; n.classList.toggle('slow', cls === 'slow'); }
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    const li = (k) => el.querySelector(`li[data-k="${k}"]`);
+    const card = {
+      el,
+      step(k, o) {
+        if (stopped) return;
+        const target = li(k); if (!target) return;
+        let seen = false;
+        el.querySelectorAll('.pg-steps li').forEach((x) => {
+          if (x === target) { seen = true; x.classList.add('on'); x.classList.remove('ok'); return; }
+          if (!seen) { x.classList.remove('on'); x.classList.add('ok'); } else x.classList.remove('on', 'ok');
+        });
+        if (o && o.title) q('.pg-title').textContent = o.title;
+        if (o && o.sub != null) card.sub(k, o.sub);
+      },
+      sub(k, text) { const x = li(k); if (x) x.querySelector('.pg-sub').textContent = text ? ' · ' + text : ''; },
+      pct(n) { const b = q('.pg-bar'); b.classList.toggle('det', n != null); b.querySelector('i').style.setProperty('--w', (n == null ? 0 : Math.max(0, Math.min(100, n))) + '%'); },
+      stopping() { stopped = true; const b = q('.pg-stop'); if (b) { b.disabled = true; b.textContent = '멈추는 중…'; } q('.pg-title').textContent = '멈추는 중…'; q('.pg-hint').textContent = ''; },
+      done() { clearInterval(timer); el.remove(); },
+      get seconds() { return Math.floor((Date.now() - t0) / 1000); },
+    };
+    if (onStop) q('.pg-stop').addEventListener('click', () => { card.stopping(); onStop(); });
+    $('chatBody').scrollTop = $('chatBody').scrollHeight;
+    return card;
+  }
+  SS._chatProgressCard = progressCard; // 시험용
+
   function showStart(keep) {
     const body = $('chatBody');
     if (!keep) body.innerHTML = '';
@@ -246,6 +336,7 @@
       const clone = body.cloneNode(true);
       clone.querySelectorAll('.chat-start, .chat-divider.restore-mark').forEach((x) => x.remove());
       clone.querySelectorAll('[id]').forEach((x) => x.removeAttribute('id'));
+      clone.querySelectorAll('.msg.prog').forEach((x) => x.remove());
       clone.querySelectorAll('.msg i').forEach((x) => { if (/생각하는 중|답을 쓰는 중/.test(x.textContent)) x.closest('.msg').remove(); });
       let html = clone.innerHTML;
       while (html.length > LOG_MAX && clone.firstElementChild) { clone.firstElementChild.remove(); html = clone.innerHTML; }
@@ -378,9 +469,11 @@
     if (!url) { SS.toast && SS.toast('유튜브 주소를 넣어 주세요'); return; }
     if (!/youtu\.?be/.test(url)) { SS.toast && SS.toast('유튜브 주소가 아닌 것 같습니다'); return; }
     const btn = $('chatLoad'); btn.disabled = true; btn.textContent = '자막 불러오는 중…';
+    const pgL = progressCard({ title: '유튜브 자막 불러오는 중', steps: [{ k: 'load', label: '영상 정보와 자막 받기' }], hints: (s) => [s < 20 ? '보통 5~20초 걸립니다.' : '유튜브 응답이 늦어지고 있어요. 조금만 더 기다려 주세요.', s < 20 ? '' : 'slow'] });
+    pgL.step('load');
     try {
       const prev = lastVideo;
-      video = await (stub && stub.load ? stub.load(url) : api.chatLoad(url));
+      try { video = await (stub && stub.load ? stub.load(url) : api.chatLoad(url)); } finally { pgL.done(); }
       // 같은 영상을 다시 불러오면 앞의 대화·편집을 이어간다
       const resumed = !!(video.resumed && prev && prev.url === url);
       video.edited = resumed ? !!(prev.edited || video.hasPlan) : false;
@@ -421,13 +514,34 @@
     if (!textArg) ta.value = '';
     addMsg('user', esc(text));
     busy = true; setCompose(true);
-    const wait = addMsg('ai', `<i>${esc(NAMES[status.active] || 'AI')}가 편집을 생각하는 중…</i>`);
+    const who = NAMES[status.active] || 'AI', ga = iga(who);
+    const streams = status.active === 'claude' || status.active === 'chatgpt'; // 단계·글자를 실시간으로 보내 주는 AI
+    let lastSig = Date.now(), lastStage = 'prepare';
+    const wait = progressCard({
+      title: who + '에게 보내는 중',
+      steps: [{ k: 'prepare', label: '설교 자막과 요청 보내기' }, { k: 'think', label: who + ga + ' 설교를 읽고 생각하기' }, { k: 'write', label: '답 쓰기' }, { k: 'check', label: '답 확인하고 구간 찾기' }],
+      hints: (s) => aiHint(s, (Date.now() - lastSig) / 1000, streams, lastStage),
+      onStop: () => { Promise.resolve(chatCancelImpl()).catch(() => {}); },
+    });
+    wait.step('prepare', { sub: video.words.length.toLocaleString() + '단어' });
     let chars = 0;
-    const off = api.onChatDelta((d) => { chars += String(d || '').length; wait.innerHTML = `<i>${esc(NAMES[status.active] || 'AI')}가 답을 쓰는 중… (${chars}자)</i>`; });
+    const onStage = (s) => {
+      if (!s || !s.stage) return;
+      lastSig = Date.now(); lastStage = s.stage;
+      if (s.stage === 'ask') wait.step('think', { title: who + ga + ' 생각하는 중', sub: streams ? '' : '다 쓰면 한 번에 옵니다' });
+      else if (s.stage === 'think') wait.step('think', { title: who + ga + ' 생각하는 중', sub: s.tokens ? '생각량 ' + Number(s.tokens).toLocaleString() : '' });
+      else if (s.stage === 'write') wait.step('write', { title: who + ga + ' 답을 쓰는 중' });
+      else if (s.stage === 'check') wait.step('check', { title: '답을 확인하는 중' });
+      else if (s.stage === 'retry') { chars = 0; wait.step('write', { title: '답 형식이 어긋나 다시 받는 중', sub: '다시 받는 중' }); }
+    };
+    const onDelta = (d) => { lastSig = Date.now(); lastStage = 'write'; chars += String(d || '').length; wait.step('write', { title: who + ga + ' 답을 쓰는 중', sub: chars.toLocaleString() + '자' }); };
+    const offS = api.onChatStage ? api.onChatStage(onStage) : () => {};
+    const offD = api.onChatDelta(onDelta);
+    const off = () => { offS(); offD(); };
     try {
-      const r = await chatSendImpl(aiText);
+      const r = await chatSendImpl(aiText, { stage: onStage, delta: onDelta });
       off();
-      wait.remove();
+      wait.done();
       const cands = Array.isArray(r.candidates) ? r.candidates : [];
       if (cands.length && !r.ranges.length) {
         // 구간 추천: 후보 카드만 보여 주고 지금 편집은 그대로
@@ -444,9 +558,9 @@
           applyMeta(r);
           addMsg('sys', '구간은 그대로 두고 제목·본문만 반영했습니다.');
         } else {
-          const applying = addMsg('sys', '편집기에 반영하는 중…');
           const firstEdit = !video.edited;
-          await applyPlan(r, applying);
+          const doneText = await applyPlan(r);
+          addMsg('sys', esc(doneText));
           video.edited = true;
           if (firstEdit) condOpen = false; // 처음 만든 뒤에는 조건 줄을 접어 대화 칸을 넓게
           lastRanges = r.ranges.map((g) => ({ from: g.from, to: g.to }));
@@ -456,8 +570,9 @@
       }
     } catch (e) {
       off();
-      wait.remove();
+      wait.done();
       const msg = cleanErr(e);
+      if (/요청을 멈췄습니다/.test(msg)) { addMsg('sys', '요청을 멈췄습니다. 다시 보내면 처음부터 합니다.'); return; }
       addMsg('ai err', esc(msg));
       if (/연결|로그인|키|설치/.test(msg)) addMsg('sys', '<a href="#" id="chatFix">[AI 연결] 열기</a>').querySelector('a').addEventListener('click', (ev) => { ev.preventDefault(); openConnect(); });
     } finally {
@@ -466,7 +581,11 @@
   }
 
   // ---------------- 편집기에 반영 ----------------
-  async function applyPlan(r, note) {
+  async function applyPlan(r) {
+    const pg = progressCard({ title: '편집기에 반영하는 중', steps: [{ k: 'clips', label: '필요한 영상 부분 받기' }, { k: 'apply', label: '자막·구간을 편집기에 넣기' }].concat(prefs.gaps || r.tighten === 'strong' ? [{ k: 'gaps', label: '말 사이 공백 줄이기' }] : []), hints: (s) => [s < 30 ? '받을 영상이 길면 조금 걸립니다.' : '영상을 받고 있어요. 인터넷이 느리면 1~2분 걸리기도 합니다.', ''] });
+    try { return await applyPlanInner(r, pg); } finally { pg.done(); }
+  }
+  async function applyPlanInner(r, pg) {
     const words = video.words;
     const kept = new Uint8Array(words.length), starts = new Uint8Array(words.length);
     const spans = [];
@@ -478,8 +597,8 @@
     // 필요한 구간이 모두 이미 받은 영상 안에 있으면 다시 받지 않는다
     const covered = lastFetch && lastFetch.url === video.url && spans.every((s) => srcToFile(lastFetch.map, s.start - 0.5) != null && srcToFile(lastFetch.map, s.end + 0.5) != null);
     if (!covered) {
-      note.textContent = '필요한 영상 부분만 받는 중… 0%';
-      const offP = api.onProgress((info) => { if (info.task === 'youtube') note.textContent = `필요한 영상 부분만 받는 중… ${Math.round(info.pct || 0)}%`; });
+      pg.step('clips', { title: '필요한 영상 부분만 받는 중', sub: '0%' }); pg.pct(0);
+      const offP = api.onProgress((info) => { if (info.task === 'youtube') { const p = Math.round(info.pct || 0); pg.sub('clips', p + '%'); pg.pct(p); } });
       let res;
       try { res = await fetchClipsImpl(video.url, spans); } finally { offP(); }
       const detail = { path: res.path, offset: 0, url: video.url, title: video.title, duration: res.duration };
@@ -488,6 +607,8 @@
       if (!opened) throw new Error('영상을 열지 못했습니다');
       lastFetch = { url: video.url, path: res.path, map: res.map };
     }
+    pg.step('apply', { title: '편집기에 넣는 중' }); pg.pct(null);
+    if (covered) pg.sub('clips', '이미 받아 둠');
     const corr = new Map((r.corrections || []).map((c) => [c.id, c.text]));
     const ew = [];
     for (let i = 0; i < words.length; i++) {
@@ -521,7 +642,7 @@
     // 말 사이 공백 없애기 (실제 소리 기준). 안 되면 자막 시각으로 긴 틈만 자른다
     let gapNote = '';
     if (prefs.gaps || r.tighten === 'strong') {
-      note.textContent = '말 사이 공백을 찾는 중…';
+      pg.step('gaps', { title: '말 사이 공백을 찾는 중' });
       try {
         const g = await removeGaps();
         if (g.cuts) gapNote = ` 말 사이 공백 ${g.cuts}곳을 줄여 ${(g.before - g.after).toFixed(1)}초 짧아졌습니다.`;
@@ -535,8 +656,8 @@
     }
     const first = st.words.find((w) => !w.del);
     if (first && SS.preview) SS.preview.seek(first.start);
-    note.textContent = `편집기에 반영했습니다. 완성 길이 약 ${CP().fmtLen(editedDuration())}.${gapNote} 왼쪽 화면에서 [재생]으로 확인해 보세요.`;
     $('chatExport').disabled = false;
+    return `편집기에 반영했습니다. 완성 길이 약 ${CP().fmtLen(editedDuration())}.${gapNote} 왼쪽 화면에서 [재생]으로 확인해 보세요.`;
   }
 
   /** AI 답의 제목·본문을 입력칸에 (두 줄 제목은 ' / ' 로: 화면에서 줄이 바뀜) */
@@ -593,13 +714,17 @@
   async function gapsNow() {
     if (busy) return;
     busy = true; setCompose(true);
-    const note = addMsg('sys', '말 사이 공백을 찾는 중…');
+    const pg = progressCard({ title: '말 사이 공백을 찾는 중', steps: [{ k: 'gaps', label: '실제 소리에서 조용한 부분 찾기' }], hints: () => ['영상 소리를 살펴봅니다. 보통 몇 초면 끝납니다.', ''] });
+    pg.step('gaps');
+    let note;
     try {
       const g = await removeGaps();
+      pg.done(); note = addMsg('sys', '');
       note.textContent = g.cuts
         ? `말 사이 공백 ${g.cuts}곳을 줄였습니다. ${CP().fmtLen(g.before)} → ${CP().fmtLen(g.after)} (${(g.before - g.after).toFixed(1)}초 짧아짐). 되돌리려면 Ctrl+Z.`
         : '더 줄일 말 사이 공백이 없습니다.';
     } catch (e) {
+      pg.done(); note = addMsg('sys', '');
       note.textContent = '공백 없애기 실패: ' + cleanErr(e);
     } finally {
       busy = false; setCompose(true);
@@ -965,6 +1090,122 @@
     }
   });
 
+  // ---------- 테스트 훅: SS_TEST_SCRIPT=chatprogress (기다리는 동안 진행 카드: 단계·시간·멈추기·반영·늦을 때 문구) ----------
+  window.addEventListener('ss:run-test-script', async (e) => {
+    if (e.detail !== 'chatprogress') return;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const waitFor = async (fn, ms, what) => { const t0 = Date.now(); while (!fn()) { if (Date.now() - t0 > ms) throw new Error('timeout: ' + what); await sleep(50); } };
+    const report = { checks: [], rects: {} };
+    const check = (name, ok, info) => report.checks.push({ name, ok: !!ok, info: info === undefined ? null : info });
+    const pg = () => document.querySelector('#chatBody .msg.prog');
+    const on = () => { const x = pg() && pg().querySelector('li.on'); return x ? x.dataset.k : ''; };
+    const oks = () => Array.from((pg() || document).querySelectorAll('.msg.prog li.ok')).map((x) => x.dataset.k).join(',');
+    let dir = '';
+    const shot = async (name) => {
+      const el = pg(); if (el) { const b = el.getBoundingClientRect(), d = window.devicePixelRatio || 1; report.rects[name] = [b.left * d, b.top * d, b.right * d, b.bottom * d].map(Math.round); }
+      await SS.testShot(dir + '/' + name + '.png');
+    };
+    try {
+      const launch = await api.getLaunchInfo();
+      dir = launch.cache + '/chatprogress'; await api.mkdir(dir);
+      const lines = ['오늘 말씀은 기도에 대한 이야기입니다.', '기도는 하나님과 나누는 대화입니다.', '바쁜 하루 속에서도 잠시 멈추고 귀를 기울입니다.', '우리의 부족함을 솔직하게 내려놓습니다.', '그때 우리는 새 힘을 얻습니다.', '이번 주에도 매일 아침 기도로 시작해 보세요.'];
+      const words = []; let t = 2;
+      for (let r = 0; r < 4; r++) for (const s of lines) { for (const w of s.split(' ')) { words.push({ text: w, start: t, end: t + 0.42 }); t += 0.5; } t += 0.6; }
+      const cands = [[0, 20, '기도는 대화입니다'], [24, 44, '솔직한 기도'], [48, words.length - 1, '새 힘을 얻는 한 주']];
+      let release = null, cancelled = false;
+      stub = {
+        status: { active: 'claude', claude: { loggedIn: true } },
+        load: async (url) => { await sleep(1500); return { url, title: '예제 설교 영상', duration: 80, words: words.map((w) => ({ ...w })) }; },
+        send: async (text, emit) => {
+          if (/멈춤 시험/.test(text)) { emit.stage({ stage: 'ask' }); await new Promise((r) => { release = r; }); throw new Error('요청을 멈췄습니다.'); }
+          if (/추천/.test(text)) {
+            emit.stage({ stage: 'ask' }); await sleep(600);
+            check('보낸 뒤 생각 단계', on() === 'think' && oks() === 'prepare' && /생각하는 중/.test(pg().querySelector('.pg-title').textContent), { on: on(), oks: oks() });
+            const t1 = pg().querySelector('.pg-time').textContent;
+            emit.stage({ stage: 'think', tokens: 120 }); await sleep(700);
+            emit.stage({ stage: 'think', tokens: 860 }); await sleep(700);
+            check('생각량이 늘어남', /생각량 860/.test(pg().querySelector('li[data-k="think"]').textContent), pg().querySelector('li[data-k="think"]').textContent);
+            check('지난 시간이 흐름', pg().querySelector('.pg-time').textContent !== t1, [t1, pg().querySelector('.pg-time').textContent]);
+            check('처음 문구', /보통 1~3분/.test(pg().querySelector('.pg-hint').textContent), pg().querySelector('.pg-hint').textContent);
+            check('멈추기 단추', !!pg().querySelector('.pg-stop') && !pg().querySelector('.pg-stop').disabled);
+            await shot('1_think');
+            emit.stage({ stage: 'write' });
+            for (let i = 0; i < 8; i++) { emit.delta('가'.repeat(150)); await sleep(120); }
+            check('답 쓰는 글자 수', on() === 'write' && /1,200자/.test(pg().querySelector('li[data-k="write"]').textContent) && oks() === 'prepare,think', { on: on(), oks: oks(), t: pg().querySelector('li[data-k="write"]').textContent });
+            await shot('2_write');
+            emit.stage({ stage: 'check' }); await sleep(300);
+            check('답 확인 단계', on() === 'check' && oks() === 'prepare,think,write', { on: on(), oks: oks() });
+            return { reply: '쇼츠로 쓸 만한 구간 3곳입니다.', title: '', verse: '', tighten: 'normal', ranges: [], corrections: [], warnings: [], questions: [], durationSec: 0, candidates: CP().resolveCandidates(cands.map((c) => ({ title: c[2], from: c[0], to: c[1], fromText: words[c[0]].text, toText: words[c[1]].text, summary: '예제 후보', why: '예제' })), words) };
+          }
+          emit.stage({ stage: 'ask' }); await sleep(300); emit.stage({ stage: 'write' }); emit.delta('{}'); emit.stage({ stage: 'check' });
+          return { reply: '기도의 뜻을 중심으로 만들었습니다.', title: '기도는\n대화입니다', verse: '마태복음 6:9', tighten: 'normal', ranges: [{ from: 0, to: 12 }, { from: 14, to: 20 }], corrections: [], warnings: [], candidates: [], questions: [], durationSec: 12 };
+        },
+        cancel: async () => { cancelled = true; if (release) release(); return true; },
+        fetchClips: async () => { await sleep(1500); return { path: launch.open, duration: 80, map: [{ src0: 0, src1: 80, file0: 0 }] }; },
+      };
+      status = stub.status; refreshStatus();
+      prefs = Object.assign({}, DEFAULT_PREFS, { gaps: false });
+      showStart(false); await sleep(300);
+      // 1) 자막 불러오기
+      $('chatUrl').value = 'https://youtu.be/XXXXXXXXXXX'; $('chatLoad').click();
+      await sleep(500);
+      check('자막 불러오는 동안 진행 카드', pg() && /유튜브 자막 불러오는 중/.test(pg().textContent) && on() === 'load', pg() && pg().textContent);
+      await shot('0_load');
+      await waitFor(() => video && !busy && !$('chatText').disabled, 20000, 'load');
+      check('불러온 뒤 카드 사라짐', !pg());
+      // 2) 구간 추천: 단계가 차례로
+      document.querySelector('#chatQuick [data-act="recommend"]').click();
+      await sleep(80);
+      check('누르자마자 진행 카드', pg() && on() && /클로드/.test(pg().textContent), pg() && pg().textContent.slice(0, 80));
+      check('처음 단계: 보내기 (단어 수)', (on() === 'prepare' || oks().split(',').includes('prepare')) && /단어/.test(pg().querySelector('li[data-k="prepare"]').textContent), { on: on(), oks: oks() });
+      await waitFor(() => !busy && document.querySelectorAll('#chatBody .msg.cand').length === 3, 20000, 'cands');
+      check('답이 오면 카드 사라지고 후보 3곳', !pg() && document.querySelectorAll('#chatBody .msg.cand').length === 3);
+      // 3) 멈추기
+      $('chatText').value = '멈춤 시험'; $('chatSend').click();
+      await sleep(400);
+      check('멈춤 시험: 카드 보임', !!pg() && busy);
+      const stopCard = pg();
+      stopCard.querySelector('.pg-stop').click();
+      check('누르면 바로 멈추는 중 표시', /멈추는 중/.test(stopCard.textContent) && stopCard.querySelector('.pg-stop').disabled, stopCard.textContent);
+      await waitFor(() => !busy, 5000, 'cancel');
+      const last = $('chatBody').lastElementChild;
+      check('멈춘 뒤 안내·입력 다시 됨', cancelled && !pg() && /요청을 멈췄습니다/.test(last.textContent) && !last.classList.contains('err') && !$('chatText').disabled, last.textContent);
+      // 4) 반영 단계
+      document.querySelector('#chatBody [data-pick="1"]').click();
+      await waitFor(() => pg() && /편집기에 반영하는 중|필요한 영상/.test(pg().textContent), 8000, 'apply card');
+      await sleep(400);
+      check('반영 카드: 영상 받기 단계', on() === 'clips' && /필요한 영상 부분만 받는 중/.test(pg().querySelector('.pg-title').textContent) && pg().querySelector('.pg-bar').classList.contains('det'), { on: on(), t: pg().textContent.slice(0, 120) });
+      await shot('3_apply');
+      await waitFor(() => !busy && /편집기에 반영했습니다/.test($('chatBody').textContent), 30000, 'applied');
+      { const tail = Array.from($('chatBody').children).slice(-3).map((x) => x.textContent).join(' | ');
+        check('반영 끝나면 카드 사라지고 결과 글', !pg() && /편집기에 반영했습니다/.test(tail), tail); }
+      // 5) 오래 걸릴 때 문구 (시계를 앞당겨 봄)
+      const realNow = Date.now;
+      let idle = 3;
+      const c = progressCard({ title: '클로드가 생각하는 중', steps: [{ k: 'prepare', label: '설교 자막과 요청 보내기' }, { k: 'think', label: '클로드가 설교를 읽고 생각하기' }, { k: 'write', label: '답 쓰기' }, { k: 'check', label: '답 확인하고 구간 찾기' }], hints: (s) => aiHint(s, idle, true, 'think'), onStop: () => {} });
+      c.step('think', { sub: '생각량 12,400' });
+      Date.now = () => realNow() + 150000; await sleep(1150);
+      const hintEl = c.el.querySelector('.pg-hint');
+      check('2분 30초여도 신호가 오면 안심 문구', /멈춘 것이 아니에요/.test(hintEl.textContent) && !hintEl.classList.contains('slow') && /2:3\d/.test(c.el.querySelector('.pg-time').textContent), [hintEl.textContent, c.el.querySelector('.pg-time').textContent]);
+      await shot('4_long_ok');
+      idle = 75; await sleep(1150);
+      check('신호가 1분 넘게 끊기면 주황 안내', /멈춰 있어요/.test(hintEl.textContent) && hintEl.classList.contains('slow'), hintEl.textContent);
+      await shot('5_idle');
+      idle = 3; Date.now = () => realNow() + 320000; await sleep(1150);
+      check('5분 넘으면 멈추기 안내', /멈추기/.test(hintEl.textContent) && hintEl.classList.contains('slow'), hintEl.textContent);
+      Date.now = realNow; c.done();
+      check('답을 한 번에 주는 AI 안내', /한 번에 보내서/.test(aiHint(70, 70, false, 'think')[0]) && aiHint(70, 70, false, 'think')[1] === '');
+      await sleep(900);
+      let log = ''; try { log = localStorage.getItem(LOG_KEY) || ''; } catch (_) { /* */ }
+      check('대화 기록에 진행 카드는 안 남음', log.length > 0 && !/pg-steps/.test(log), log.length);
+      report.success = report.checks.every((x) => x.ok);
+      if (!report.success) report.error = '실패: ' + report.checks.filter((x) => !x.ok).map((x) => x.name).join(', ');
+    } catch (err) { report.success = false; report.error = err.stack || String(err); }
+    stub = null;
+    if (dir) await api.writeText(dir + '/report.json', JSON.stringify(report, null, 2));
+    if (report.success) api.notifyTestReady({ ok: true }); else api.notifyTestError(report.error);
+  });
+
   // ---------- 테스트 훅: SS_TEST_SCRIPT=guide-chat (설명서 그림용: 예제 문장·예제 영상, AI 대신 정해 둔 답) ----------
   window.addEventListener('ss:run-test-script', async (e) => {
     if (e.detail !== 'guide-chat') return;
@@ -1023,16 +1264,27 @@
       const launch = await api.getLaunchInfo();
       dir = launch.cache + '/chat_real';
       await api.mkdir(dir);
+      console.log('[chatreal] start');
       await api.llmSetActive(launch.testProvider || 'claude');
+      console.log('[chatreal] active set');
       await refreshStatus();
+      console.log('[chatreal] status ' + JSON.stringify(status && status.active));
+      // 기다리는 동안 받은 단계·글자 (진행 카드 확인용)
+      const T0 = Date.now(); let dchars = 0, lastStage = '', shotThink = false, shotWrite = false;
+      report.timeline = [];
+      api.onChatStage((s) => { if (s.stage !== lastStage) { lastStage = s.stage; report.timeline.push({ t: +((Date.now() - T0) / 1000).toFixed(1), stage: s.stage, tokens: s.tokens || 0 }); console.log('[chatreal-stage] ' + ((Date.now() - T0) / 1000).toFixed(1) + 's ' + s.stage); } if (s.stage === 'think' && !shotThink) { shotThink = true; setTimeout(() => SS.testShot('cache/chat_real/0_think.png'), 2500); } });
+      api.onChatDelta((d) => { dchars += String(d || '').length; report.deltaChars = dchars; if (!shotWrite && dchars > 400) { shotWrite = true; SS.testShot('cache/chat_real/0_write.png'); } });
       prefs = Object.assign({}, DEFAULT_PREFS);
       $('chatUrl').value = launch.testUrl || 'https://www.youtube.com/live/uSE5pZB3gtQ';
+      console.log('[chatreal] load start');
       $('chatLoad').click();
       await waitFor(() => video && !$('chatText').disabled, 180000, 'load');
+      console.log('[chatreal] loaded ' + video.words.length + ' words, active=' + (status && status.active));
       let t0 = Date.now();
       document.querySelector('#chatQuick [data-act="recommend"]').click();
       await waitFor(() => !busy, 900000, 'recommend');
-      const cards = Array.from(document.querySelectorAll('#chatBody .msg.cand'));
+      // 이번 추천의 후보만 (앞 대화에서 되살아난 후보는 빼고)
+      const cards = Array.from(document.querySelectorAll('#chatBody .msg.cand')).filter((c) => { const b = c.querySelector('[data-pick]'); return b && !b.disabled && !c.classList.contains('stale') && !b.classList.contains('stale'); }).slice(-3);
       report.steps.push({ name: 'recommend', sec: (Date.now() - t0) / 1000, cards: cards.map((c) => c.querySelector('.cand-head').textContent + ' ' + ((c.querySelector('.cand-title') || {}).textContent || '') + ' / ' + ((c.querySelector('.cand-why') || {}).textContent || '')), tail: tail(2) });
       console.log('[chatreal] ' + JSON.stringify(report.steps[0]).slice(0, 900));
       await SS.testShot('cache/chat_real/1_candidates.png');

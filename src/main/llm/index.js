@@ -48,11 +48,11 @@ async function statusAll() {
   };
 }
 
-async function complete(provider, { system, messages, onDelta }) {
-  if (provider === 'chatgpt') return getChatGPT().complete({ instructions: system, messages, onDelta });
-  if (provider === 'claude') return claude.complete({ system, messages, model: 'sonnet' });
-  if (provider === 'gemini') return gemini.complete({ system, messages });
-  if (provider === 'openrouter') return openrouter.complete({ system, messages, model: settingsMod.loadSettings().openrouterModel || undefined, keyProvider: settingsMod.getOpenrouterApiKey });
+async function complete(provider, { system, messages, onDelta, onStage, signal }) {
+  if (provider === 'chatgpt') return getChatGPT().complete({ instructions: system, messages, onDelta, signal });
+  if (provider === 'claude') return claude.complete({ system, messages, model: 'sonnet', onStage, onDelta, signal });
+  if (provider === 'gemini') return gemini.complete({ system, messages, signal });
+  if (provider === 'openrouter') return openrouter.complete({ system, messages, model: settingsMod.loadSettings().openrouterModel || undefined, keyProvider: settingsMod.getOpenrouterApiKey, signal });
   throw Object.assign(new Error('AI 가 연결되어 있지 않습니다. [AI 연결]에서 하나를 골라 연결해 주세요.'), { code: 'no_provider' });
 }
 
@@ -86,9 +86,25 @@ function transcriptRange() {
   return { start: w[session.sermon.from].start - 30, end: w[session.sermon.to].end + 30 };
 }
 
-async function send(text, onDelta) {
+// 지금 AI 에게 묻는 중인 요청 (멈추기용)
+let current = null;
+const cancelledErr = () => Object.assign(new Error('요청을 멈췄습니다.'), { code: 'cancelled' });
+/** 대화 보내기. onStage({stage}) 로 진행 단계를 알린다: prepare → ask → (think → write) → check (→ retry → check) */
+async function send(text, onDelta, onStage) {
+  const ac = new AbortController();
+  if (current) current.abort();
+  current = ac;
+  const stage = (s) => { if (onStage && !ac.signal.aborted) { try { onStage(s); } catch (_) { /* 창이 닫힘 */ } } };
+  try { return await sendInner(text, onDelta, stage, ac.signal); }
+  catch (e) { if (ac.signal.aborted || (e && e.code === 'cancelled')) throw cancelledErr(); throw e; }
+  finally { if (current === ac) current = null; }
+}
+function cancel() { if (!current) return false; current.abort(); return true; }
+
+async function sendInner(text, onDelta, stage, signal) {
   if (!session) throw new Error('먼저 설교 영상의 유튜브 주소를 넣어 주세요.');
   const provider = activeProvider();
+  stage({ stage: 'prepare', provider, words: session.words.length });
   const s = settingsMod.loadSettings();
   const tpl = s.template || {};
   const system = chatPlan.buildSystemPrompt({ church: tpl.churchName, speaker: s.defaultSpeaker || tpl.defaultSpeaker, terms: s.churchTerms, videoTitle: session.info.title })
@@ -101,7 +117,10 @@ async function send(text, onDelta) {
   const userMsg = chatPlan.buildUserMessage(text, { current, durationSec: session.plan ? chatPlan.rangesDuration(session.plan.ranges, session.words) : 0 });
   const messages = session.history.slice(-8).concat([{ role: 'user', content: userMsg }]);
   const t0 = Date.now();
-  const { text: answer } = await complete(provider, { system, messages, onDelta });
+  stage({ stage: 'ask', provider });
+  const { text: answer } = await complete(provider, { system, messages, onDelta, onStage: stage, signal });
+  if (signal.aborted) throw cancelledErr();
+  stage({ stage: 'check' });
   let plan;
   try {
     plan = chatPlan.parsePlan(answer);
@@ -109,10 +128,13 @@ async function send(text, onDelta) {
     if (e.code !== 'format') throw e;
     // 형식이 깨진 답이면 한 번 고쳐 달라고 한다
     console.log('[SermonShorts] AI 답 형식 오류, 다시 요청:', e.detail || '', String(answer || '').slice(0, 200).replace(/\s+/g, ' '));
-    const fix = await complete(provider, { system, messages: messages.concat([
+    stage({ stage: 'retry' });
+    const fix = await complete(provider, { signal, onStage: stage, system, messages: messages.concat([
       { role: 'assistant', content: String(answer || '').slice(0, 12000) },
       { role: 'user', content: '방금 답은 JSON 형식이 잘못되어 읽을 수 없습니다. 같은 편집 내용을 [답 형식]에 맞는 올바른 JSON 하나로만 다시 쓰세요. 문자열 안의 따옴표는 \\" 로, 줄바꿈은 \\n 으로 쓰세요.' },
     ]), onDelta });
+    if (signal.aborted) throw cancelledErr();
+    stage({ stage: 'check' });
     plan = chatPlan.parsePlan(fix.text);
   }
   const resolved = chatPlan.resolvePlan(plan, session.words);
@@ -168,7 +190,10 @@ function initLlm() {
   ipcMain.handle('chat:load', (_e, url) => loadVideo(url));
   ipcMain.handle('chat:send', (event, text) => send(text, (delta) => {
     if (!event.sender.isDestroyed()) event.sender.send('chat:delta', delta);
+  }, (s) => {
+    if (!event.sender.isDestroyed()) event.sender.send('chat:stage', s);
   }));
+  ipcMain.handle('chat:cancel', () => cancel());
   ipcMain.handle('chat:reset', () => { session = null; return true; });
   ipcMain.handle('chat:fetchClips', (event, url, spans) => require('./clips').fetchClips(url, spans, (info) => {
     if (!event.sender.isDestroyed()) event.sender.send('progress', { ...info, task: 'youtube' });

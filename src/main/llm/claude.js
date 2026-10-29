@@ -3,6 +3,7 @@
 // 로그인은 Claude Code 의 공식 화면에서만 한다. 이 앱은 클로드 계정 정보나 토큰을 받거나 저장하지 않는다.
 const { spawn, execFile } = require('child_process');
 const fs = require('fs');
+const { createParser } = require('./claude-stream');
 const os = require('os');
 const path = require('path');
 
@@ -31,16 +32,27 @@ function findClaude() {
   return null;
 }
 
-function run(bin, args, { input, timeout = 20000 } = {}) {
+function cancelled() { return Object.assign(new Error('요청을 멈췄습니다.'), { code: 'cancelled' }); }
+function killTree(proc) {
+  try {
+    if (process.platform === 'win32' && proc.pid) spawn('taskkill', ['/pid', String(proc.pid), '/t', '/f'], { windowsHide: true });
+    else proc.kill();
+  } catch (_) { /* 이미 끝남 */ }
+}
+function run(bin, args, { input, timeout = 20000, onOut, signal } = {}) {
   return new Promise((resolve, reject) => {
+    if (signal && signal.aborted) { reject(cancelled()); return; }
     const shell = /\.cmd$/i.test(bin); // npm 설치본(claude.cmd)은 셸로 실행해야 한다
     const proc = spawn(bin, args, { windowsHide: true, shell, env: process.env });
-    let out = '', err = '';
-    const timer = setTimeout(() => { try { proc.kill(); } catch (_) {} reject(new Error('클로드 응답 시간이 너무 깁니다. 잠시 뒤 다시 해 주세요.')); }, timeout);
-    proc.stdout.on('data', (d) => { out += d; });
+    let out = '', err = '', done = false;
+    const finish = (fn) => { if (done) return; done = true; clearTimeout(timer); if (signal) signal.removeEventListener('abort', onAbort); fn(); };
+    const timer = setTimeout(() => { killTree(proc); finish(() => reject(new Error('클로드 응답 시간이 너무 깁니다. 잠시 뒤 다시 해 주세요.'))); }, timeout);
+    const onAbort = () => { killTree(proc); finish(() => reject(cancelled())); };
+    if (signal) signal.addEventListener('abort', onAbort);
+    proc.stdout.on('data', (d) => { out += d; if (onOut) { try { onOut(d.toString('utf8')); } catch (_) { /* */ } } });
     proc.stderr.on('data', (d) => { err += d; });
-    proc.on('error', (e) => { clearTimeout(timer); reject(e); });
-    proc.on('close', (code) => { clearTimeout(timer); resolve({ code, out, err }); });
+    proc.on('error', (e) => finish(() => reject(e)));
+    proc.on('close', (code) => finish(() => resolve({ code, out, err })));
     if (input != null) { proc.stdin.write(input); }
     proc.stdin.end();
   });
@@ -99,23 +111,44 @@ function openLogin() {
 async function complete(opts) {
   try { return await completeOnce(opts); }
   catch (e) {
-    if (e.code === 'not_installed' || e.code === 'auth' || e.code === 'usage_limit') throw e;
+    if (e.code === 'not_installed' || e.code === 'auth' || e.code === 'usage_limit' || e.code === 'cancelled') throw e;
     return completeOnce(opts); // 일시적인 오류(서버 혼잡 등)는 한 번 더 시도
   }
 }
 
-async function completeOnce({ system, messages, model }) {
+// 답을 쓰는 대로 받기(stream-json). 그 옵션이 없는 옛 Claude Code 면 예전처럼 한 번에 받는다
+let legacy = false;
+// 생각 정도: 기본(high)은 설교 전체를 읽고 4분 넘게 생각하다 6분 제한에 걸리기도 했다 (2026-10-29 측정).
+// medium 으로 줄인다. 시험용 SS_CLAUDE_EFFORT 로 바꿀 수 있다. --effort 가 없는 옛 판이면 빼고 다시
+const EFFORT = process.env.SS_CLAUDE_EFFORT || 'medium';
+let noEffort = false;
+async function completeOnce({ system, messages, model, onStage, onDelta, signal }) {
   const bin = findClaude();
   if (!bin) throw Object.assign(new Error('Claude Code 가 설치되어 있지 않습니다. [AI 연결]에서 설치해 주세요.'), { code: 'not_installed' });
   const tmp = path.join(os.tmpdir(), `ss-claude-system-${process.pid}-${Date.now()}.txt`);
   fs.writeFileSync(tmp, system || '', 'utf8');
   const convo = (messages || []).map((m) => (m.role === 'assistant' ? '[편집자(이전 답)]\n' : '[사용자]\n') + m.content).join('\n\n');
-  const args = ['-p', '--output-format', 'json', '--tools', '', '--no-session-persistence', '--system-prompt-file', tmp];
-  if (model) args.push('--model', model);
+  const base = ['-p', '--tools', '', '--no-session-persistence', '--system-prompt-file', tmp];
+  if (model) base.push('--model', model);
+  if (!noEffort && EFFORT && EFFORT !== 'default') base.push('--effort', EFFORT);
   try {
-    const r = await run(bin, args, { input: convo, timeout: 6 * 60 * 1000 });
-    let data = null;
-    try { data = JSON.parse(r.out.trim()); } catch (_) {}
+    let r, data = null;
+    if (!legacy) {
+      const parser = createParser({ onStage, onDelta });
+      // 시험용 기록: SS_CHAT_TRACE=파일 이면 줄마다 시각·종류를 남긴다
+      const trace = process.env.SS_CHAT_TRACE ? (s) => { try { const t0 = trace.t0 || (trace.t0 = Date.now()); String(s).split('\n').filter(Boolean).forEach((l) => { let k = ''; try { const o = JSON.parse(l); k = o.type + (o.subtype ? ':' + o.subtype : '') + (o.event ? ':' + o.event.type + (o.event.delta ? ':' + o.event.delta.type : '') : '') + (o.estimated_tokens ? ' ' + o.estimated_tokens : ''); } catch (_) { k = 'part ' + l.length; } fs.appendFileSync(process.env.SS_CHAT_TRACE, ((Date.now() - t0) / 1000).toFixed(1) + ' ' + k + '\n'); }); } catch (_) { /* */ } } : null;
+      if (trace) fs.appendFileSync(process.env.SS_CHAT_TRACE, '--- call ' + new Date().toISOString() + ' input ' + convo.length + ' system ' + String(system || '').length + '\n');
+      r = await run(bin, ['--output-format', 'stream-json', '--verbose', '--include-partial-messages', ...base], { input: convo, timeout: 6 * 60 * 1000, onOut: (s) => { if (trace) trace(s); parser.feed(s); }, signal });
+      if (trace) fs.appendFileSync(process.env.SS_CHAT_TRACE, '--- end code ' + r.code + ' result ' + !!parser.end() + ' err ' + String(r.err || '').slice(0, 200).replace(/\s+/g, ' ') + '\n');
+      data = parser.end();
+      if (!data && /effort/i.test(r.err || '') && /unknown|invalid|error/i.test(r.err || '') && !noEffort) { noEffort = true; return completeOnce({ system, messages, model, onStage, onDelta, signal }); } // --effort 없는 판
+      if (!data && /unknown option|include-partial-messages|stream-json|--verbose/i.test(r.err || '')) legacy = true; // 옛 판
+    }
+    if (legacy) {
+      if (onStage) onStage({ stage: 'ask' });
+      r = await run(bin, ['--output-format', 'json', ...base], { input: convo, timeout: 6 * 60 * 1000, signal });
+      try { data = JSON.parse(r.out.trim()); } catch (_) {}
+    }
     if (!data) {
       const msg = (r.err || r.out || '').trim();
       if (/login|log in|auth|인증|로그인/i.test(msg)) throw Object.assign(new Error('클로드에 로그인되어 있지 않습니다. [AI 연결]에서 로그인해 주세요.'), { code: 'auth' });

@@ -259,7 +259,7 @@ function createChatGPT({ app, shell, safeStorage, fetchImpl = global.fetch, http
     return err('api', `ChatGPT 요청이 실패했습니다 (${r.status})${msg ? ': ' + String(msg).slice(0, 200) : ''}`);
   }
 
-  async function complete({ instructions, messages, model, onDelta } = {}) {
+  async function complete({ instructions, messages, model, onDelta, signal } = {}) {
     let store = await token();
     if (!store.planEnabled) throw err('plan', 'ChatGPT 요금제 사용이 허용되지 않았습니다. 다시 연결하면서 "ChatGPT 요금제 사용"을 허용해 주세요.');
     let useModel = model || store.model;
@@ -273,6 +273,7 @@ function createChatGPT({ app, shell, safeStorage, fetchImpl = global.fetch, http
       method: 'POST',
       headers: { Authorization: 'Bearer ' + s.access_token, 'Content-Type': 'application/json', Accept: 'text/event-stream' },
       body,
+      signal,
     });
     let r = await send(store);
     if (r.status === 401) { store = await refresh(true); r = await send(store); }

@@ -78,7 +78,7 @@ function createWindow() {
   if (SCREENSHOT) {
     mainWindow.webContents.on('console-message', (e) => { log('renderer:', e.message); });
     // 안전장치: 10분 안에 끝나지 않으면 종료
-    setTimeout(() => { log('스크린샷 시간 초과'); app.exit(2); }, 10 * 60 * 1000).unref();
+    setTimeout(() => { log('스크린샷 시간 초과'); app.exit(2); }, (Number(process.env.SS_TEST_TIMEOUT_MIN) || 10) * 60 * 1000).unref();
   }
   mainWindow.on('closed', () => { mainWindow = null; });
 }

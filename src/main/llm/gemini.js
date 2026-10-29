@@ -8,7 +8,7 @@ function getKey() {
   try { return ai._getKey ? ai._getKey() : ''; } catch (_) { return ''; }
 }
 
-async function complete({ system, messages, model, keyProvider }) {
+async function complete({ system, messages, model, keyProvider, signal }) {
   const key = (keyProvider ? keyProvider() : getKey()) || '';
   if (!key) throw Object.assign(new Error('제미나이 키가 없습니다. [AI 연결]에서 키를 입력해 주세요.'), { code: 'auth' });
   const body = {
@@ -20,6 +20,7 @@ async function complete({ system, messages, model, keyProvider }) {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify(body),
+    signal,
   });
   let data = {};
   try { data = await res.json(); } catch (_) {}

@@ -90,6 +90,12 @@ contextBridge.exposeInMainWorld('api', {
   // 대화형 편집
   chatLoad: (url) => ipcRenderer.invoke('chat:load', url),
   chatSend: (text) => ipcRenderer.invoke('chat:send', text),
+  chatCancel: () => ipcRenderer.invoke('chat:cancel'),
+  onChatStage: (callback) => {
+    const listener = (_event, info) => callback(info);
+    ipcRenderer.on('chat:stage', listener);
+    return () => ipcRenderer.removeListener('chat:stage', listener);
+  },
   chatReset: () => ipcRenderer.invoke('chat:reset'),
   chatFetchClips: (url, spans) => ipcRenderer.invoke('chat:fetchClips', url, spans),
   // 무음 구간 찾기: opts { start, end, minDur, noiseDb } → { noiseDb, meanDb, silences:[{start,end}] }

@@ -24,13 +24,14 @@ async function freeModels() {
   return ids;
 }
 
-async function callOnce(key, model, system, messages) {
+async function callOnce(key, model, system, messages, signal) {
   const body = {
     model,
     temperature: 0.3,
     messages: (system ? [{ role: 'system', content: system }] : []).concat((messages || []).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))),
   };
   const res = await fetch(`${API}/chat/completions`, {
+    signal,
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -54,7 +55,7 @@ async function callOnce(key, model, system, messages) {
   return { text, model: data.model || model };
 }
 
-async function complete({ system, messages, model, keyProvider }) {
+async function complete({ system, messages, model, keyProvider, signal }) {
   const key = (keyProvider ? keyProvider() : '') || '';
   if (!key) throw Object.assign(new Error('오픈라우터 키가 없습니다. [AI 연결]에서 키를 입력해 주세요.'), { code: 'auth' });
   const first = model || DEFAULT_MODEL;
@@ -62,10 +63,10 @@ async function complete({ system, messages, model, keyProvider }) {
   let lastErr;
   for (let i = 0; i < 3; i++) {
     try {
-      return await callOnce(key, tried[i], system, messages);
+      return await callOnce(key, tried[i], system, messages, signal);
     } catch (e) {
       lastErr = e;
-      if (!e.retry) throw e;
+      if (!e.retry || (signal && signal.aborted)) throw e;
       const next = (await freeModels().catch(() => [])).find((id) => !tried.includes(id));
       if (!next) break;
       tried.push(next);
