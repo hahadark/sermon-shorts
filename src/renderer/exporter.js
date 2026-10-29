@@ -102,6 +102,7 @@
       const result=await SS.doExport(p);
       SS.toast(result.success?'MP4와 SRT를 저장했습니다':'내보내기 실패: '+result.error,result.success?3000:7000);
       refresh();
+      if(result.success&&SS.showExportPlayer)SS.showExportPlayer(result.outPath,{duration:result.duration,srtPath:result.srtPath});
       if(result.success&&SS.afterExportUpload)SS.afterExportUpload(result.outPath);
     });
   };

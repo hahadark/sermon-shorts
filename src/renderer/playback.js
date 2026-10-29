@@ -191,7 +191,7 @@
     requestAnimationFrame(loop);
   }
 
-  SS.playback = { active, plan, timeInfo, seekFraction, toggleRaw, playOutRange, tick, isRaw: () => rawOnce };
+  SS.playback = { active, plan, timeInfo, seekFraction, toggleRaw, playOutRange, tick, isRaw: () => rawOnce, isSkipping: () => skipping };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else setTimeout(init, 0);
 })();

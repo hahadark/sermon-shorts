@@ -15,16 +15,70 @@ const MAX_BYTES = 60 * 1024 * 1024;
 const UA = 'SermonShorts/1.0 (+https://github.com/hahadark/sermon-shorts; sermon shorts editor)';
 
 function dir() { return tools.ensureDir(path.join(tools.cache, 'bgm')); }
+// ---------------- 직접 넣은 음악 (내 파일·유튜브 링크) ----------------
+// 사용자 캐시 bgm/custom 에 복사해 두고 index.json 에 적는다. id 는 'custom-' 으로 시작한다.
+const AUDIO_EXT = ['mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac', 'webm', 'mp4'];
+function customDir() { return tools.ensureDir(path.join(dir(), 'custom')); }
+function loadCustom() { try { return JSON.parse(fs.readFileSync(path.join(customDir(), 'index.json'), 'utf8')) || {}; } catch (_) { return {}; } }
+function saveCustom(m) { fs.writeFileSync(path.join(customDir(), 'index.json'), JSON.stringify(m, null, 2)); }
+function customTrack(id) {
+  const e = loadCustom()[id];
+  if (!e) return null;
+  const { pathToFileURL } = require('url');
+  return { id, custom: true, kind: e.kind, title: e.title, artist: e.artist || (e.kind === 'youtube' ? '유튜브' : '내 파일'), mood: '내 음악', tags: [],
+    durationSec: e.durationSec, file: e.file, source: e.source, url: pathToFileURL(e.file).href,
+    license: e.kind === 'youtube' ? '유튜브에서 가져옴' : '내 파일', attribution: null, licenseQuote: '직접 넣은 음악입니다. 저작권은 직접 확인해 주세요.', contentIdRisk: 'unknown', addedAt: e.addedAt || 0 };
+}
+function listCustom() { return Object.keys(loadCustom()).map(customTrack).filter(Boolean).sort((a, b) => b.addedAt - a.addedAt); }
+function probeDuration(file) {
+  return new Promise((resolve) => {
+    const p = spawn(tools.ffprobe, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], { windowsHide: true });
+    let out = ''; p.stdout.on('data', (d) => { out += d; });
+    p.on('error', () => resolve(0)); p.on('close', () => resolve(parseFloat(out) || 0));
+  });
+}
+async function addCustom(id, entry) {
+  const dur = await probeDuration(entry.file);
+  if (!(dur > 1)) { try { if (entry.file.startsWith(customDir())) fs.unlinkSync(entry.file); } catch (_) { /* */ } throw new Error('소리를 읽을 수 없는 파일입니다. mp3·m4a·wav 같은 음악 파일을 골라 주세요.'); }
+  const m = loadCustom();
+  m[id] = { ...entry, durationSec: Math.round(dur * 100) / 100, addedAt: Date.now() };
+  saveCustom(m);
+  return customTrack(id);
+}
+async function importFile(src) {
+  src = String(src || '');
+  const ext = (path.extname(src).slice(1) || '').toLowerCase();
+  if (!AUDIO_EXT.includes(ext)) throw new Error('음악 파일(mp3·m4a·wav·ogg·flac 등)을 골라 주세요.');
+  const st = fs.statSync(src);
+  if (st.size > 200 * 1024 * 1024) throw new Error('음악 파일이 너무 큽니다(200MB 넘음).');
+  const hash = require('crypto').createHash('sha1').update(src + '|' + st.size + '|' + st.mtimeMs).digest('hex').slice(0, 12);
+  const file = path.join(customDir(), 'f-' + hash + '.' + ext);
+  if (!fs.existsSync(file)) fs.copyFileSync(src, file);
+  return addCustom('custom-f-' + hash, { kind: 'file', title: path.basename(src, path.extname(src)), artist: '내 파일', file, source: src });
+}
+async function importYoutube(url, onProgress) {
+  url = String(url || '').trim();
+  if (!/^https?:\/\/([\w-]+\.)?(youtube\.com|youtu\.be)\//i.test(url)) throw new Error('유튜브 주소를 넣어 주세요 (https://youtu.be/... 또는 https://www.youtube.com/...).');
+  const r = await require('./youtube').downloadAudio(url, customDir(), onProgress);
+  return addCustom('custom-yt-' + r.id, { kind: 'youtube', title: r.title, artist: r.uploader || '유튜브', file: r.file, source: url });
+}
+function removeCustom(id) {
+  const m = loadCustom(); const e = m[id]; if (!e) return false;
+  delete m[id]; saveCustom(m);
+  try { if (e.file && e.file.startsWith(customDir())) fs.unlinkSync(e.file); } catch (_) { /* */ }
+  return true;
+}
+
 function trackOf(id) {
-  const t = catalog.tracks.find((x) => x.id === id);
-  if (!t) throw new Error('목록에 없는 음악입니다. 다시 골라 주세요.');
+  const t = catalog.tracks.find((x) => x.id === id) || (String(id).startsWith('custom-') ? customTrack(id) : null);
+  if (!t) throw new Error(String(id).startsWith('custom-') ? '직접 넣은 음악을 찾을 수 없습니다. 음악을 다시 넣어 주세요.' : '목록에 없는 음악입니다. 다시 골라 주세요.');
   return t;
 }
 function extOf(t) {
-  const m = /\.(mp3|ogg|oga|opus|m4a|wav|flac)(?:$|[?#])/i.exec(t.url);
+  const m = /\.(mp3|ogg|oga|opus|m4a|wav|flac|aac|webm|mp4)(?:$|[?#])/i.exec(t.custom ? t.file : t.url);
   return m ? m[1].toLowerCase() : 'mp3';
 }
-function fileOf(t) { return path.join(dir(), t.id + '.' + extOf(t)); }
+function fileOf(t) { return t.custom ? t.file : path.join(dir(), t.id + '.' + extOf(t)); }
 
 // ---------------- 받기 (곡마다 한 번, 여러 곳이 같은 작업을 나눠 씀) ----------------
 function cachedFile(id) {
@@ -70,6 +124,7 @@ function startJob(id) {
 function ensure(id, onProgress) {
   const have = cachedFile(id);
   if (have) return Promise.resolve(have);
+  if (trackOf(id).custom) return Promise.reject(new Error('직접 넣은 음악 파일이 없어졌습니다. 음악을 다시 넣어 주세요.'));
   const j = startJob(id);
   j.pinned = true; // 쓰기로 한 곡·내보내기: 끝까지 받는다
   if (onProgress) j.watchers.add(onProgress);
@@ -91,7 +146,7 @@ function registerScheme() {
 }
 function mimeOf(t) {
   const e = extOf(t);
-  return { mp3: 'audio/mpeg', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg', m4a: 'audio/mp4', wav: 'audio/wav', flac: 'audio/flac' }[e] || 'application/octet-stream';
+  return { mp3: 'audio/mpeg', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg', m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav', flac: 'audio/flac', webm: 'audio/webm' }[e] || 'application/octet-stream';
 }
 /** Range 머리 → [시작, 끝] (포함). 없으면 null, 잘못되면 false */
 function parseRange(h, len) {
@@ -219,8 +274,26 @@ function initBgm() {
     const wc = e.sender;
     return ensure(id, (got, total) => { if (!wc.isDestroyed()) wc.send('bgm:progress', { id, got, total }); });
   });
-  ipcMain.handle('bgm:cached', (_e, id) => cachedFile(String(id)));
+  ipcMain.handle('bgm:cached', (_e, id) => { try { return cachedFile(String(id)); } catch (_) { return null; } });
+  // 직접 넣은 음악
+  ipcMain.handle('bgm:customList', () => listCustom());
+  ipcMain.handle('bgm:track', (_e, id) => { try { return trackOf(String(id)); } catch (_) { return null; } });
+  ipcMain.handle('bgm:customRemove', (_e, id) => removeCustom(String(id)));
+  ipcMain.handle('bgm:importFile', async (e, p) => {
+    let src = p;
+    if (!src) {
+      const { dialog, BrowserWindow } = require('electron');
+      const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), { title: '배경음악 파일 고르기', properties: ['openFile'], filters: [{ name: '음악 파일', extensions: AUDIO_EXT }, { name: '모든 파일', extensions: ['*'] }] });
+      if (r.canceled || !r.filePaths[0]) return null;
+      src = r.filePaths[0];
+    }
+    return importFile(src);
+  });
+  ipcMain.handle('bgm:importYoutube', (e, url) => {
+    const wc = e.sender;
+    return importYoutube(url, (pct) => { if (!wc.isDestroyed()) wc.send('bgm:progress', { id: 'import', got: pct, total: 100 }); });
+  });
   ipcMain.handle('bgm:peaks', (_e, id, n) => peaks(String(id), n));
 }
 
-module.exports = { initBgm, registerScheme, ensure, peaks, trackOf, cachedFile, parseRange, id3Size, SCHEME };
+module.exports = { initBgm, registerScheme, ensure, peaks, trackOf, cachedFile, parseRange, id3Size, SCHEME, importFile, importYoutube, listCustom, removeCustom };

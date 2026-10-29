@@ -228,4 +228,31 @@ async function downloadSection(url, start, end, options = {}, onProgress) {
     });
   }));
 }
-module.exports = { fetchInfo, fetchAutoSubs, downloadSection, getJsRuntime };
+/** 배경음악용: 유튜브 영상의 소리만 받는다 (m4a 우선). 돌려줌 { file, id, title, uploader, duration } */
+async function downloadAudio(url, outDir, onProgress) {
+  const info = await fetchInfo(url);
+  const id = info.id;
+  ensureDir(outDir);
+  const found = () => fs.readdirSync(outDir).filter((f) => f.startsWith('yt-' + id + '.') && !/\.(part|ytdl|json)$/i.test(f)).map((f) => path.join(outDir, f))[0];
+  const have = found();
+  const result = (file) => ({ file, id, title: info.title || id, uploader: info.uploader || info.channel || '', duration: info.duration || 0 });
+  if (have && fs.statSync(have).size > 2048) { if (onProgress) onProgress(100); return result(have); }
+  return ytdlpManager.withUpdateRetry(() => new Promise((resolve, reject) => {
+    const args = ['--newline', '--no-playlist', '-N', '4', '-f', 'bestaudio[ext=m4a]/bestaudio',
+      ...runtimeArgs(), '-o', path.join(outDir, 'yt-' + id + '.%(ext)s'), '--', url];
+    const proc = spawn(tools.ytdlp, args, getSpawnOptions());
+    let stderr = '';
+    proc.stdout.on('data', (d) => {
+      for (const line of d.toString().split(/\r?\n/)) { const m = line.match(/\[download\]\s+(\d+(?:\.\d+)?)%/); if (m && onProgress) onProgress(parseFloat(m[1])); }
+    });
+    proc.stderr.on('data', (d) => { stderr += d; });
+    proc.on('error', reject);
+    proc.on('close', (code) => {
+      const f = found();
+      if (code !== 0 || !f) return reject(ytError(code, stderr.slice(-4000)));
+      if (onProgress) onProgress(100);
+      resolve(result(f));
+    });
+  }));
+}
+module.exports = { fetchInfo, fetchAutoSubs, downloadSection, getJsRuntime, downloadAudio };
