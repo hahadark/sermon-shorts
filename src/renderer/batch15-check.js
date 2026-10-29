@@ -196,4 +196,68 @@
     if (dir) await window.api.writeText(dir + '/report.json', JSON.stringify(report, null, 2));
     if (report.success) window.api.notifyTestReady({ success: true }); else window.api.notifyTestError(report.error);
   });
+  // 만나로식 화면 (SS_TEST_SCRIPT=rail): 왼쪽 막대 단추가 맞는 화면을 열고 선택 표시가 따라가는지, 밝은 색인지
+  window.addEventListener('ss:run-test-script', async (e) => {
+    if (e.detail !== 'rail') return;
+    const report = { startedAt: new Date().toISOString(), checks: [] };
+    const check = (name, ok, info) => report.checks.push({ name, ok: !!ok, info: info === undefined ? null : info });
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const $ = (id) => document.getElementById(id);
+    const vis = (el) => { if (!el || el.hidden || !el.isConnected) return false; const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0; };
+    const onOf = () => Array.from(document.querySelectorAll('#rail .rail-item.on')).map((b) => b.textContent.trim());
+    const rb = (k) => document.querySelector('#rail [data-rail="' + k + '"]');
+    const esc = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    let dir = '';
+    try {
+      const launch = await window.api.getLaunchInfo();
+      dir = launch.cache + '/rail'; await window.api.mkdir(dir);
+      const rail = $('rail').getBoundingClientRect();
+      check('왼쪽 막대 84px·전체 높이', Math.round(rail.width) === 84 && Math.round(rail.height) === window.innerHeight, [rail.width, rail.height]);
+      check('처음엔 쇼츠 편집 선택', onOf().join() === '쇼츠 편집', onOf());
+      const bg = getComputedStyle(document.body).backgroundColor;
+      check('밝은 바탕', /241, 243, 247/.test(bg), bg);
+      check('가로 넘침 없음', document.documentElement.scrollWidth <= window.innerWidth, [document.documentElement.scrollWidth, window.innerWidth]);
+      const tb = $('topbar').getBoundingClientRect();
+      check('윗막대가 막대 오른쪽', Math.round(tb.left) === 84, tb.left);
+      $('btnMaterials').click(); await sleep(300);
+      check('교인 자료 열림', vis($('mnStudio')));
+      check('교인 자료 선택 표시', onOf().join() === '교인 자료', onOf());
+      await SS.testShot('cache/rail/materials.png');
+      rb('editor').click(); await sleep(250);
+      check('쇼츠 편집으로 돌아옴', $('mnStudio').hidden && !$('designPane').hidden, null);
+      check('쇼츠 편집 선택 표시', onOf().join() === '쇼츠 편집', onOf());
+      rb('music').click(); await sleep(300);
+      check('배경음악 탭 열림', !$('bgmPane').hidden && $('tabMusic').classList.contains('on'));
+      check('배경음악 선택 표시', onOf().join() === '배경음악', onOf());
+      $('tabDesign').click(); await sleep(150);
+      check('디자인 탭 누르면 쇼츠 편집 표시', onOf().join() === '쇼츠 편집', onOf());
+      rb('music').click(); await sleep(150);
+      $('btnMaterials').click(); await sleep(250); rb('editor').click(); await sleep(200);
+      check('자료→편집 시 디자인 탭', !$('designPane').hidden && onOf().join() === '쇼츠 편집', onOf());
+      rb('theme').click(); await sleep(500);
+      check('테마 편집기 열림', vis($('themeEditor')));
+      $('teBtnClose').click(); await sleep(300);
+      check('테마 편집기 닫힘', !vis($('themeEditor')));
+      rb('ai').click(); await sleep(400);
+      const conn = document.querySelector('.ai-conn');
+      check('AI 연결 창 열림', vis(conn));
+      await SS.testShot('cache/rail/ai.png');
+      if (conn) { esc(); await sleep(200); if (vis(conn)) { const x = conn.querySelector('.ss-btn-cancel, [data-close], .close, button[aria-label="닫기"]'); if (x) x.click(); else conn.remove(); await sleep(200); } }
+      check('AI 연결 창 닫힘', !vis(document.querySelector('.ai-conn')));
+      $('btnSettings').click(); await sleep(400);
+      const ov = Array.from(document.querySelectorAll('.modal-overlay')).find(vis);
+      check('설정 창 열림', !!ov);
+      if (ov) { esc(); await sleep(200); }
+      check('설명서 단추 연결', !!$('btnUserGuide') && typeof $('btnUserGuide').onclick === 'function');
+      const icons = Array.from(document.querySelectorAll('#rail .rail-item')).map((b) => getComputedStyle(b, '::before').maskImage || getComputedStyle(b, '::before').webkitMaskImage || getComputedStyle(b, '::before').backgroundImage);
+      check('레일 아이콘 모두 있음', icons.every((v) => v && v !== 'none'), icons.map((v) => (v || '').slice(0, 40)));
+      await SS.testShot('cache/rail/editor.png');
+      report.success = report.checks.every((c) => c.ok);
+      if (!report.success) report.error = '실패: ' + report.checks.filter((c) => !c.ok).map((c) => c.name).join(', ');
+    } catch (err) { report.success = false; report.error = err.stack || String(err); }
+    report.finishedAt = new Date().toISOString();
+    if (dir) await window.api.writeText(dir + '/report.json', JSON.stringify(report, null, 2));
+    if (report.success) window.api.notifyTestReady({ success: true }); else window.api.notifyTestError(report.error);
+  });
 })();
+

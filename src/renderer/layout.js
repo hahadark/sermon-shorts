@@ -39,6 +39,28 @@
   };
   SS.runCommand = (name) => { const f = CMDS[name]; if (f) f(); };
 
+  // ---------------- 왼쪽 막대 ----------------
+  const RAIL = {
+    editor: () => { if (SS.closeMaterials) SS.closeMaterials(); if (SS.showDesignTab) SS.showDesignTab(); },
+    music: () => { if (SS.closeMaterials) SS.closeMaterials(); if (SS.showBgmTab) SS.showBgmTab(); },
+    theme: () => click('btnEditTheme'),
+    ai: () => click('btnAiConnect'),
+    guide: () => click('btnUserGuide'),
+  };
+  document.querySelectorAll('#rail [data-rail]').forEach((b) => b.addEventListener('click', () => { const f = RAIL[b.dataset.rail]; if (f) f(); }));
+  // 지금 보이는 작업 공간을 왼쪽 막대에 표시: 교인 자료 > 배경음악 탭 > 쇼츠 편집
+  SS.syncRail = () => {
+    const studio = document.getElementById('mnStudio');
+    const tab = document.getElementById('tabMusic');
+    const cur = studio && !studio.hidden ? document.getElementById('btnMaterials')
+      : document.querySelector(tab && tab.classList.contains('on') ? '#rail [data-rail="music"]' : '#rail [data-rail="editor"]');
+    document.querySelectorAll('#rail .rail-item').forEach((b) => {
+      const on = b === cur;
+      b.classList.toggle('on', on);
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+  };
+
   // ---------------- 메뉴 ----------------
   const allMenus = () => Array.from(document.querySelectorAll('.menu'));
   const itemsOf = (menu) => Array.from(menu.querySelectorAll('.menu-item')).filter((b) => !b.disabled && b.offsetParent !== null);

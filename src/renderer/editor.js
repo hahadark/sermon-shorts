@@ -513,9 +513,10 @@
     input.value = w.text;
     input.style.width = Math.max(40, w.text.length * 14) + 'px';
     input.style.fontSize = '14px';
-    input.style.background = '#222';
-    input.style.color = '#fff';
-    input.style.border = '1px solid #555';
+    input.style.background = '#fff';
+    input.style.color = '#0f172a';
+    input.style.border = '1px solid #3b82f6';
+    input.style.borderRadius = '6px';
     input.style.padding = '0 2px';
 
     input.addEventListener('keydown', (e) => {
@@ -602,8 +603,8 @@
       spans.forEach(s => {
         let wid = parseInt(s.dataset.wid);
         let color = 'transparent';
-        if (r && wid >= r[0] && wid <= r[1]) color = (wid === SS.state.caret) ? '#555' : '#333';
-        if (wid === SS.state.markI || wid === SS.state.markO) color = (r && wid >= r[0] && wid <= r[1]) ? '#663' : '#440';
+        if (r && wid >= r[0] && wid <= r[1]) color = (wid === SS.state.caret) ? 'rgba(37,99,235,.26)' : 'rgba(37,99,235,.14)';
+        if (wid === SS.state.markI || wid === SS.state.markO) color = (r && wid >= r[0] && wid <= r[1]) ? 'rgba(245,158,11,.35)' : 'rgba(245,158,11,.22)';
         s.style.backgroundColor = color;
       });
       if (SS.state.caret !== -1 && followPlay) {
@@ -940,7 +941,7 @@
     const canvas = $('trimCanvas'), ctx = canvas.getContext('2d'), w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
     canvas.width = w * window.devicePixelRatio; canvas.height = h * window.devicePixelRatio; ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-    ctx.fillStyle = '#16181c'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, w, h);
     const range = isRange();
     let endA = SS.getAEnd(), startB = SS.getBStart();
     function drawPane(pcm, handle, xOffset, width) {
@@ -949,10 +950,10 @@
       const bufStart = (isA ? trimState.centerA : trimState.centerB) - 2, sp = 48000;
       const X = t => xOffset + ((t - minT) / (maxT - minT)) * width;
       // 남는 곳(초록)·잘려 나가는 곳(빨강): 지금 편집 결과의 구간 그대로
-      ctx.fillStyle = '#35191c'; ctx.fillRect(xOffset, 0, width, h);
-      ctx.fillStyle = '#163222';
+      ctx.fillStyle = '#fdecec'; ctx.fillRect(xOffset, 0, width, h);
+      ctx.fillStyle = '#e8f6ee';
       segments.forEach(s => { const a = Math.max(minT, s.start), b = Math.min(maxT, s.end); if (b > a) ctx.fillRect(X(a), 0, X(b) - X(a), h); });
-      let samplesPerPixel = (maxT - minT) * sp / width; ctx.beginPath(); ctx.strokeStyle = '#8f99a6'; ctx.lineWidth = 1;
+      let samplesPerPixel = (maxT - minT) * sp / width; ctx.beginPath(); ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1;
       for (let px = 0; px < width; px++) {
         let t = minT + (px / width) * (maxT - minT), sIdx = Math.floor((t - bufStart) * sp);
         if (sIdx >= 0 && sIdx < pcm.length) {
@@ -961,7 +962,7 @@
           ctx.moveTo(xOffset + px, h/2 - maxV * (h/2)); ctx.lineTo(xOffset + px, h/2 - minV * (h/2));
         }
       }
-      ctx.stroke(); ctx.fillStyle = '#6b7380'; ctx.font = '10px sans-serif'; ctx.textBaseline = 'top';
+      ctx.stroke(); ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif'; ctx.textBaseline = 'top';
       let startTick = Math.ceil(minT * 10) / 10; for (let tk = startTick; tk < maxT; tk += 0.1) { let x = X(tk); ctx.fillRect(x, h - 15, 1, 15); if (Math.abs(Math.round(tk * 10) % 5) === 0) ctx.fillText(tk.toFixed(1), x + 2, h - 15); }
       // 단어 이름과 시작선 (지운 단어는 흐리게)
       const ws = SS.state.words;
@@ -970,31 +971,31 @@
       for (let i = from; i <= to; i++) {
         if (!ws[i] || ws[i].start < minT || ws[i].start > maxT) continue;
         const wx = X(ws[i].start);
-        ctx.fillStyle = ws[i].del ? '#7a5050' : '#dfe5ec'; ctx.fillText(ws[i].text, wx + 2, 6 + (i % 2) * 14);
-        ctx.fillStyle = '#4a515c'; ctx.fillRect(wx, 22, 1, h / 2 - 22);
+        ctx.fillStyle = ws[i].del ? '#d46a6a' : '#0f172a'; ctx.fillText(ws[i].text, wx + 2, 6 + (i % 2) * 14);
+        ctx.fillStyle = '#cbd5e1'; ctx.fillRect(wx, 22, 1, h / 2 - 22);
       }
       const handleT = isA ? endA : startB, hx = X(handleT), isActive = trimState.activeHandle === handle;
-      ctx.strokeStyle = isActive ? '#4aa8ff' : '#c8cdd4'; ctx.lineWidth = isActive ? 3 : 2; ctx.beginPath(); ctx.moveTo(hx, 0); ctx.lineTo(hx, h); ctx.stroke();
+      ctx.strokeStyle = isActive ? '#2563eb' : '#94a3b8'; ctx.lineWidth = isActive ? 3 : 2; ctx.beginPath(); ctx.moveTo(hx, 0); ctx.lineTo(hx, h); ctx.stroke();
       const delta = handleT - (isA ? trimState.centerA : trimState.centerB);
       const name = range ? (isA ? '끝' : '시작') : (isA ? '앞 끝' : '뒤 시작');
       const label = `${name} ${handleT.toFixed(3)}초 (자동 대비 ${delta > 0 ? '+' : ''}${delta.toFixed(3)})`;
       ctx.font = '11px sans-serif'; const lw = ctx.measureText(label).width + 12;
-      ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(xOffset + 8, h - 40, lw, 20); ctx.fillStyle = isActive ? '#9fd0ff' : '#fff'; ctx.fillText(label, xOffset + 14, h - 35);
+      ctx.fillStyle = 'rgba(15,27,51,0.86)'; ctx.fillRect(xOffset + 8, h - 40, lw, 20); ctx.fillStyle = isActive ? '#bfdbfe' : '#fff'; ctx.fillText(label, xOffset + 14, h - 35);
     }
     const left = leftHandle(), right = left === 'A' ? 'B' : 'A';
     drawPane(left === 'A' ? trimPcmA : trimPcmB, left, 0, w / 2);
-    ctx.fillStyle = '#000'; ctx.fillRect(w/2 - 1, 0, 2, h);
+    ctx.fillStyle = '#cbd5e1'; ctx.fillRect(w/2 - 1, 0, 2, h);
     drawPane(right === 'A' ? trimPcmA : trimPcmB, right, w / 2, w / 2);
     if (loopPlaying && actCtx) {
       const [aMin, aMax] = viewOf('A'), [bMin, bMax] = viewOf('B');
       let elap = actCtx.currentTime - loopStartTime, px = 0, aDur = 2.0;
       if (elap < aDur) { let curA = (endA - 2) + elap; px = ((curA - aMin) / (aMax - aMin)) * (w/2); }
       else { let curB = startB + (elap - aDur); px = w/2 + ((curB - bMin) / (bMax - bMin)) * (w/2); }
-      ctx.fillStyle = '#ff0'; ctx.fillRect(px - 1, 0, 2, h); requestAnimationFrame(renderTrim);
+      ctx.fillStyle = '#f59e0b'; ctx.fillRect(px - 1, 0, 2, h); requestAnimationFrame(renderTrim);
     } else if (range && SS.preview && !SS.preview.paused) {
       // 자막 미리듣기 중: 영상 재생 위치를 노란 선으로
       const t = SS.preview.currentTime;
-      [[left, 0], [right, w / 2]].forEach(([hd, xo]) => { const [mn, mx] = viewOf(hd); if (t >= mn && t <= mx) { ctx.fillStyle = '#ff0'; ctx.fillRect(xo + ((t - mn) / (mx - mn)) * (w / 2) - 1, 0, 2, h); } });
+      [[left, 0], [right, w / 2]].forEach(([hd, xo]) => { const [mn, mx] = viewOf(hd); if (t >= mn && t <= mx) { ctx.fillStyle = '#f59e0b'; ctx.fillRect(xo + ((t - mn) / (mx - mn)) * (w / 2) - 1, 0, 2, h); } });
       requestAnimationFrame(renderTrim);
     }
   }
@@ -1002,8 +1003,8 @@
   let findQuery = '', findMatches = [], findIdx = -1;
   SS.openFindBar = () => {
     let bar = $('findBar'); if (!bar) {
-      bar = document.createElement('div'); bar.id = 'findBar'; bar.style.cssText = 'padding:4px 8px; background:#2a2a2a; border-bottom:1px solid #444; display:flex; gap:8px; align-items:center;';
-      bar.innerHTML = `<span style="font-size:12px; color:#aaa;">찾기:</span><input type="text" id="inpFind" style="flex:1; background:#111; color:#fff; border:1px solid #444; padding:2px 4px; font-size:12px;"><span id="lblFindCount" style="font-size:11px; color:#888;">0/0</span><button id="btnFindPrev" class="btn sm">이전</button><button id="btnFindNext" class="btn sm">다음</button><button id="btnFindClose" class="btn sm">닫기</button>`;
+      bar = document.createElement('div'); bar.id = 'findBar'; bar.style.cssText = 'padding:8px 10px; background:var(--panel2); border:1px solid var(--border); border-radius:12px; display:flex; gap:8px; align-items:center;';
+      bar.innerHTML = `<span style="font-size:12px; font-weight:600; color:var(--muted);">찾기</span><input type="text" id="inpFind" style="flex:1; height:30px;"><span id="lblFindCount" style="font-size:11.5px; color:var(--muted);">0/0</span><button id="btnFindPrev" class="btn sm">이전</button><button id="btnFindNext" class="btn sm">다음</button><button id="btnFindClose" class="btn sm">닫기</button>`;
       $('transcriptPanel').insertBefore(bar, $('transcriptBody'));
       const inp = $('inpFind'); inp.addEventListener('input', () => { findQuery = inp.value; doFind(); });
       inp.addEventListener('keydown', e => { if (e.key === 'Enter') { if (e.shiftKey) findPrev(); else findNext(); e.preventDefault(); } else if (e.key === 'Escape') { SS.closeFindBar(); e.preventDefault(); } });
@@ -1017,7 +1018,7 @@
   function findPrev() { if (findMatches.length === 0) return; findIdx = (findIdx - 1 + findMatches.length) % findMatches.length; goToMatch(); updateFindUI(); }
   function goToMatch() {
     const wid = findMatches[findIdx]; SS.state.caret = wid; SS.state.selAnchorIdx = wid; const activeSpan = $('transcriptBody').querySelector(`span[data-wid="${wid}"]`);
-    if (activeSpan) { activeSpan.scrollIntoView({ block: 'center', behavior: 'smooth' }); const spans = $('transcriptBody').querySelectorAll('span[data-wid]'); spans.forEach(s => { const swid = parseInt(s.dataset.wid); if (findMatches.includes(swid)) s.style.border = (swid === wid) ? '2px solid #39FF5A' : '1px solid #5c2d91'; else s.style.border = 'none'; }); }
+    if (activeSpan) { activeSpan.scrollIntoView({ block: 'center', behavior: 'smooth' }); const spans = $('transcriptBody').querySelectorAll('span[data-wid]'); spans.forEach(s => { const swid = parseInt(s.dataset.wid); if (findMatches.includes(swid)) s.style.border = (swid === wid) ? '2px solid #2563eb' : '1px solid #93b4f5'; else s.style.border = 'none'; }); }
   }
   function updateFindUI() { const el = $('lblFindCount'); if (el) el.textContent = findMatches.length > 0 ? `${findIdx + 1}/${findMatches.length}` : '0/0'; }
 

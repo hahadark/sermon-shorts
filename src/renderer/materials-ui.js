@@ -382,6 +382,7 @@
     $('mnChurchName').textContent = md.church || '우리 교회';
     $('mnTitle').value = md.title; $('mnVerse').value = md.verse; $('mnSpeaker').value = md.speaker; $('mnDate').value = md.date;
     root.hidden = false;
+    if (SS.syncRail) SS.syncRail();
     if (SS.state) SS.state.dialogOpen = true;
     await setSource(m.source || 'video', false);
     tiles(); counts(); aiChip();
@@ -391,6 +392,7 @@
     if (!root || busy && !confirm('자료를 만드는 중입니다. 닫아도 만들기는 계속되고, 다시 열면 결과를 볼 수 있습니다. 닫을까요?')) return;
     root.hidden = true;
     if (SS.state) SS.state.dialogOpen = false;
+    if (SS.syncRail) SS.syncRail();
   }
   SS.openMaterials = open;
   SS.closeMaterials = close;

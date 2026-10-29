@@ -205,7 +205,7 @@
   function addHint(text) {
     const row = document.createElement('div');
     row.className = 'te-prop-hint';
-    row.style.cssText = 'font-size:11px;color:#9aa;line-height:1.4;margin:2px 0 8px;';
+    row.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.4;margin:2px 0 8px;';
     row.textContent = text;
     document.getElementById('teProps').appendChild(row);
   }
@@ -438,7 +438,7 @@
           <input type="color" class="te-prop-color" value="${esc(hex)}" style="width:30px; height:24px; padding:0; border:none;">
           <input type="text" class="te-prop-input" value="${esc(val || '#000000')}" style="flex:1;">
         </div>
-        <div style="display:flex; align-items:center; gap:4px; font-size:11px; color:#aaa;">
+        <div style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--muted);">
           A: <input type="range" class="te-prop-alpha" min="0" max="1" step="0.01" value="${esc(alpha)}" style="flex:1;">
         </div>
       </div>

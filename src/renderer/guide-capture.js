@@ -17,6 +17,7 @@ window.addEventListener('ss:run-test-script',async e=>{
    const shot=async name=>{await SS.testShot(dir+'/'+name+'.png');};
    check('local transcript button available',!!document.getElementById('btnTranscribe'));check('video preview ready',SS.preview.loaded);check('three output captions',SS.getLines().length===3);check('guide available button',!!document.getElementById('btnUserGuide'));
    await shot('01-overview');
+  { const el = document.querySelector('.caption-block'); const b = el.getBoundingClientRect(); const d = window.devicePixelRatio || 1; await window.api.writeText(dir + '/rects-capture.json', JSON.stringify({ caption: [b.left * d, b.top * d, b.right * d, b.bottom * d].map(Math.round) })); }
    const boxes=Array.from(document.querySelectorAll('.caption-check')).filter(b=>!b.disabled);boxes[0].checked=true;boxes[0].dispatchEvent(new Event('change',{bubbles:true}));boxes.at(-1).checked=true;boxes.at(-1).dispatchEvent(new Event('change',{bubbles:true}));await shot('02-bulk-delete');document.getElementById('btnUncheckCaptions').click();
    let fields=Array.from(document.querySelectorAll('.caption-output'));fields[1].focus();fields[1].setSelectionRange(0,0);fields[1].dispatchEvent(new KeyboardEvent('keydown',{key:'Backspace',bubbles:true}));await shot('03-merge');SS.flushCaptionEdit(false);SS.undo();document.getElementById('transcriptBody').focus();
    const cuts=SS.getCuts();check('trim cut exists',cuts.length>0);await SS.openTrimPanel(cuts[0].a,cuts[0].b);await wait(400);await shot('04-trim');SS.closeTrim();

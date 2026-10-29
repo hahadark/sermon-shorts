@@ -44,51 +44,51 @@
     const st = document.createElement('style');
     st.id = 'ss-chat-styles';
     st.textContent = `
-#chatCol{flex:0 0 380px;width:380px;display:flex;flex-direction:column;border-left:1px solid var(--border);background:var(--panel);min-height:0}
+#chatCol{flex:0 0 380px;width:380px;display:flex;flex-direction:column;background:var(--panel);min-height:0;border-radius:var(--radius-card);box-shadow:var(--shadow-card);overflow:hidden}
 #chatCol.collapsed{flex-basis:44px;width:44px}
 #chatCol.collapsed .chat-body,#chatCol.collapsed .chat-compose,#chatCol.collapsed .chat-head .grow,#chatCol.collapsed #chatQuick,#chatCol.collapsed #chatNew,#chatCol.collapsed #chatClear{display:none!important}
 #chatCol.collapsed .chat-head{padding:10px 8px;border-bottom:0}
 .chat-head .grow .ico{color:var(--muted)}
-.chat-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
+.chat-head{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--border)}
 .chat-head .grow{flex:1;display:flex;align-items:center;gap:8px}
-.chat-head b{font-size:14px}
-.chat-chip{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);cursor:pointer;white-space:nowrap}
-.chat-chip.ok{color:#9ff0ad;border-color:#2a8c45}
-.chat-chip.warn{color:#ffd27a;border-color:#8a6a1f}
-.chat-body{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:0}
-.msg{max-width:92%;padding:9px 12px;border-radius:12px;font-size:13.5px;line-height:1.55;white-space:pre-wrap;word-break:keep-all}
-.msg.user{align-self:flex-end;background:#1f4f8f;color:#fff;border-bottom-right-radius:4px}
-.msg.ai{align-self:flex-start;background:var(--panel2);border:1px solid var(--border);border-bottom-left-radius:4px}
+.chat-head b{font-size:16px;font-weight:800;letter-spacing:-.3px}
+.chat-chip{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;border:1px solid transparent;background:var(--panel3);color:var(--muted);cursor:pointer;white-space:nowrap}
+.chat-chip.ok{color:#15803d;background:#e7f8ee}
+.chat-chip.warn{color:#b45309;background:#fff4e5}
+.chat-body{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:0;background:var(--bg)}
+.msg{max-width:92%;padding:10px 14px;border-radius:16px;font-size:13.5px;line-height:1.6;white-space:pre-wrap;word-break:keep-all}
+.msg.user{align-self:flex-end;background:var(--primary);color:#fff;border-bottom-right-radius:5px;box-shadow:0 6px 14px rgba(37,99,235,.18)}
+.msg.ai{align-self:flex-start;background:#fff;border:1px solid var(--border);border-bottom-left-radius:5px;box-shadow:0 1px 2px rgba(15,23,42,.03)}
 .msg.sys{align-self:center;background:transparent;color:var(--muted);font-size:12.5px;text-align:center}
 .msg .meta{display:block;margin-top:6px;font-size:11.5px;color:var(--muted)}
-.msg.err{border-color:#8a2f2f;color:#ffb4b4}
+.msg.err{border-color:#f5c2c2;color:#b91c1c;background:#fef2f2}
 .chat-start{display:flex;flex-direction:column;gap:8px;padding:6px 2px}
 .chat-start p{margin:0;color:var(--muted);font-size:13px;line-height:1.6}
-.chat-input{width:100%;box-sizing:border-box;background:#121417;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 10px;font-family:var(--font);font-size:13.5px}
-.chat-input:focus{outline:none;border-color:var(--accent2)}
-.chat-quick{display:flex;flex-direction:column;gap:6px;padding:8px 12px;border-top:1px solid var(--border)}
+.chat-input{width:100%;box-sizing:border-box;background:#fff;border:1px solid var(--border-strong);color:var(--text);border-radius:12px;padding:10px 12px;font-family:var(--font);font-size:13.5px}
+.chat-input:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.14)}
+.chat-quick{display:flex;flex-direction:column;gap:7px;padding:10px 14px;border-top:1px solid var(--border);background:#fff}
 .cq-head{display:flex;align-items:center;gap:8px;min-width:0}
-.cq-fold{background:none;border:none;color:var(--text);font-size:12.5px;font-weight:600;cursor:pointer;padding:0;white-space:nowrap;font-family:var(--font)}
+.cq-fold{background:none;border:none;color:var(--text);font-size:13px;font-weight:800;cursor:pointer;padding:0;white-space:nowrap;font-family:var(--font)}
 .cq-sum{flex:1;min-width:0;font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cq-cond{display:flex;flex-direction:column;gap:6px}
 .cq-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
 .cq-label{font-size:11.5px;color:var(--muted);flex:0 0 38px}
-.cq-btn{font-size:12px;padding:4px 9px;border-radius:999px;border:1px solid var(--border);background:var(--panel2);color:var(--text);cursor:pointer;white-space:nowrap;font-family:var(--font)}
-.cq-btn:hover{border-color:#5b6470}
-.cq-btn.on{background:#173a63;border-color:var(--accent2);color:#dbe9ff}
+.cq-btn{font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px;border:1px solid var(--border-strong);background:#fff;color:var(--text-2);cursor:pointer;white-space:nowrap;font-family:var(--font)}
+.cq-btn:hover{border-color:#93b4f5;color:var(--text)}
+.cq-btn.on{background:var(--primary-soft);border-color:#93b4f5;color:#1d4ed8}
 .cq-btn.tog.on::before{content:'✓ '}
-.cq-btn.act{border-radius:8px}
-.cq-btn.primary{background:var(--accent2);border-color:var(--accent2);color:#fff;font-weight:600}
+.cq-btn.act{border-radius:10px}
+.cq-btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:700}
 .cq-btn:disabled{opacity:.45;cursor:default}
-.msg.cand{white-space:normal;border-left:3px solid var(--accent2);max-width:96%}
-.cand-head{font-size:12px;color:var(--muted)}
-.cand-head b{color:var(--text)}
-.cand-title{font-weight:700;margin-top:3px}
+.msg.cand{white-space:normal;max-width:100%;width:100%;background:#fff;border:1px solid var(--border);border-radius:18px;padding:14px 16px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.cand-head{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.cand-head b{display:inline-grid;place-items:center;min-width:26px;height:24px;padding:0 8px;border-radius:999px;background:var(--primary-soft);color:#2563eb;font-weight:800}
+.cand-title{font-weight:800;font-size:15.5px;letter-spacing:-.3px;margin-top:6px}
 .cand-sum,.cand-why{font-size:12.5px;margin-top:3px}
-.cand-why{color:#bcd3ee}
+.cand-why{color:#475569}
 .msg.cand details{margin-top:5px;font-size:12px;color:var(--muted)}
 .msg.cand summary{cursor:pointer}
-.cand-text{margin-top:4px;line-height:1.5;color:#c9ced4}
+.cand-text{margin-top:4px;line-height:1.55;color:#475569}
 .cand-act{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .msg.sys .cq-btn{margin-top:6px}
 .chat-divider{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11.5px;margin:6px 0}
@@ -96,19 +96,19 @@
 .chat-divider .cq-btn{font-size:11.5px;padding:2px 8px}
 .chat-body .stale{opacity:.45;cursor:default;pointer-events:none}
 .chat-start.compact p{display:none}
-.chat-compose{border-top:1px solid var(--border);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.chat-compose{border-top:1px solid var(--border);padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:#fff}
 .chat-compose textarea{resize:none;height:64px}
 .chat-actions{display:flex;gap:6px;justify-content:space-between}
-.ai-conn.ss-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:9999}
-.ai-conn .ss-modal{background:#25282c;color:#eee;padding:22px 24px;border-radius:10px;border:1px solid #3a3d42;box-shadow:0 8px 32px rgba(0,0,0,.5)}
-.ai-conn .ss-modal h2{margin:0 0 14px;font-size:1.2rem}
+.ai-conn.ss-modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.38);display:flex;align-items:center;justify-content:center;z-index:9999}
+.ai-conn .ss-modal{background:#fff;color:var(--text);padding:26px 28px;border-radius:24px;border:0;box-shadow:0 30px 80px rgba(15,23,42,.28)}
+.ai-conn .ss-modal h2{margin:0 0 14px;font-size:1.3rem;font-weight:800;letter-spacing:-.4px}
 .ai-conn .ss-modal{width:760px;max-height:86vh;overflow:auto}
-.ai-card{border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px;background:#1b1e22}
-.ai-card.active{border-color:#2a8c45;box-shadow:0 0 0 1px #2a8c45 inset}
+.ai-card{border:1px solid var(--border);border-radius:18px;padding:16px 18px;margin-bottom:12px;background:var(--panel2)}
+.ai-card.active{border-color:#3b82f6;background:var(--primary-soft);box-shadow:0 0 0 1px #3b82f6 inset}
 .ai-card h3{margin:0 0 4px;font-size:15px;display:flex;align-items:center;gap:8px}
-.ai-card .state{font-size:12.5px;padding:2px 8px;border-radius:999px;background:#2b2f35;color:var(--muted)}
-.ai-card .state.ok{background:#16351f;color:#9ff0ad}
-.ai-card p,.ai-card li{font-size:13px;color:#c9ced4;line-height:1.6}
+.ai-card .state{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--panel3);color:var(--muted)}
+.ai-card .state.ok{background:#e7f8ee;color:#15803d}
+.ai-card p,.ai-card li{font-size:13px;color:var(--text-2);line-height:1.6}
 .ai-card ol{margin:6px 0 8px 18px;padding:0}
 .ai-card .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
 .ai-card .note{font-size:12px;color:var(--muted)}
@@ -653,7 +653,7 @@
     if (connOverlay) connOverlay.remove();
     connOverlay = document.createElement('div');
     connOverlay.className = 'ss-modal-overlay ai-conn';
-    connOverlay.innerHTML = `<div class="ss-modal"><h2>AI 연결</h2><div id="aiCards"><p style="color:#aaa">상태를 확인하는 중…</p></div>
+    connOverlay.innerHTML = `<div class="ss-modal"><h2>AI 연결</h2><div id="aiCards"><p style="color:var(--muted)">상태를 확인하는 중…</p></div>
       <div style="display:flex;justify-content:flex-end;margin-top:6px"><button class="btn" id="aiClose">닫기</button></div></div>`;
     document.body.appendChild(connOverlay);
     connOverlay.addEventListener('keydown', (e) => e.stopPropagation());
@@ -669,7 +669,7 @@
     const g = s.chatgpt || {}, c = s.claude || {}, m = s.gemini || {}, o = s.openrouter || {};
     const useBtn = (name) => isReady(name) ? (act === name ? `<span class="state ok">대화에 사용 중</span>` : `<button class="btn primary" data-use="${name}">이 AI 로 대화하기</button>`) : '';
     box.innerHTML = `
-      <p style="color:#aaa;font-size:13px;margin:0 0 12px">넷 중 <b>하나만</b> 연결하면 됩니다. 이미 쓰고 있는 AI 가 있다면 그것을 고르세요.</p>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 12px">넷 중 <b>하나만</b> 연결하면 됩니다. 이미 쓰고 있는 AI 가 있다면 그것을 고르세요.</p>
       <div class="ai-card ${act === 'chatgpt' ? 'active' : ''}">
         <h3>챗GPT <span class="state ${g.connected && g.planEnabled ? 'ok' : ''}">${g.connected ? (g.planEnabled ? '연결됨 · ' + esc(g.email || '') : '요금제 사용 허용 필요') : '연결 안 됨'}</span></h3>
         <p>챗GPT 계정으로 로그인합니다. <b>Plus·Go·Pro 요금제</b>가 있으면 그 사용량 안에서 쓰고, 따로 돈이 들지 않습니다.</p>
@@ -996,6 +996,8 @@
       await sleep(300);
       await SS.openAiConnect(); await sleep(900);
       await SS.testShot('cache/guide/12-ai-connect-full.png');
+      const _r = (sel) => { const el = document.querySelector(sel); if (!el) return null; const b = el.getBoundingClientRect(); const d = window.devicePixelRatio || 1; return [b.left * d, b.top * d, b.right * d, b.bottom * d].map(Math.round); };
+      const _rects = { aiConnect: _r('.ai-conn .ss-modal') };
       document.querySelectorAll('.ai-conn').forEach((x) => x.remove());
       $('chatUrl').value = 'https://youtu.be/XXXXXXXXXXX'; $('chatLoad').click();
       await waitFor(() => video && !busy && !$('chatText').disabled, 20000, 'load');
@@ -1003,6 +1005,8 @@
       await waitFor(() => !busy && document.querySelectorAll('#chatBody .msg.cand').length === 3, 20000, 'cands');
       $('chatBody').scrollTop = 0; await sleep(400);
       await SS.testShot('cache/guide/13-chat-full.png');
+      _rects.chat = _r('#chatCol');
+      { const L = await api.getLaunchInfo(); await api.writeText(L.cache + '/guide/rects-chat.json', JSON.stringify(_rects)); }
       api.notifyTestReady({ ok: true });
     } catch (err) { console.error(err); api.notifyTestError(err && err.stack || err); }
   });

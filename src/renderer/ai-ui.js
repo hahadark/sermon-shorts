@@ -91,7 +91,7 @@
             <div id="aiCandidates" style="display:flex; flex-direction:column; gap:10px;"></div>
           </div>
         </div>
-        <div class="modal-footer" style="border-top: 1px solid #3c4048; padding-top: 15px; margin-top: 5px;">
+        <div class="modal-footer" style="border-top: 1px solid var(--border); padding-top: 15px; margin-top: 5px;">
           <button id="btnAiCancel" class="btn">닫기</button>
         </div>
       </div>

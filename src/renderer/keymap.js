@@ -221,8 +221,8 @@
       groupOrder.forEach(function(g) {
         if (!groups[g]) return;
         let rows = '';
-        groups[g].forEach(function(b) { rows += '<tr><td style="color: #aaa; padding: 2px 0;">' + b.label + '</td><td style="text-align: right; font-family: monospace;">' + keymap.getDisplayKeys(b) + '</td></tr>'; });
-        html += '<div style="margin-bottom: 15px;"><h4 style="border-bottom: 1px solid #444; padding-bottom: 4px; margin-bottom: 8px; color: #39FF5A;">' + g + '</h4><table style="width: 100%; font-size: 13px;">' + rows + '</table></div>';
+        groups[g].forEach(function(b) { rows += '<tr><td style="color: #475569; padding: 3px 0;">' + b.label + '</td><td style="text-align: right; font-family: monospace;">' + keymap.getDisplayKeys(b) + '</td></tr>'; });
+        html += '<div style="margin-bottom: 15px;"><h4 style="border-bottom: 1px solid #e6ebf2; padding-bottom: 6px; margin-bottom: 8px; color: #1d4ed8; font-weight: 800;">' + g + '</h4><table style="width: 100%; font-size: 13px;">' + rows + '</table></div>';
       });
       body.innerHTML = html; modal.classList.remove('hidden');
     }

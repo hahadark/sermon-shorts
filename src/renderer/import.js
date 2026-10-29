@@ -109,49 +109,49 @@
     style.textContent = `
       .ss-modal-overlay {
         position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center;
+        background: rgba(15,23,42,0.38); display: flex; align-items: center; justify-content: center;
         z-index: 9999;
       }
       .ss-modal {
-        background: #25282c; color: #eee; width: 520px; padding: 24px; border-radius: 8px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.5); border: 1px solid #3a3d42;
+        background: #fff; color: #0f172a; width: 520px; padding: 26px 28px; border-radius: 24px;
+        box-shadow: 0 30px 80px rgba(15,23,42,0.28); border: 0;
       }
       .ss-modal.wide { width: 900px; }
-      .ss-modal h2 { margin: 0 0 20px 0; font-size: 1.2rem; font-weight: 600; color: #fff; }
+      .ss-modal h2 { margin: 0 0 20px 0; font-size: 1.3rem; font-weight: 800; letter-spacing: -0.4px; color: #0f172a; }
       .ss-form-group { margin-bottom: 16px; }
-      .ss-label { display: block; margin-bottom: 6px; font-size: 0.9rem; color: #aaa; }
+      .ss-label { display: block; margin-bottom: 6px; font-size: 0.9rem; font-weight: 600; color: #64748b; }
       .ss-input {
-        width: 100%; background: #1a1c1e; border: 1px solid #3a3d42; color: #fff;
+        width: 100%; background: #fff; border: 1px solid #d5dde8; color: #0f172a;
         padding: 10px 12px; border-radius: 4px; box-sizing: border-box; font-size: 0.95rem; font-family: inherit;
       }
-      .ss-input:focus { outline: none; border-color: #4a90e2; }
+      .ss-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
       .ss-input:disabled { opacity: 0.6; }
       .ss-info-box {
-        background: #1a1c1e; padding: 12px; border-radius: 4px; margin-bottom: 16px;
-        font-size: 0.9rem; line-height: 1.4; border-left: 4px solid #4a90e2;
+        background: #eaf1fe; padding: 12px 14px; border-radius: 12px; margin-bottom: 16px; color: #1e3a8a;
+        font-size: 0.9rem; line-height: 1.5; border-left: 4px solid #2563eb;
       }
       .ss-progress-container { margin-top: 12px; }
-      .ss-progress-bg { background: #1a1c1e; height: 10px; border-radius: 5px; overflow: hidden; margin-bottom: 8px; }
-      .ss-progress-bar { background: #4a90e2; height: 100%; width: 0; transition: width 0.2s; }
-      .ss-progress-text { font-size: 0.9rem; color: #ccc; text-align: center; }
+      .ss-progress-bg { background: #eef2f7; height: 10px; border-radius: 5px; overflow: hidden; margin-bottom: 8px; }
+      .ss-progress-bar { background: #2563eb; height: 100%; width: 0; transition: width 0.2s; }
+      .ss-progress-text { font-size: 0.9rem; color: #475569; text-align: center; }
       .ss-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
       .ss-btn { padding: 8px 20px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.95rem; font-weight: 500; font-family: inherit; }
-      .ss-btn-cancel { background: #3a3d42; color: #eee; }
-      .ss-btn-cancel:hover { background: #45494f; }
-      .ss-btn-primary { background: #4a90e2; color: #fff; }
-      .ss-btn-primary:hover { background: #5da0eb; }
-      .ss-btn-primary:disabled { background: #2c3e50; color: #7f8c8d; cursor: not-allowed; }
+      .ss-btn-cancel { background: #fff; color: #0f172a; border: 1px solid #d5dde8 !important; }
+      .ss-btn-cancel:hover { background: #f6f8fb; }
+      .ss-btn-primary { background: #2563eb; color: #fff; }
+      .ss-btn-primary:hover { background: #1d4ed8; }
+      .ss-btn-primary:disabled { background: #bfd3fb; color: #fff; cursor: not-allowed; }
       
       .ss-yt-picker { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
       .ss-yt-player-box { background: #000; position: relative; aspect-ratio: 16/9; }
       .ss-yt-player-box video { width: 100%; height: 100%; }
-      .ss-yt-subs-box { background: #1a1c1e; height: 400px; overflow-y: auto; border: 1px solid #333; }
-      .ss-yt-sub-line { padding: 6px 10px; font-size: 0.85rem; cursor: pointer; border-bottom: 1px solid #222; color: #aaa; }
-      .ss-yt-sub-line:hover { background: #2a2e33; color: #fff; }
-      .ss-yt-sub-line.active { background: #313a44; color: #4a90e2; border-left: 3px solid #4a90e2; }
-      .ss-yt-time { font-family: monospace; color: #666; margin-right: 8px; }
+      .ss-yt-subs-box { background: #f8fafc; height: 400px; overflow-y: auto; border: 1px solid #e6ebf2; border-radius: 12px; }
+      .ss-yt-sub-line { padding: 7px 12px; font-size: 0.85rem; cursor: pointer; border-bottom: 1px solid #eef2f7; color: #334155; }
+      .ss-yt-sub-line:hover { background: #eef2f7; color: #0f172a; }
+      .ss-yt-sub-line.active { background: #eaf1fe; color: #1d4ed8; border-left: 3px solid #2563eb; }
+      .ss-yt-time { font-family: monospace; color: #94a3b8; margin-right: 8px; }
       .ss-yt-range-ui { margin-top: 12px; display: flex; align-items: center; gap: 8px; }
-      .ss-yt-range-ui .ss-btn { white-space: nowrap; padding: 8px 12px; background: #3a3d42; color: #eee; }
+      .ss-yt-range-ui .ss-btn { white-space: nowrap; padding: 8px 12px; background: #fff; color: #0f172a; border: 1px solid #d5dde8; }
       .ss-yt-timeline { margin-top: 8px; display: flex; align-items: center; gap: 10px; font-size: 0.85rem; }
       .ss-yt-range-input { width: 100px; text-align: center; }
       .ss-hidden { display: none; }
@@ -253,9 +253,9 @@
             <span>~</span>
             <input type="text" id="yt-end" class="ss-input ss-yt-range-input" value="00:00">
             <button id="yt-set-out" class="ss-btn sm">끝 지정 (O)</button>
-            <div id="yt-range-dur" style="margin-left: 10px; color: #4a90e2; font-weight: bold;">선택: 0:00</div>
+            <div id="yt-range-dur" style="margin-left: 10px; color: #2563eb; font-weight: bold;">선택: 0:00</div>
           </div>
-          <div style="margin-top: 10px; font-size: 0.85rem; color: #888;">
+          <div style="margin-top: 10px; font-size: 0.85rem; color: #64748b;">
             단축키: Space(재생), I(시작), O(끝), ←/→(±5초)
           </div>
           <label style="margin-top: 15px; display: block; font-size: 0.9rem;">
@@ -263,7 +263,7 @@
           </label>
         </div>
         <div class="ss-yt-subs-box" id="yt-subs">
-          <div style="padding: 20px; text-align: center; color: #666;">자막 불러오는 중…</div>
+          <div style="padding: 20px; text-align: center; color: #94a3b8;">자막 불러오는 중…</div>
         </div>
       </div>
       <div class="ss-actions">
@@ -313,7 +313,7 @@
     // Subtitles
     api.ytAutoSubs(url).then(res => {
       if (!res || !res.lines || res.lines.length === 0) {
-        subsBox.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">자막이 없습니다.</div>';
+        subsBox.innerHTML = '<div style="padding: 20px; text-align: center; color: #94a3b8;">자막이 없습니다.</div>';
         return;
       }
       subsBox.innerHTML = '';
@@ -419,7 +419,7 @@
         <div class="ss-form-group">
           <label class="ss-label">자막 만들 구간 (원본 영상 시각)</label>
           <input type="text" id="tr-range" class="ss-input" placeholder="전체 구간 (예: 14:30 ~ 16:00)">
-          <div style="margin-top: 4px; font-size: 0.8rem; color: #888;">영상은 이미 열려 있습니다. 취소해도 영상은 그대로 남습니다.</div>
+          <div style="margin-top: 4px; font-size: 0.8rem; color: #64748b;">영상은 이미 열려 있습니다. 취소해도 영상은 그대로 남습니다.</div>
         </div>
         <div id="tr-progress-box" class="ss-progress-container ss-hidden">
           <div class="ss-progress-bg"><div id="tr-progress-bar" class="ss-progress-bar"></div></div>

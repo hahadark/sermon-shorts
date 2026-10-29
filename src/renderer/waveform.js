@@ -101,11 +101,11 @@
       const H = this.canvas.height;
       const dpr = this.dpr;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.fillStyle = '#0d0f11';
+      ctx.fillStyle = '#fbfcfe';
       ctx.fillRect(0, 0, W, H);
 
       const rulerH = Math.round(RULER_H * dpr);
-      ctx.fillStyle = '#16191c';
+      ctx.fillStyle = '#f1f4f8';
       ctx.fillRect(0, 0, W, rulerH);
 
       const vs = this.viewStart;
@@ -120,11 +120,11 @@
       const first = Math.ceil(vs / step) * step;
       for (let t = first; t <= vs + vd + 1e-9; t += step) {
         const x = Math.round((t - vs) * pxPerSec) + 0.5;
-        ctx.fillStyle = '#3a4047';
+        ctx.fillStyle = '#cbd5e1';
         ctx.fillRect(Math.floor(x), rulerH - Math.round(6 * dpr), Math.max(1, Math.round(dpr)), Math.round(6 * dpr));
-        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.fillStyle = 'rgba(15,23,42,0.05)';
         ctx.fillRect(Math.floor(x), rulerH, 1, H - rulerH);
-        ctx.fillStyle = '#8b939c';
+        ctx.fillStyle = '#64748b';
         ctx.fillText(fmtRuler(t, step), Math.floor(x) + 4 * dpr, rulerH / 2);
       }
 
@@ -132,14 +132,14 @@
       const top = rulerH;
       const waveH = H - rulerH;
       const mid = top + waveH / 2;
-      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillStyle = 'rgba(15,23,42,0.08)';
       ctx.fillRect(0, Math.round(mid), W, 1);
 
       const peaks = this.peaks;
       if (peaks && peaks.length) {
         const n = peaks.length / 2;
         const bs = this.bucketSec;
-        ctx.fillStyle = '#3fbf62';
+        ctx.fillStyle = '#60a5fa';
         const secPerPx = vd / W;
         for (let x = 0; x < W; x++) {
           const t0 = vs + x * secPerPx;
@@ -167,7 +167,7 @@
         const px = (this.playhead - vs) * pxPerSec;
         if (px >= -2 && px <= W + 2) {
           const lw = Math.max(1, Math.round(1.5 * dpr));
-          ctx.fillStyle = '#ff4d4d';
+          ctx.fillStyle = '#ef4444';
           ctx.fillRect(Math.round(px - lw / 2), 0, lw, H);
           // 상단 삼각형
           ctx.beginPath();
@@ -184,9 +184,9 @@
         const txt = `보기 ${fmtRuler(vs, 1)} – ${fmtRuler(vs + vd, 1)}  (${vd >= 60 ? (vd / 60).toFixed(1) + '분' : vd.toFixed(vd < 1 ? 3 : 1) + '초'})`;
         ctx.font = `${Math.round(11 * dpr)}px 'Malgun Gothic', sans-serif`;
         const tw = ctx.measureText(txt).width;
-        ctx.fillStyle = 'rgba(13,15,17,0.8)';
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
         ctx.fillRect(W - tw - 14 * dpr, H - 18 * dpr, tw + 14 * dpr, 18 * dpr);
-        ctx.fillStyle = '#8b939c';
+        ctx.fillStyle = '#64748b';
         ctx.textBaseline = 'middle';
         ctx.fillText(txt, W - tw - 7 * dpr, H - 9 * dpr);
       }

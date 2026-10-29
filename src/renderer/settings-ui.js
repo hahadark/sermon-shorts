@@ -116,7 +116,7 @@
             </div>
             <div class="settings-row inline">
               <input type="checkbox" id="ytAuto">
-              <label for="ytAuto" style="font-size:13px; color:#ddd">영상을 만들면 바로 유튜브에 올리기</label>
+              <label for="ytAuto" style="font-size:13px; color:var(--text-2)">영상을 만들면 바로 유튜브에 올리기</label>
             </div>
             <div class="settings-row">
               <label>공개 범위</label>
@@ -127,7 +127,7 @@
               </select>
             </div>
             <details class="settings-row">
-              <summary style="cursor:pointer; font-size:12px; color:#aaa">고급: 내 구글 OAuth 클라이언트 쓰기</summary>
+              <summary style="cursor:pointer; font-size:12px; color:var(--muted)">고급: 내 구글 OAuth 클라이언트 쓰기</summary>
               <div class="settings-note" style="margin:6px 0">앱에 기본 클라이언트가 없거나, 업로드한 영상이 계속 '비공개'로 묶이면 교회 구글 계정으로 만든 클라이언트를 넣으세요.
                 Google Cloud 에서 <b>YouTube Data API v3</b> 사용 설정 → 사용자 인증 정보 → OAuth 클라이언트 ID(<b>데스크톱 앱</b>) 만들기.</div>
               <div style="display:flex; gap:6px; margin-bottom:6px"><button class="btn sm" id="btnYtApi">API 사용 설정 페이지</button><button class="btn sm" id="btnYtConsole">사용자 인증 정보 페이지</button></div>

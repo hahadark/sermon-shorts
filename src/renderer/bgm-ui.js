@@ -31,8 +31,10 @@
     $('tabDesign').setAttribute('aria-selected', String(!music)); $('tabMusic').setAttribute('aria-selected', String(music));
     $('btnChurchMore').hidden = music;
     if (music) { render(); drawWave(); }
+    if (SS.syncRail) SS.syncRail();
   }
   SS.showBgmTab = () => setTab('music');
+  SS.showDesignTab = () => setTab('design');
 
   // ---------------- 고른 음악 표시 ----------------
   function render() {
@@ -95,32 +97,32 @@
     if (!w || !h) return;
     c.width = w * dpr; c.height = h * dpr;
     const g = c.getContext('2d'); g.scale(dpr, dpr);
-    g.fillStyle = '#14171b'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
     const dur = t.durationSec || 1, X = (s) => (s / dur) * w;
     const p = planNow();
     // 고른 구간 · 실제로 쓰는 부분
-    g.fillStyle = 'rgba(47,128,237,.16)'; g.fillRect(X(b.trackStart), 0, X(b.trackEnd) - X(b.trackStart), h);
-    if (p) { g.fillStyle = 'rgba(47,128,237,.30)'; g.fillRect(X(p.from), 0, X(p.from + p.length) - X(p.from), h); }
+    g.fillStyle = 'rgba(37,99,235,.08)'; g.fillRect(X(b.trackStart), 0, X(b.trackEnd) - X(b.trackStart), h);
+    if (p) { g.fillStyle = 'rgba(37,99,235,.16)'; g.fillRect(X(p.from), 0, X(p.from + p.length) - X(p.from), h); }
     if (peaks) {
       const n = peaks.length, bw = w / n;
       for (let i = 0; i < n; i++) {
         const s = (i / n) * dur, inSel = s >= b.trackStart && s <= b.trackEnd;
         const v = Math.max(1, peaks[i] * (h * 0.42));
-        g.fillStyle = inSel ? '#7fb2ff' : '#3c4450';
+        g.fillStyle = inSel ? '#60a5fa' : '#d5dde8';
         g.fillRect(i * bw, h / 2 - v, Math.max(1, bw - 0.6), v * 2);
       }
     }
     // 페이드 모양
     if (p) {
       const a = X(p.from), e = X(p.from + p.length), fi = X(p.from + p.fadeIn) - a, fo = e - X(p.from + p.length - p.fadeOut);
-      g.strokeStyle = '#ffd166'; g.lineWidth = 1.5; g.beginPath();
+      g.strokeStyle = '#f59e0b'; g.lineWidth = 1.5; g.beginPath();
       g.moveTo(a, h - 3); g.lineTo(a + fi, 4); g.lineTo(e - fo, 4); g.lineTo(e, h - 3); g.stroke();
     }
     // 손잡이
-    [b.trackStart, b.trackEnd].forEach((s) => { const x = X(s); g.fillStyle = '#2f80ed'; g.fillRect(x - 1.5, 0, 3, h); g.fillRect(x - 5, 0, 10, 8); g.fillRect(x - 5, h - 8, 10, 8); });
+    [b.trackStart, b.trackEnd].forEach((s) => { const x = X(s); g.fillStyle = '#2563eb'; g.fillRect(x - 1.5, 0, 3, h); g.fillRect(x - 5, 0, 10, 8); g.fillRect(x - 5, h - 8, 10, 8); });
     // 재생 위치
     const now = !mix.paused ? mix.currentTime : (!lib.paused && libId === b.id ? lib.currentTime : null);
-    if (now != null) { g.fillStyle = '#fff'; g.fillRect(X(now) - 0.5, 0, 1.5, h); }
+    if (now != null) { g.fillStyle = '#0f172a'; g.fillRect(X(now) - 0.5, 0, 1.5, h); }
   }
   function waveTime(e) {
     const c = $('bgmWave'), r = c.getBoundingClientRect(), t = track(cur().id);

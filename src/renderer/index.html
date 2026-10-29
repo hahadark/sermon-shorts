@@ -11,8 +11,20 @@
   <link rel="stylesheet" href="materials.css">
 </head>
 <body>
+  <nav id="rail" aria-label="작업 공간">
+    <div class="rail-logo" title="SermonShorts"><img src="../../assets/images/app-icon.png" alt="SermonShorts"></div>
+    <button class="rail-item on ico i-clapperboard" type="button" data-rail="editor" aria-current="page" title="쇼츠 편집">쇼츠 편집</button>
+    <button id="btnMaterials" class="rail-item ico i-book-open" type="button" title="설교로 소그룹 자료·QT·성경 퀴즈·설교 요약·묵상카드·가정예배지 만들기">교인 자료</button>
+    <button class="rail-item ico i-music" type="button" data-rail="music" title="배경음악 고르기·구간·페이드">배경음악</button>
+    <button class="rail-item ico i-palette" type="button" data-rail="theme" title="쇼츠 테마 편집">테마</button>
+    <button class="rail-item ico i-plug" type="button" data-rail="ai" title="챗GPT·클로드·제미나이 연결">AI 연결</button>
+    <span class="rail-spacer"></span>
+    <button class="rail-item ico i-circle-help" type="button" data-rail="guide" title="사용 설명서">설명서</button>
+    <button id="btnSettings" class="rail-item ico i-settings" type="button" title="설정 (Ctrl+,)" aria-label="설정">설정</button>
+  </nav>
+  <div id="appMain">
   <header id="topbar">
-    <div class="brand"><img class="brand-logo" src="../../assets/images/app-icon.png" alt=""><span class="app-title">SermonShorts</span></div>
+    <div class="brand"><span class="app-title">쇼츠 편집</span></div>
     <nav class="menubar" aria-label="메뉴">
       <div class="menu">
         <button class="menu-btn" aria-haspopup="true" aria-expanded="false">파일</button>
@@ -80,8 +92,6 @@
       <button id="updateClose" class="btn sm" title="닫기">✕</button>
     </div>
     <div class="top-right">
-      <button id="btnMaterials" class="btn ico i-book-open" title="설교로 소그룹 자료·QT·성경 퀴즈·설교 요약·묵상카드·가정예배지 만들기">교인 자료</button>
-      <button id="btnSettings" class="btn ghost icon-only ico i-settings" title="설정 (Ctrl+,)" aria-label="설정"></button>
       <button id="btnExport" class="btn primary ico i-share" disabled>내보내기</button>
     </div>
   </header>
@@ -171,6 +181,7 @@
       </div>
     </section>
   </main>
+  </div>
 
   <div id="toast" class="toast hidden"></div>
 
