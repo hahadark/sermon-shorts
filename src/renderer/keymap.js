@@ -292,6 +292,7 @@
     const tips = keymap.getTooltips();
     const btnMap = { 'btnSave':'file_save', 'btnOpen':'file_open_video', 'btnOpenProject':'file_open', 'btnExport':'file_export', 'btnSettings':'settings_open', 'btnAiRecommend':'ai_recommend', 'btnAutoClean':'auto_clean', 'btnAiCorrect':'ai_term_correct' };
     for (const id in btnMap) { const b = $(id); if (b) b.title = tips[btnMap[id]]; }
-    const tb = $('topbar'); const h = document.createElement('div'); h.style.cssText = 'font-size:11px; color:#888; margin-left:auto; margin-right:10px;'; h.textContent = '단축키 도움말: F1'; tb.insertBefore(h, $('fileName'));
+    // 단축키 안내는 [도움말 → 단축키 (F1)] 메뉴로 옮겼다
+    SS.showShortcuts = showHelp;
   };
 })();

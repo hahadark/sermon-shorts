@@ -7,6 +7,55 @@
   'use strict';
   const SS = window.SS;
 
+  // 테스트 훅: SS_TEST_SCRIPT=ui-shots — 화면 디자인 확인용 캡처 (영상 없이: 시작 화면·메뉴 / 영상 있이: 편집 화면·설정·대화 접기)
+  window.addEventListener('ss:run-test-script', async (e) => {
+    if (e.detail !== 'ui-shots') return;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    try {
+      const launch = await window.api.getLaunchInfo();
+      await window.api.mkdir(launch.cache + '/ui_shots');
+      const shot = (n) => SS.testShot('cache/ui_shots/' + n + '.png');
+      await sleep(1500);
+      const withVideo = !!launch.open;
+      if (withVideo) {
+        const t0 = Date.now();
+        while (!(SS.state && SS.state.words && SS.state.words.length && document.querySelector('.caption-output'))) { if (Date.now() - t0 > 60000) throw new Error('자막 없음'); await sleep(200); }
+        SS.preview.pause();
+        SS.state.meta = { title: '오늘의 말씀 / 하나님 중심의 기도', verse: '마태복음 6:13', speaker: SS.state.meta && SS.state.meta.speaker };
+        document.getElementById('inpTitle').value = SS.state.meta.title; document.getElementById('inpVerse').value = SS.state.meta.verse;
+        await SS.preview.seek((SS.state.words[12] || SS.state.words[0]).start + 0.2);
+        await SS.updateTemplatePreview(); await sleep(800);
+        await shot('2_editor');
+        SS.toggleCaptionSettings(true); await sleep(300);
+        const box = document.querySelector('.caption-check'); if (box) { box.checked = true; box.dispatchEvent(new Event('change', { bubbles: true })); }
+        await sleep(300);
+        await shot('3_settings_selected');
+        SS.toggleCaptionSettings(false); if (box) { document.getElementById('btnUncheckCaptions').click(); }
+        SS.toggleChat(true); await sleep(500);
+        await shot('4_chat_folded');
+        SS.toggleChat(false); await sleep(300);
+        // 테마 편집기 (더보기 메뉴 열기)
+        document.getElementById('btnEditTheme').click(); await sleep(1800);
+        const more = document.querySelector('#themeEditor .menu .menu-btn');
+        if (more) { more.click(); await sleep(300); }
+        await shot('5_theme_editor');
+        document.body.click(); await sleep(200);
+        const esc = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true });
+        window.dispatchEvent(esc); await sleep(400);
+        if (!document.getElementById('themeEditor').classList.contains('hidden')) throw new Error('Esc 로 테마 편집기가 닫히지 않음');
+      } else {
+        await shot('0_empty');
+        const m = document.querySelector('#topbar .menu .menu-btn');
+        m.click(); await sleep(300);
+        await shot('1_menu_file');
+        document.body.click();
+        const menus = Array.from(document.querySelectorAll('#topbar .menu .menu-btn'));
+        for (let i = 1; i < menus.length; i++) { menus[i].click(); await sleep(250); await shot('1_menu_' + i); document.body.click(); await sleep(100); }
+      }
+      window.api.notifyTestReady({ ok: true });
+    } catch (err) { console.error(err); window.api.notifyTestError(err && err.stack ? err.stack : String(err)); }
+  });
+
   // 테스트 훅: SS_TEST_SCRIPT=caption-split — 출력 자막 칸에서 Enter 로 자막 나누기 (단어 사이·단어 가운데·맨 끝·되돌리기)
   window.addEventListener('ss:run-test-script', async (e) => {
     if (e.detail !== 'caption-split') return;

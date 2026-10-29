@@ -1,3 +1,5 @@
+/* 화면(UI) 글꼴: Pretendard Variable (SIL OFL 1.1) */
+@font-face { font-family: 'Pretendard'; src: url('../../assets/fonts/PretendardVariable.woff2') format('woff2-variations'), url('../../assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 45 920; font-style: normal; font-display: swap; }
 
 @font-face { font-family: 'Yeon Sung'; src: url('../../assets/fonts/YeonSung-Regular.ttf'); }
 @font-face { font-family: 'Noto Sans KR'; src: url('../../assets/fonts/NotoSansKR-Variable.ttf'); font-weight: 100 900; }

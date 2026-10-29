@@ -1,7 +1,7 @@
 {
   "name": "sermonshorts",
   "productName": "SermonShorts",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "description": "AI 와 대화하며 설교 영상을 쇼츠로 만드는 편집기",
   "main": "src/main/main.js",
   "private": true,
@@ -36,6 +36,7 @@
       "assets/themes/**/*",
       "assets/images/**/*",
       "assets/fonts/**/*",
+      "assets/icons/LICENSE-lucide.txt",
       "!assets/fonts/구세군체*",
       "!assets/fonts/NotoSansKR-Regular.ttf",
       "!assets/fonts/NotoSansKR-Medium.ttf",

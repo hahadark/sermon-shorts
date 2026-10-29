@@ -46,7 +46,9 @@
     st.textContent = `
 #chatCol{flex:0 0 380px;width:380px;display:flex;flex-direction:column;border-left:1px solid var(--border);background:var(--panel);min-height:0}
 #chatCol.collapsed{flex-basis:44px;width:44px}
-#chatCol.collapsed .chat-body,#chatCol.collapsed .chat-compose,#chatCol.collapsed .chat-head .grow{display:none}
+#chatCol.collapsed .chat-body,#chatCol.collapsed .chat-compose,#chatCol.collapsed .chat-head .grow,#chatCol.collapsed #chatQuick,#chatCol.collapsed #chatNew,#chatCol.collapsed #chatClear{display:none!important}
+#chatCol.collapsed .chat-head{padding:10px 8px;border-bottom:0}
+.chat-head .grow .ico{color:var(--muted)}
 .chat-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
 .chat-head .grow{flex:1;display:flex;align-items:center;gap:8px}
 .chat-head b{font-size:14px}
@@ -123,9 +125,10 @@
     col.id = 'chatCol';
     col.innerHTML = `
       <div class="chat-head">
-        <div class="grow"><b>AI 편집 대화</b><span id="chatProvider" class="chat-chip warn">AI 연결 필요</span></div>
-        <button id="chatNew" class="btn sm" title="다른 영상으로 새로 시작 (지금 대화와 편집은 위에 남고, 편집은 자동 저장됩니다)">새로</button>
-        <button id="chatClear" class="btn sm" title="대화 기록 지우기">기록 지우기</button>
+        <div class="grow"><span class="ico i-message-square" aria-hidden="true"></span><b>AI 편집 대화</b><span id="chatProvider" class="chat-chip warn">AI 연결 필요</span></div>
+        <button id="chatNew" class="btn sm ico i-plus" title="다른 영상으로 새로 시작 (지금 대화와 편집은 위에 남고, 편집은 자동 저장됩니다)">새로</button>
+        <button id="chatClear" class="btn sm ghost icon-only ico i-trash-2" title="대화 기록 지우기" aria-label="대화 기록 지우기"></button>
+        <button id="chatFold" class="btn sm ghost icon-only ico i-panel-right-close" title="대화 창 접기" aria-label="대화 창 접기"></button>
       </div>
       <div id="chatBody" class="chat-body"></div>
       <div id="chatQuick" class="chat-quick" style="display:none"></div>
@@ -140,6 +143,8 @@
     $('chatProvider').addEventListener('click', openConnect);
     $('chatNew').addEventListener('click', resetChat);
     $('chatClear').addEventListener('click', clearLog);
+    $('chatFold').addEventListener('click', () => toggleChat());
+    try { if (localStorage.getItem('ss.chatCollapsed') === '1') toggleChat(true); } catch (e) { /* */ }
     // 기록 안의 [이 편집 다시 열기] (다시 켜도 동작하도록 위임)
     $('chatBody').addEventListener('click', (e) => { const b = e.target.closest('[data-reopen]'); if (b) { e.preventDefault(); reopenEdit(b.dataset.reopen); } });
     $('chatSend').addEventListener('click', () => send());
@@ -151,6 +156,25 @@
     $('chatText').addEventListener('keyup', (e) => e.stopPropagation());
     showStart();
   }
+
+  /** 대화 창 접기·펼치기 (접으면 자막 편집 칸이 넓어진다) */
+  function toggleChat(force) {
+    const col = $('chatCol');
+    if (!col) return;
+    const fold = force != null ? !!force : !col.classList.contains('collapsed');
+    col.classList.toggle('collapsed', fold);
+    const b = $('chatFold');
+    if (b) { b.classList.toggle('i-panel-right-close', !fold); b.classList.toggle('i-panel-right-open', fold); b.title = fold ? '대화 창 펼치기' : '대화 창 접기'; b.setAttribute('aria-label', b.title); }
+    try { localStorage.setItem('ss.chatCollapsed', fold ? '1' : '0'); } catch (e) { /* */ }
+    window.dispatchEvent(new Event('resize'));
+  }
+  SS.toggleChat = toggleChat;
+  /** 대화 창을 펼치고 주소 칸(없으면 입력 칸)에 커서 */
+  SS.focusChat = function () {
+    toggleChat(false);
+    const el = $('chatUrl') && $('chatUrl').offsetParent ? $('chatUrl') : $('chatText');
+    if (el && !el.disabled) el.focus();
+  };
 
   function addMsg(kind, html, meta) {
     const body = $('chatBody');
@@ -220,7 +244,7 @@
       const body = $('chatBody');
       if (!body) return;
       const clone = body.cloneNode(true);
-      clone.querySelectorAll('.chat-start').forEach((x) => x.remove());
+      clone.querySelectorAll('.chat-start, .chat-divider.restore-mark').forEach((x) => x.remove());
       clone.querySelectorAll('[id]').forEach((x) => x.removeAttribute('id'));
       clone.querySelectorAll('.msg i').forEach((x) => { if (/생각하는 중|답을 쓰는 중/.test(x.textContent)) x.closest('.msg').remove(); });
       let html = clone.innerHTML;
@@ -249,7 +273,8 @@
     const body = $('chatBody');
     body.innerHTML = html;
     archive(body);
-    addDivider('지난 기록');
+    body.querySelectorAll('.chat-divider').forEach((x) => { if (x.classList.contains('restore-mark') || (!x.querySelector('[data-reopen]') && x.textContent.trim() === '지난 기록')) x.remove(); });
+    addDivider('지난 기록').classList.add('restore-mark');
     return true;
   }
   function clearLog() {
@@ -341,7 +366,10 @@
     if (busy || !video) return;
     if (key === 'gaps-now') return gapsNow();
     const req = CP().actionRequest(key, prefs, arg);
-    if (req) await send(req.label, req.text);
+    if (!req) return;
+    // 추천·만들기를 누르면 조건 줄을 접어 대화(후보 카드)가 잘 보이게 한다. 요약 줄은 남는다
+    if (condOpen && /^(recommend|make|pick|again)$/.test(key)) { condOpen = false; renderQuick(); }
+    await send(req.label, req.text);
   }
 
   // ---------------- 영상 불러오기 ----------------
@@ -389,6 +417,7 @@
     if (!status || !status.active) { openConnect(); return; }
     let aiText = aiTextArg;
     if (!aiText) { const cond = video.edited ? '' : CP().buildConditions(prefs); aiText = cond ? cond + '\n\n' + text : text; }
+    if (!aiTextArg && condOpen) { condOpen = false; renderQuick(); }
     if (!textArg) ta.value = '';
     addMsg('user', esc(text));
     busy = true; setCompose(true);
@@ -934,6 +963,48 @@
       try { const l = await api.getLaunchInfo(); await api.writeText(l.cache + '/chat_history_test/report.json', JSON.stringify(Object.assign(report, { error: String(err && err.stack || err) }), null, 2)); } catch (_) { /* */ }
       api.notifyTestError(err && err.stack || err);
     }
+  });
+
+  // ---------- 테스트 훅: SS_TEST_SCRIPT=guide-chat (설명서 그림용: 예제 문장·예제 영상, AI 대신 정해 둔 답) ----------
+  window.addEventListener('ss:run-test-script', async (e) => {
+    if (e.detail !== 'guide-chat') return;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const waitFor = async (fn, ms, what) => { const t0 = Date.now(); while (!fn()) { if (Date.now() - t0 > ms) throw new Error('timeout: ' + what); await sleep(200); } };
+    try {
+      const launch = await api.getLaunchInfo();
+      const dir = launch.cache + '/guide';
+      await api.mkdir(dir);
+      // 예제 문장 (실제 설교 전사가 아님)
+      const lines = ['오늘 말씀은 기도에 대한 이야기입니다.', '기도는 하나님과 나누는 대화입니다.', '바쁜 하루 속에서도 잠시 멈추고 귀를 기울입니다.', '우리의 부족함을 솔직하게 내려놓습니다.', '그때 우리는 새 힘을 얻습니다.', '이번 주에도 매일 아침 기도로 시작해 보세요.', '기도하는 사람은 사람을 사랑하게 됩니다.', '하나님께 영광을 돌리는 한 주가 되길 축복합니다.'];
+      const words = []; let t = 2;
+      for (let r = 0; r < 4; r++) for (const s of lines) { for (const w of s.split(' ')) { words.push({ text: w, start: t, end: t + 0.42 }); t += 0.5; } t += 0.6; }
+      const cands = [[0, 30, '기도는 대화입니다', '기도의 뜻을 쉽게 풀어 줍니다.'], [34, 66, '솔직한 기도', '삶에 바로 적용할 수 있는 내용입니다.'], [70, words.length - 1, '영광을 돌리는 한 주', '결론과 축복으로 끝납니다.']];
+      stub = {
+        status: { active: 'claude', claude: { loggedIn: true } },
+        load: async (url) => ({ url, title: '예제 설교 영상', duration: 80, words: words.map((w) => ({ ...w })) }),
+        send: async (text) => {
+          await sleep(200);
+          if (/추천/.test(text)) return { reply: '쇼츠로 쓸 만한 구간 3곳입니다.', title: '', verse: '', tighten: 'normal', ranges: [], corrections: [], warnings: [], questions: [], durationSec: 0, candidates: CP().resolveCandidates(cands.map((c) => ({ title: c[2], from: c[0], to: c[1], fromText: words[c[0]].text, toText: words[c[1]].text, summary: c[3], why: '짧고 분명한 메시지라 쇼츠에 좋습니다.' })), words) };
+          return { reply: '기도의 뜻과 적용을 중심으로 만들었습니다.', title: '기도는\n대화입니다', verse: '마태복음 6:9', tighten: 'normal', ranges: [{ from: 0, to: 20 }, { from: 24, to: 30 }], corrections: [], warnings: [], candidates: [], questions: [], durationSec: 18 };
+        },
+        fetchClips: async () => ({ path: launch.open, duration: 80, map: [{ src0: 0, src1: 80, file0: 0 }] }),
+      };
+      status = stub.status; refreshStatus();
+      prefs = Object.assign({}, DEFAULT_PREFS);
+      try { localStorage.removeItem(LOG_KEY); } catch (_) { /* */ }
+      showStart(false);
+      await sleep(300);
+      await SS.openAiConnect(); await sleep(900);
+      await SS.testShot('cache/guide/12-ai-connect-full.png');
+      document.querySelectorAll('.ai-conn').forEach((x) => x.remove());
+      $('chatUrl').value = 'https://youtu.be/XXXXXXXXXXX'; $('chatLoad').click();
+      await waitFor(() => video && !busy && !$('chatText').disabled, 20000, 'load');
+      document.querySelector('#chatQuick [data-act="recommend"]').click();
+      await waitFor(() => !busy && document.querySelectorAll('#chatBody .msg.cand').length === 3, 20000, 'cands');
+      $('chatBody').scrollTop = 0; await sleep(400);
+      await SS.testShot('cache/guide/13-chat-full.png');
+      api.notifyTestReady({ ok: true });
+    } catch (err) { console.error(err); api.notifyTestError(err && err.stack || err); }
   });
 
   // ---------- 테스트 훅: SS_TEST_SCRIPT=chatreal (실제 AI·실제 유튜브: 구간 3곳 추천 → 1번 후보로 만들기) ----------

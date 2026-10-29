@@ -85,7 +85,8 @@ function createWindow() {
 
 // ---- IPC ----
 function registerIpc() {
-  ipcMain.handle('app:openGuide',async()=>{const file=path.join(tools.root,'docs','USER_GUIDE.pdf');if(!fs.existsSync(file))throw Error('사용 설명서 파일이 없습니다. GitHub 릴리스에서 PDF를 내려받아 주세요.');const error=await require('electron').shell.openPath(file);if(error)throw Error(error);return true;});
+  // 사용 설명서: 앱 안에 PDF 가 있으면 그것을, 없으면 GitHub 의 최신 설명서(그림 포함)를 연다
+  ipcMain.handle('app:openGuide',async()=>{const {shell}=require('electron');const file=path.join(tools.root,'docs','USER_GUIDE.pdf');if(fs.existsSync(file)){const error=await shell.openPath(file);if(!error)return true;}await shell.openExternal('https://github.com/hahadark/sermon-shorts/blob/main/docs/USER_GUIDE.md');return true;});
   ipcMain.handle('app:launch', () => ({
     open: launch.open,
     transcript: launch.transcript,

@@ -31,3 +31,4 @@ This project uses the following fonts, with all licensed under SIL OFL 1.1.
 - File: YeonSung-Regular.ttf
 - License: SIL Open Font License 1.1 (See OFL-YeonSung.txt)
 - URL: https://fonts.google.com/specimen/Yeon+Sung
+- Pretendard Variable (`PretendardVariable.woff2`) - 화면(UI) 글꼴. Copyright (c) 2021 Kil Hyung-jin. SIL Open Font License 1.1 (`OFL-Pretendard.txt`). https://github.com/orioncactus/pretendard

@@ -40,17 +40,22 @@
     editorEl.className = 'hidden';
     editorEl.innerHTML = `
       <div class="te-header">
+        <span class="ico lg i-palette" aria-hidden="true"></span>
         <div class="app-title">테마 편집기</div>
-        <div id="teThemeName" style="color: var(--muted); font-size: 14px;"></div>
+        <div id="teThemeName" class="te-theme-name"></div>
         <div style="flex: 1;"></div>
-        <button id="teBtnClose" class="modal-close">&times;</button>
+        <button id="teBtnUndo" class="btn ghost icon-only ico i-undo-2" title="실행 취소 (Ctrl+Z)" aria-label="실행 취소"></button>
+        <button id="teBtnRedo" class="btn ghost icon-only ico i-redo-2" title="다시 실행 (Ctrl+Y)" aria-label="다시 실행"></button>
+        <button id="teBtnToggleSafe" class="btn sm ico i-eye active" aria-pressed="true" title="유튜브 화면에 가려지는 자리 보기·숨기기">세이프 존</button>
+        <span class="te-head-sep"></span>
+        <button id="teBtnClose" class="btn ghost icon-only ico i-x" title="닫기 (Esc)" aria-label="닫기"></button>
       </div>
       <div class="te-body">
         <div class="te-left">
           <div class="te-canvas-wrap" id="teCanvasWrap" style="width: 360px; height: 640px; overflow: hidden; position: relative;">
             <canvas id="teCanvas" width="1080" height="1920"></canvas>
             <div id="teInteraction" class="te-interaction-layer"></div>
-            <div id="teSafeArea" class="te-safe-area hidden">
+            <div id="teSafeArea" class="te-safe-area">
               <div class="te-safe-bottom" style="height: 21.875%;">유튜브 UI에 가려질 수 있음</div>
               <div class="te-safe-right" style="width: 14.8148%;">유튜브 UI</div>
             </div>
@@ -67,19 +72,22 @@
         </div>
       </div>
       <div class="te-footer">
-        <button id="teBtnNew" class="btn">새 테마</button>
-        <button id="teBtnClone" class="btn">복제</button>
-        <button id="teBtnRename" class="btn">이름 변경</button>
-        <button id="teBtnDelete" class="btn">삭제</button>
+        <button id="teBtnNew" class="btn ico i-plus">새 테마</button>
+        <button id="teBtnClone" class="btn ico i-layout-template" title="지금 테마를 복사해서 고칩니다 (원래 테마는 그대로)">복제</button>
+        <div class="menu up">
+          <button class="btn menu-btn ico i-chevron-down" aria-haspopup="true" aria-expanded="false" title="이름 변경·가져오기·내보내기·글꼴·삭제">더보기</button>
+          <div class="menu-pop" role="menu" aria-label="테마 더보기">
+            <button id="teBtnRename" class="menu-item ico i-pencil" role="menuitem">이름 변경</button>
+            <button id="teBtnImport" class="menu-item ico i-download" role="menuitem">테마 가져오기 (JSON)</button>
+            <button id="teBtnExport" class="menu-item ico i-upload" role="menuitem">테마 내보내기 (JSON)</button>
+            <button id="teBtnAddFont" class="menu-item ico i-type" role="menuitem">글꼴 추가</button>
+            <div class="menu-sep" role="separator"></div>
+            <button id="teBtnDelete" class="menu-item danger ico i-trash-2" role="menuitem">테마 삭제</button>
+          </div>
+        </div>
         <div style="flex: 1;"></div>
-        <button id="teBtnAddFont" class="btn">글꼴 추가</button>
-        <button id="teBtnToggleSafe" class="btn">세이프 존</button>
-        <button id="teBtnExport" class="btn">JSON 내보내기</button>
-        <button id="teBtnImport" class="btn">가져오기</button>
-        <button id="teBtnUndo" class="btn sm">Undo</button>
-        <button id="teBtnRedo" class="btn sm">Redo</button>
-        <button id="teBtnSave" class="btn primary">저장</button>
-        <button id="teBtnApply" class="btn primary">이 테마 사용</button>
+        <button id="teBtnSave" class="btn ico i-save">저장</button>
+        <button id="teBtnApply" class="btn primary ico i-check">이 테마 사용</button>
       </div>
     `;
     document.body.appendChild(editorEl);
@@ -90,7 +98,9 @@
     // UI Events
     document.getElementById('teBtnClose').onclick = close;
     document.getElementById('teBtnToggleSafe').onclick = () => {
-      document.getElementById('teSafeArea').classList.toggle('hidden');
+      const on = document.getElementById('teSafeArea').classList.toggle('hidden') === false;
+      const b = document.getElementById('teBtnToggleSafe');
+      b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on));
     };
     document.getElementById('teBtnNew').onclick = createNew;
     document.getElementById('teBtnClone').onclick = cloneCurrent;
@@ -689,7 +699,10 @@
 
   function onKeyDown(e) {
     if (!SS.dialogOpen || editorEl.classList.contains('hidden')) return;
+    // Esc: 닫기 (열린 메뉴가 있으면 메뉴만 닫힌다 — layout.js)
+    if (e.key === 'Escape' && !document.querySelector('.menu.open')) { e.preventDefault(); close(); return; }
     if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) { redo(); e.preventDefault(); return; }
     
     const el = currentTheme[selectedElKey];
     if (!el) return;

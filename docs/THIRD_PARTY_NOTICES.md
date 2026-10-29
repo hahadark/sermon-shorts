@@ -13,3 +13,8 @@ The application code is not granted an open-source license by this document. The
 - **Python, PyTorch, faster-whisper, transformers and downloaded models**: not bundled. They are installed/downloaded separately into the user's profile and retain their upstream licenses.
 
 The beta installer is unsigned. This notice is not a claim that all third-party components share the application's license or that public redistribution has been cleared.
+
+## 화면 디자인
+
+- **Lucide 아이콘** (`assets/icons/*.svg`, `src/renderer/icons.css` 로 변환) - ISC License, Copyright (c) Lucide Icons and Contributors. 전문: `assets/icons/LICENSE-lucide.txt`. https://lucide.dev
+- **Pretendard** (`assets/fonts/PretendardVariable.woff2`) - 화면 글꼴. SIL Open Font License 1.1, Copyright (c) 2021 Kil Hyung-jin. 전문: `assets/fonts/OFL-Pretendard.txt`. https://github.com/orioncactus/pretendard

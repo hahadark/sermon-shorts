@@ -64,42 +64,67 @@
   SS.renderTranscript = renderTranscript;
   SS.updateOutput = updateOutput;
 
+  // 자막이 없을 때 보여 줄 시작 안내 (버튼은 layout.js 의 data-cmd 로 동작)
+  function emptyStateHtml() {
+    return '<div class="empty-state">'
+      + '<div class="es-title">설교 영상을 불러와 시작하세요</div>'
+      + '<div class="es-cards">'
+      + '<div class="es-card"><span class="ico xl i-sparkles" aria-hidden="true"></span><b>유튜브 주소로 AI 편집</b><p>오른쪽 AI 편집 대화에 설교 영상 주소를 넣으면 구간 추천부터 편집까지 해 줍니다.</p><button class="btn sm primary" data-cmd="focus-chat">주소 넣기</button></div>'
+      + '<div class="es-card"><span class="ico xl i-film" aria-hidden="true"></span><b>내 컴퓨터의 영상</b><p>영상 파일을 열고 자막 메뉴의 [자막 만들기]로 음성을 글자로 바꿔 직접 편집합니다.</p><button class="btn sm" data-cmd="open-video">영상 파일 열기</button></div>'
+      + '<div class="es-card"><span class="ico xl i-folder-open" aria-hidden="true"></span><b>저장한 프로젝트</b><p>전에 저장한 편집(.sshorts)을 이어서 합니다.</p><button class="btn sm" data-cmd="open-project">프로젝트 열기</button></div>'
+      + '</div></div>';
+  }
+  SS.emptyStateHtml = emptyStateHtml;
+
   // Editor UI
   const panel = $('transcriptPanel');
   panel.innerHTML = `
-    <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #333;">
-      <div>자막 <label><input type="checkbox" id="chkEditedPlay" checked> 편집 결과 재생</label></div>
-      <div style="font-size:12px; display:flex; gap:8px; align-items:center;">
-        <span>결과: <span id="lblDuration">00:00</span> (<span id="lblCuts">0</span>컷)</span>
-        앞<input type="number" id="inpPadB" value="0.10" step="0.01" style="width:40px">
-        뒤<input type="number" id="inpPadA" value="0.15" step="0.01" style="width:40px">
-        페이드<input type="number" id="inpFade" value="10" step="1" style="width:40px">
+    <div class="ed-head">
+      <div class="ed-title"><span class="ico i-captions" aria-hidden="true"></span>자막 편집
+        <span class="ed-stats"><span id="lblCaptionStats">자막 0개</span> · 결과 <span id="lblDuration">00:00</span> · <span id="lblCuts">0</span>컷</span>
+      </div>
+      <label class="ed-switch" title="지운 부분은 건너뛰고 편집 결과대로 재생합니다"><input type="checkbox" id="chkEditedPlay" checked> 편집 결과로 재생</label>
+    </div>
+    <div class="ed-toolbar" role="toolbar" aria-label="자막 편집 도구">
+      <div class="tb-group">
+        <button id="btnToggleHide" class="btn sm ico i-eye-off" title="지운 부분 숨기기·보이기 (H)">지운 부분 숨기기</button>
+        <button id="btnRestoreSel" class="btn sm ico i-rotate-ccw" title="선택한 지운 부분 되살리기 (R)">되살리기</button>
+        <button id="btnKeepSel" class="btn sm ico i-crop" title="선택한 부분만 남기고 나머지 지우기 (Ctrl+K)">선택만 남기기</button>
+      </div>
+      <div class="tb-group">
+        <button id="btnAutoClean" class="btn sm ico i-wand-sparkles" title="자동 정리: 군말·같은 말 반복·긴 공백 (Ctrl+Shift+C)">자동 정리</button>
+        <button id="btnAiCorrect" class="btn sm ico i-spell-check" title="AI 용어 교정: 교회 용어·고유명사 오타 고치기, 제미나이 키 필요 (Ctrl+Shift+T)" disabled>용어 교정</button>
+      </div>
+      <div class="tb-group">
+        <button id="btnCheckAllCaptions" class="btn sm ico i-list-checks" title="모든 자막 구간 선택">전체 선택</button>
+        <button id="btnUncheckCaptions" class="btn sm ico i-x" disabled>선택 해제</button>
+        <button id="btnDeleteCheckedCaptions" class="btn sm danger ico i-trash-2" disabled>선택 구간 삭제</button>
+        <span id="lblCheckedCaptions" class="sr-only">0개 선택</span>
+      </div>
+      <span class="tb-spacer"></span>
+      <button id="btnEdSettings" class="btn sm ghost ico i-sliders-horizontal" aria-expanded="false" aria-controls="edSettings" title="자막 한 줄 길이·컷 여백·페이드">설정</button>
+    </div>
+    <div id="edSettings" class="ed-settings" hidden>
+      <div id="captionLengthControls" class="ed-set-row">
+        <label for="inpMaxLineChars">자막 한 줄 최대</label>
+        <input id="inpMaxLineChars" aria-label="자막 한 줄 최대 글자 수" type="number" min="1" max="200" step="1" value="14" title="1~200자, 공백 제외·문장부호 포함. 단어 경계를 우선합니다.">
+        <span>자 <span class="muted">(공백 제외)</span></span>
+        <select id="selCaptionLength" aria-label="자막 길이 프리셋"><option value="">직접 설정</option><option value="8">8자</option><option value="12">12자</option><option value="14" selected>14자</option><option value="16">16자</option><option value="20">20자</option></select>
+        <label class="ed-check" title="한 단어가 제한보다 길면 글자 수에 맞춰 나눕니다. 분할 시각은 단어 안에서 글자 수 비례로 배분하며 영상은 바꾸지 않습니다."><input id="chkSplitLongWords" type="checkbox" checked> 긴 단어도 나누기</label>
+      </div>
+      <div class="ed-set-row">
+        <span>컷 여백</span>
+        <label class="ed-num">앞 <input type="number" id="inpPadB" value="0.10" step="0.01"></label>
+        <label class="ed-num">뒤 <input type="number" id="inpPadA" value="0.15" step="0.01"></label>
+        <span class="muted">초</span>
+        <span class="ed-sep"></span>
+        <label class="ed-num">페이드 <input type="number" id="inpFade" value="10" step="1"></label>
+        <span class="muted">ms</span>
       </div>
     </div>
+    <div class="ed-hint">STT 원문: 단어 클릭 → Backspace 지우기 · 출력 자막: Enter 나누기 · 맨 앞 Backspace 합치기 · Ctrl+Enter 적용 · Ctrl+Z 취소 · F1 단축키</div>
 
-    <div style="padding:4px; display:flex; gap:4px; border-bottom:1px solid #333; align-items:center;">
-      <button id="btnToggleHide" class="btn" style="padding:2px 8px; font-size:12px;">지운 부분 숨기기 (H)</button>
-      <button id="btnRestoreSel" class="btn" style="padding:2px 8px; font-size:12px;">되살리기 (R)</button>
-      <button id="btnKeepSel" class="btn" style="padding:2px 8px; font-size:12px;">선택만 남기기</button>
-      <button id="btnAutoClean" class="btn" style="padding:2px 8px; font-size:12px; margin-left:auto;">자동 정리</button>
-    </div>
-    <div id="captionLengthControls" style="padding:7px 8px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; border-bottom:1px solid #333; font-size:12px;">
-      <label for="inpMaxLineChars">자막 한 줄 최대</label>
-      <input id="inpMaxLineChars" aria-label="자막 한 줄 최대 글자 수" type="number" min="1" max="200" step="1" value="14" style="width:54px;" title="1~200자, 공백 제외·문장부호 포함. 단어 경계를 우선합니다.">
-      <span>자 <span style="color:#aaa;">(공백 제외)</span></span>
-      <select id="selCaptionLength" aria-label="자막 길이 프리셋"><option value="">직접 설정</option><option value="8">8자</option><option value="12">12자</option><option value="14" selected>14자</option><option value="16">16자</option><option value="20">20자</option></select>
-      <label title="한 단어가 제한보다 길면 글자 수에 맞춰 나눕니다. 분할 시각은 단어 안에서 글자 수 비례로 배분하며 영상은 바꾸지 않습니다."><input id="chkSplitLongWords" type="checkbox" checked> 긴 단어도 나누기</label>
-      <span id="lblCaptionStats" style="color:#aaa; margin-left:auto;">자막 0개</span>
-    </div>
-    <div style="padding:5px 8px;display:flex;gap:6px;align-items:center;border-bottom:1px solid #333;font-size:12px;">
-      <button id="btnCheckAllCaptions" class="btn">전체 선택</button><button id="btnUncheckCaptions" class="btn" disabled>선택 해제</button>
-      <button id="btnDeleteCheckedCaptions" class="btn" disabled>선택 구간 삭제</button><span id="lblCheckedCaptions" style="color:#aaa">0개 선택</span>
-    </div>
-    <div style="font-size:11px; padding:4px 8px; color:#888; border-bottom:1px solid #333;">STT 원문에서 단어 삭제·복원 · 출력 자막에서 문장 수정 · Enter 자막 나누기 · 맨 앞 Backspace 합치기 · Ctrl+Enter 적용 · Ctrl+Z 취소</div>
-
-    <div id="transcriptBody" style="flex:1; overflow-y:auto; padding:12px; font-size:14px; line-height:1.6; user-select:text;">
-      자막 생성 후 여기에 자막이 표시됩니다
-    </div>
+    <div id="transcriptBody">${emptyStateHtml()}</div>
     <div id="trimPanel" style="display:none; position:absolute; bottom:0; left:0; width:100%; height:200px; background:#1e1e1e; border-top:1px solid #444; z-index:100; flex-direction:column;">
       <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; background:#2a2a2a; font-size:12px;">
         <div style="display:flex; gap:8px; align-items:center;">
@@ -120,6 +145,14 @@
   $('inpPadA').addEventListener('change', e => { SS.state.settings.padAfter = parseFloat(e.target.value); updateOutput(); });
   $('inpFade').addEventListener('change', e => { SS.state.settings.fadeMs = parseInt(e.target.value); updateOutput(); });
   $('chkEditedPlay').addEventListener('change', e => { editedPlayMode = e.target.checked; });
+  // 자막 길이·컷 여백 설정 펼치기
+  SS.toggleCaptionSettings = (open) => {
+    const box = $('edSettings'), btn = $('btnEdSettings');
+    const show = open == null ? box.hidden : !!open;
+    box.hidden = !show; btn.setAttribute('aria-expanded', String(show)); btn.classList.toggle('active', show);
+    if (show) $('inpMaxLineChars').focus();
+  };
+  $('btnEdSettings').addEventListener('click', () => SS.toggleCaptionSettings());
 
   SS.syncCaptionUI = function() {
     const cfg = SS.state.settings;
@@ -348,7 +381,7 @@
 
   function createTranscriptDOMFull() {
     const body = $('transcriptBody'); body.tabIndex = 0;
-    if (!SS.state.words?.length) { body.textContent = '자막 생성 후 여기에 14자 단위 자막 블록이 표시됩니다'; return; }
+    if (!SS.state.words?.length) { body.innerHTML = emptyStateHtml(); return; }
     SS.renderCaptionBlocks(body, SS.state.words, lines, segments);
   }
 
