@@ -322,6 +322,13 @@ input[type=checkbox], input[type=range] { accent-color: var(--primary); }
 .card-pane[hidden] { display: none; }
 .bgm-none p { margin: 2px 0 10px; font-size: 12.5px; line-height: 1.6; color: var(--text-2); }
 .bgm-none b { color: #1d4ed8; font-weight: 700; }
+.bgm-row.bgm-dl { gap: 10px; font-size: 12px; color: var(--muted); flex-wrap: nowrap; }
+.bgm-dl > span:last-child { min-width: 0; line-height: 1.4; }
+.bgm-dl small { color: var(--muted); font-size: 11px; }
+.bgm-dl.err { color: #b45309; }
+.bgm-dl a { color: var(--primary); }
+.bgm-dl-bar { flex: 0 0 80px; height: 6px; border-radius: 999px; background: #e6ebf2; overflow: hidden; }
+.bgm-dl-bar i { display: block; height: 100%; background: var(--primary); border-radius: 999px; transition: width .15s; }
 .bgm-on { display: flex; flex-direction: column; gap: 6px; }
 .bgm-now { display: flex; align-items: center; gap: 8px; }
 .bgm-now #btnBgmPlay { border-radius: 50%; width: 32px; height: 32px; background: var(--primary); border-color: var(--primary); color: #fff; }

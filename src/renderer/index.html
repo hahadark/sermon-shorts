@@ -162,6 +162,7 @@
             <div class="bgm-wave"><canvas id="bgmWave" title="파란 손잡이를 끌어 쓸 구간을 고르세요"></canvas><div id="bgmWaveMsg" class="bgm-wave-msg"></div></div>
             <div class="bgm-row"><span class="bgm-k">구간</span><input id="bgmA" class="bgm-t" aria-label="구간 시작"> ~ <input id="bgmB" class="bgm-t" aria-label="구간 끝"><button id="btnBgmListen" class="btn sm ico i-play" type="button">구간 듣기</button></div>
             <div class="bgm-row bgm-len" id="bgmLen"></div>
+<div class="bgm-row bgm-dl" id="bgmDl" hidden></div>
             <div class="bgm-row"><span class="bgm-k">맞추기</span><div class="bgm-seg" id="bgmAlign"><button type="button" data-align="start" title="영상이 시작할 때 음악도 시작">처음에 시작</button><button type="button" data-align="end" title="영상이 끝날 때 음악도 끝나도록">끝에 끝남</button></div></div>
             <div class="bgm-row"><span class="bgm-k">페이드</span>인 <input id="bgmFi" class="bgm-n" type="number" min="0" max="30" step="0.5">초 · 아웃 <input id="bgmFo" class="bgm-n" type="number" min="0" max="30" step="0.5">초</div>
             <div class="bgm-row"><span class="bgm-k">크기</span><input id="bgmVol" type="range" min="0" max="100" step="1"><span id="bgmVolLbl" class="bgm-vl"></span></div>
@@ -220,6 +221,7 @@
   <script src="../shared/gaps.js"></script>
   <script src="../shared/bgm.js"></script>
   <script src="../shared/bgm-catalog.js"></script>
+<script src="../shared/bgm-peaks.js"></script>
   <script src="bgm-ui.js"></script>
   <script src="../shared/materials.js"></script>
   <script src="materials-doc.js"></script>

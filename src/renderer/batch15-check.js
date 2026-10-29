@@ -83,10 +83,22 @@
       check('일시정지', lib.paused);
       // 퍼블릭 도메인 찬송가(짧은 ogg) 쓰기
       const pick = 'amazing-grace-usaf-strings';
-      SS.useBgm(pick); await sleep(200);
+      const cachedBefore = await window.api.bgmCached(pick);
+      tw = Date.now(); SS.useBgm(pick);
+      const waveMs = $('bgmWaveMsg').hidden ? Date.now() - tw : -1;
       check('음악 넣기', SS.state.bgm && SS.state.bgm.id === pick && $('bgmLib').hidden && !$('bgmOn').hidden);
-      tw = Date.now(); while ($('bgmWaveMsg').hidden === false) { if (Date.now() - tw > 40000) throw new Error('파형 안 옴: ' + $('bgmWaveMsg').textContent); await sleep(300); }
-      check('파형(캐시에 받아 그림)', true);
+      check('파형이 받기 전에 바로 (앱에 넣어 둔 자료)', waveMs >= 0 && waveMs < 300 && SS.bgmPeaks.has(pick), { waveMs, cachedBefore });
+      report.cachedBefore = cachedBefore;
+      if (!cachedBefore) {
+        check('뒤에서 음악 받기 시작 + 진행 표시', SS.bgmDl.dl[pick] && SS.bgmDl.dl[pick].state === 'loading' && !$('bgmDl').hidden, SS.bgmDl.dl[pick]);
+        let sawPct = false;
+        tw = Date.now(); while (SS.bgmDl.dl[pick].state === 'loading') { if (/\d+%/.test($('bgmDl').textContent)) sawPct = true; if (Date.now() - tw > 60000) throw new Error('음악 받기 안 끝남'); await sleep(50); }
+        report.dlMs = Date.now() - tw; report.dlSawPct = sawPct;
+      }
+      tw = Date.now(); while (!SS.bgmDl.local[pick]) { if (Date.now() - tw > 60000) throw new Error('음악 받기 실패: ' + JSON.stringify(SS.bgmDl.dl[pick])); await sleep(100); }
+      check('다 받으면 내 컴퓨터 파일로', /^file:/.test(SS.bgmDl.local[pick]) && $('bgmDl').hidden, SS.bgmDl.local[pick]);
+      // 진행 표시 모양 (화면용으로 잠깐 받는 중인 것처럼)
+      { const keep = SS.bgmDl.dl[pick]; SS.bgmDl.dl[pick] = { got: 4.2e6, total: 1e7, state: 'loading' }; SS.bgmUi.render(); await sleep(120); await shot('3a_bgm_dl'); SS.bgmDl.dl[pick] = keep; SS.bgmUi.render(); }
       // 구간·맞추기·페이드
       $('bgmA').value = '0:10'; $('bgmA').dispatchEvent(new Event('change')); await sleep(80);
       $('bgmB').value = '0:50'; $('bgmB').dispatchEvent(new Event('change')); await sleep(80);
@@ -115,6 +127,11 @@
       report.sync = { mix: mix.currentTime, expect, vol: mix.volume };
       check('영상과 함께 음악 재생 (위치 맞음)', Math.abs(mix.currentTime - expect) < 0.45, report.sync);
       check('음악 크기 = 설정 크기', Math.abs(mix.volume - 0.3) < 0.02, mix.volume);
+      check('미리보기 음악이 받은 파일에서', /^file:/.test(mix.currentSrc || mix.src), mix.currentSrc || mix.src);
+      // 재생 중 위치를 옮기면 음악이 얼마나 빨리 따라오나
+      { const p2 = SS.edl.outToSrc(SS.getSegments(), p.delay + 20).t; const t1 = Date.now(); await SS.preview.seek(p2); let ok = false;
+        while (Date.now() - t1 < 5000) { const i2 = SS.playback.timeInfo(), e2 = SS.bgm.trackTimeAt(p, i2.cur); if (e2 != null && !mix.paused && Math.abs(mix.currentTime - e2) < 0.3 && mix.readyState >= 3) { ok = true; break; } await sleep(30); }
+        report.seekFollowMs = Date.now() - t1; check('위치 옮기면 음악이 바로 따라옴 (1초 안)', ok && report.seekFollowMs < 1000, report.seekFollowMs); }
       SS.preview.pause(); await sleep(250);
       check('영상 멈추면 음악도 멈춤', mix.paused);
       // 음악 시작 전(늦게 시작)에서는 조용

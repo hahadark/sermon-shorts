@@ -47,6 +47,12 @@ contextBridge.exposeInMainWorld('api', {
   // 배경음악 (목록의 곡만): 캐시에 받아 두기 · 파형
   bgmFetch: (id) => ipcRenderer.invoke('bgm:fetch', id),
   bgmPeaks: (id, n) => ipcRenderer.invoke('bgm:peaks', id, n),
+  bgmCached: (id) => ipcRenderer.invoke('bgm:cached', id),
+  onBgmProgress: (callback) => {
+    const listener = (_event, info) => callback(info);
+    ipcRenderer.on('bgm:progress', listener);
+    return () => ipcRenderer.removeListener('bgm:progress', listener);
+  },
   // 교인 배포 자료
   materialsGenerate: (type, options, ctx) => ipcRenderer.invoke('materials:generate', type, options, ctx),
   materialsSermon: () => ipcRenderer.invoke('materials:sermon'),

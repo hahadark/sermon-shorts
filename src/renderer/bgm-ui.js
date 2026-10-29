@@ -15,6 +15,31 @@
   const lib = new Audio();      // 목록·구간 듣기
   lib.preload = 'none';
   let libId = null, libStop = null, peaks = null, peaksFor = null, drag = null;
+  // 음악 파일 받기: 곡을 고르면 바로 뒤에서 받는다(내보내기에 필요). 받은 뒤엔 미리보기도 내 컴퓨터 파일로 재생해
+  // 영상을 앞뒤로 옮겨도 음악이 바로 따라온다. 받기 전에는 원래 사이트에서 스트리밍.
+  const local = {};               // id → file:// 주소
+  const dl = {};                  // id → { got, total, state: 'loading'|'done'|'error', error }
+  const srcOf = (t) => local[t.id] || t.url;
+  function showDl() {
+    const el = $('bgmDl'); const b = cur(); if (!el) return;
+    const d = b && dl[b.id];
+    if (!d || d.state === 'done') { el.hidden = true; return; }
+    el.hidden = false;
+    if (d.state === 'error') { el.className = 'bgm-row bgm-dl err'; el.innerHTML = '음악 파일을 받지 못했습니다. 들어 보기는 되고, 내보낼 때 다시 받습니다. <a href="#" id="bgmDlRetry">다시 받기</a>'; $('bgmDlRetry').onclick = (e) => { e.preventDefault(); delete dl[b.id]; prefetch(b.id); }; return; }
+    const pct = d.total ? Math.min(99, Math.floor((d.got / d.total) * 100)) : 0;
+    el.className = 'bgm-row bgm-dl';
+    el.innerHTML = `<span class="bgm-dl-bar"><i style="width:${pct}%"></i></span><span>음악 파일 받는 중 ${d.total ? pct + '%' : '…'} <small>· 편집은 그대로 하셔도 됩니다</small></span>`;
+  }
+  function prefetch(id) {
+    if (!id || local[id] || (dl[id] && dl[id].state !== 'error')) return;
+    dl[id] = { got: 0, total: 0, state: 'loading' }; showDl();
+    api.bgmFetch(id).then((file) => {
+      if (typeof file === 'string' && file) local[id] = SS.toFileUrl ? SS.toFileUrl(file) : 'file:///' + file.replace(/\\/g, '/');
+      dl[id] = { ...dl[id], state: 'done' }; showDl();
+    }).catch((e) => { dl[id] = { ...dl[id], state: 'error', error: String(e && e.message || e) }; showDl(); });
+  }
+  if (api.onBgmProgress) api.onBgmProgress((p) => { const d = dl[p.id]; if (d && d.state === 'loading') { d.got = p.got; d.total = p.total; showDl(); } });
+  SS.bgmDl = { prefetch, local, dl, srcOf: (id) => { const t = track(id); return t ? srcOf(t) : ''; } };
 
   const track = (id) => (CAT() ? CAT().tracks.find((t) => t.id === id) : null);
   const cur = () => (SS.state && SS.state.bgm ? SS.state.bgm : null);
@@ -42,6 +67,7 @@
     $('bgmNone').hidden = !!t; $('bgmOn').hidden = !t;
     $('tabMusic').classList.toggle('has', !!t);
     if (!t) return;
+    prefetch(t.id); showDl();
     $('bgmTitle').textContent = t.title;
     $('bgmSub').textContent = `${t.artist} · ${t.mood} · ${B().fmt(t.durationSec)}`;
     const p = planNow();
@@ -76,6 +102,8 @@
   async function loadPeaks() {
     const b = cur(); if (!b || peaksFor === b.id) return;
     peaksFor = b.id; peaks = null;
+    const pre = SS.bgmPeaks && SS.bgmPeaks.get(b.id, 420); // 앱에 넣어 둔 파형: 받지 않고 바로
+    if (pre) { peaks = pre.peaks; $('bgmWaveMsg').hidden = true; drawWave(); return; }
     $('bgmWaveMsg').textContent = '파형 불러오는 중… (처음 한 번 음악을 받습니다)'; $('bgmWaveMsg').hidden = false;
     try {
       const r = await api.bgmPeaks(b.id, 420);
@@ -136,7 +164,9 @@
     const v = SS.preview && SS.preview.video;
     const playing = v && !v.paused && SS.playback && SS.playback.active();
     if (!t || !playing) { if (!mix.paused) mix.pause(); return; }
-    if (lastSrc !== t.url) { mix.src = t.url; lastSrc = t.url; }
+    const want = srcOf(t);
+    // 받은 파일로 바꾸기는 멈춰 있을 때만 (재생 중 바꾸면 소리가 끊긴다)
+    if (lastSrc !== want && (mix.paused || !lastSrc || !lastSrc.startsWith(t.url))) { mix.src = want; lastSrc = want; }
     const p = planNow(), info = SS.playback.timeInfo();
     const tt = B().trackTimeAt(p, info.cur);
     if (tt == null) { if (!mix.paused) mix.pause(); return; }
@@ -159,7 +189,7 @@
   }
   function playLib(t, from, to, fade) {
     stopLib();
-    libId = t.id; lib.src = t.url; lib.volume = 0.8;
+    libId = t.id; lib.src = srcOf(t); lib.volume = 0.8;
     const startAt = () => { try { lib.currentTime = from || 0; } catch (_) {} lib.play().catch((e) => toast('재생하지 못했습니다: ' + e.message)); };
     if (lib.readyState >= 1) startAt(); else lib.addEventListener('loadedmetadata', startAt, { once: true });
     lib.load && lib.readyState === 0 && lib.load();
