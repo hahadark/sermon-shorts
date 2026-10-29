@@ -29,7 +29,6 @@ const paths = {
   root: ROOT,
   ffmpeg: findTool('ffmpeg'),
   ffprobe: findTool('ffprobe'),
-  ytdlp: findTool('yt-dlp'),
   dataRoot: DATA_ROOT,
   engineDir: path.join(DATA_ROOT, 'engine'),
   models: path.join(DATA_ROOT, 'engine', 'models'),
@@ -50,4 +49,16 @@ function cacheDir(hash) {
   return ensureDir(path.join(paths.cache, hash));
 }
 
-module.exports = { ...paths, paths, ensureDir, cacheDir, IS_WIN, EXE };
+// yt-dlp: 앱이 관리하는 최신본(데이터 폴더 bin/) → 설치본 bin/ → PATH 순서 (ytdlp-manager.js 가 최신으로 유지)
+const managedYtdlp = path.join(DATA_ROOT, 'bin', 'yt-dlp' + EXE);
+let fallbackYtdlp = null;
+function ytdlpPath() {
+  if (fs.existsSync(managedYtdlp)) return managedYtdlp;
+  if (!fallbackYtdlp) fallbackYtdlp = findTool('yt-dlp');
+  return fallbackYtdlp;
+}
+paths.managedYtdlp = managedYtdlp;
+
+module.exports = { ...paths, paths, ensureDir, cacheDir, IS_WIN, EXE, ytdlpPath };
+Object.defineProperty(module.exports, 'ytdlp', { get: ytdlpPath, enumerable: true });
+Object.defineProperty(paths, 'ytdlp', { get: ytdlpPath, enumerable: true });

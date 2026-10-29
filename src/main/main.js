@@ -257,6 +257,10 @@ app.whenReady().then(() => {
   initRender();
   initLlm();
   registerIpc();
+  // yt-dlp: 처음이면 준비하고, 하루에 한 번 최신으로 (유튜브가 바뀌면 오래된 yt-dlp 는 403 으로 실패한다)
+  const ytdlpManager = require('./ytdlp-manager');
+  ytdlpManager.setLogger((m) => log(m));
+  ytdlpManager.ensure().then((r) => log('yt-dlp', r.version, r.updated ? '(바뀜)' : '')).catch((e) => log('yt-dlp 준비 실패:', e.message));
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

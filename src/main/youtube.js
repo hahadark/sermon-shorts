@@ -3,7 +3,24 @@
 const { spawn, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const { ytdlp, ffmpeg, cacheDir, ensureDir, root, IS_WIN, EXE } = require('./tools');
+const tools = require('./tools');
+const { ffmpeg, cacheDir, ensureDir, root, IS_WIN, EXE } = tools;
+const ytdlpManager = require('./ytdlp-manager');
+
+/** yt-dlp 실패 → 알기 쉬운 한국어 오류 (원래 출력은 err.stderr 에 남긴다) */
+function ytError(code, stderr) {
+  const lines = String(stderr || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const last = (lines.filter((l) => /^ERROR/.test(l)).pop() || lines.filter((l) => !/^WARNING|^\s/.test(l)).pop() || '').replace(/^ERROR:\s*/, '');
+  let msg = '유튜브에서 영상을 받지 못했습니다';
+  if (/Private video|private/i.test(last)) msg = '비공개 영상이라 받을 수 없습니다. 유튜브에서 공개 또는 일부공개로 바꿔 주세요';
+  else if (/Sign in to confirm/i.test(last)) msg = '유튜브가 로그인 확인을 요구합니다. 잠시 뒤 다시 해 주세요';
+  else if (/403/.test(last)) msg = '유튜브가 다운로드를 거부했습니다(403). 다운로드 프로그램을 최신으로 바꿨는데도 안 되면 잠시 뒤 다시 해 주세요';
+  else if (/not a valid URL|Unsupported URL|Incomplete YouTube ID/i.test(last)) msg = '유튜브 주소가 올바르지 않습니다';
+  else if (/unavailable|not available/i.test(last)) msg = '이 영상을 볼 수 없습니다(삭제됐거나 지역 제한)';
+  const e = new Error(msg + (last ? ` (자세히: ${last.slice(0, 160)})` : ` (코드 ${code})`));
+  e.stderr = stderr; e.code = 'youtube';
+  return e;
+}
 
 // ---- yt-dlp용 JS 런타임 찾기 (YouTube 서명 해독에 필요) ----
 // 1) 지금 실행 중인 Electron/Node 바이너리 (Electron이면 ELECTRON_RUN_AS_NODE=1 로 node처럼 동작)
@@ -62,11 +79,15 @@ function getSpawnOptions() {
 }
 
 async function fetchInfo(url) {
+  return ytdlpManager.withUpdateRetry(() => fetchInfoOnce(url));
+}
+
+function fetchInfoOnce(url) {
   return new Promise((resolve, reject) => {
     // URL 앞의 '--': '-'로 시작하는 입력을 옵션으로 읽지 않게 한다
     const args = ['-J', '--no-playlist', ...runtimeArgs(), '--', url];
 
-    const proc = spawn(ytdlp, args, getSpawnOptions());
+    const proc = spawn(tools.ytdlp, args, getSpawnOptions());
     let stdout = '';
     let stderr = '';
 
@@ -76,7 +97,7 @@ async function fetchInfo(url) {
 
     proc.on('close', (code) => {
       if (code !== 0) {
-        return reject(new Error(`yt-dlp exited with code ${code}: ${stderr}`));
+        return reject(ytError(code, stderr));
       }
       try {
         const info = JSON.parse(stdout);
@@ -100,7 +121,7 @@ async function fetchAutoSubs(url, opts = {}) {
   const targetDir = path.join(root, 'cache', 'yt', id);
   ensureDir(targetDir);
 
-  return new Promise((resolve, reject) => {
+  return ytdlpManager.withUpdateRetry(() => new Promise((resolve, reject) => {
     const args = [
       '--skip-download',
       '--write-auto-subs',
@@ -112,7 +133,7 @@ async function fetchAutoSubs(url, opts = {}) {
       '--', url
     ];
 
-    const proc = spawn(ytdlp, args, getSpawnOptions());
+    const proc = spawn(tools.ytdlp, args, getSpawnOptions());
     let stderr = '';
     proc.stderr.on('data', (data) => { stderr += data; });
     proc.on('error', reject);
@@ -123,6 +144,8 @@ async function fetchAutoSubs(url, opts = {}) {
       const subFile = files.find(f => f.endsWith('.json3'));
       
       if (!subFile) {
+        // yt-dlp 자체가 실패한 것이면 오류로 (오래된 yt-dlp 면 업데이트 후 다시), 자막이 없는 것이면 null
+        if (code !== 0) return reject(ytError(code, stderr));
         return resolve(null);
       }
 
@@ -153,7 +176,7 @@ async function fetchAutoSubs(url, opts = {}) {
         reject(e);
       }
     });
-  });
+  }));
 }
 
 // Download the whole video once (cached per video id) and cut locally.
@@ -171,7 +194,7 @@ async function downloadSection(url, start, end, options = {}, onProgress) {
     return result;
   }
 
-  return new Promise((resolve, reject) => {
+  return ytdlpManager.withUpdateRetry(() => new Promise((resolve, reject) => {
     const args = [
       '--newline', '--no-playlist', '-N', '4',
       '-f', 'bv*[height<=1080][vcodec^=avc1]+ba[ext=m4a]/bv*[height<=1080]+ba/b',
@@ -181,7 +204,7 @@ async function downloadSection(url, start, end, options = {}, onProgress) {
       '-o', path.join(targetDir, `${id}_full.%(ext)s`),
       '--', url
     ];
-    const proc = spawn(ytdlp, args, getSpawnOptions());
+    const proc = spawn(tools.ytdlp, args, getSpawnOptions());
     let stderr = '';
     let part = 0; // 0 = video track, 1 = audio track
     proc.stdout.on('data', (data) => {
@@ -198,11 +221,11 @@ async function downloadSection(url, start, end, options = {}, onProgress) {
     proc.on('error', reject);
     proc.on('close', (code) => {
       if (code !== 0 || !fs.existsSync(outputPath)) {
-        return reject(new Error(`yt-dlp exited with code ${code}: ${stderr.slice(-800)}`));
+        return reject(ytError(code, stderr.slice(-4000)));
       }
       if (onProgress) onProgress(100);
       resolve(result);
     });
-  });
+  }));
 }
 module.exports = { fetchInfo, fetchAutoSubs, downloadSection, getJsRuntime };

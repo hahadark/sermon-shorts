@@ -8,7 +8,9 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const yt = require('./youtube');
-const { ytdlp, ffmpeg, ensureDir, root } = require('./tools');
+const tools = require('./tools');
+const { ffmpeg, ensureDir, root } = tools;
+const ytdlpManager = require('./ytdlp-manager');
 
 const CACHE_ROOT = path.join(root, 'cache', 'yt');
 const CHUNK = 9_000_000;
@@ -27,16 +29,21 @@ function videoIdOf(url) {
 }
 
 function runYtdlp(args) {
-  return new Promise((resolve, reject) => {
+  return ytdlpManager.withUpdateRetry(() => new Promise((resolve, reject) => {
     const rt = yt.getJsRuntime();
     const rtArgs = rt.path ? ['--js-runtimes', `${rt.kind}:${rt.path}`] : [];
-    const proc = spawn(ytdlp, [...rtArgs, ...args], { windowsHide: true, env: rt.env });
+    const proc = spawn(tools.ytdlp, [...rtArgs, ...args], { windowsHide: true, env: rt.env });
     let out = '', err = '';
     proc.stdout.on('data', (d) => { out += d; });
     proc.stderr.on('data', (d) => { err += d; });
     proc.on('error', reject);
-    proc.on('close', (code) => code === 0 ? resolve(out) : reject(new Error(`yt-dlp ${code}: ${err.slice(-500)}`)));
-  });
+    proc.on('close', (code) => {
+      if (code === 0) return resolve(out);
+      const e = new Error(`yt-dlp ${code}: ${err.slice(-500)}`);
+      e.stderr = err;
+      reject(e);
+    });
+  }));
 }
 
 function expireOf(u) {
@@ -215,7 +222,7 @@ async function fetchPart(url, start, end, opts = {}, onProgress) {
     const vFile = base + '.v.mp4', aFile = base + '.a.m4a';
 
     let r;
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
         // 대략 전체 바이트 수를 모르므로 영상(약 95%) 기준으로 진행률 계산: 받은 바이트 / 추정 바이트
         const estBytes = Math.max(1, (T1 - T0) * 450_000);
@@ -235,6 +242,15 @@ async function fetchPart(url, start, end, opts = {}, onProgress) {
         if (attempt === 0 && err instanceof HttpError && (err.status === 403 || err.status === 410)) {
           info = await resolveFormats(url, { force: true }); // 주소 만료 → 다시 받기
           continue;
+        }
+        if (attempt === 1 && err instanceof HttpError && err.status === 403) {
+          // 새 주소도 거부되면 yt-dlp 가 오래된 것 → 최신으로 바꾼 뒤 주소를 다시 받는다
+          const u = await ytdlpManager.ensure({ force: true }).catch(() => null);
+          if (u && u.updated) {
+            report(0, 'update');
+            info = await resolveFormats(url, { force: true });
+            continue;
+          }
         }
         throw err;
       }

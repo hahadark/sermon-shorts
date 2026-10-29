@@ -59,3 +59,11 @@ test('조각 묶기와 원본→파일 시각 변환', () => {
   assert.strictEqual(srcToFile(map, 600), 48.5);
   assert.strictEqual(srcToFile(map, 300), null);
 });
+
+test('조금 어긋난 JSON 도 읽는다 (문자열 속 줄바꿈, 끝 쉼표, 주석)', () => {
+  const bad = '{\n  "reply": "결론으로\n줄였습니다", // 설명\n  "title": "기도의\n중심",\n  "segments": [{"from": 1, "to": 2},],\n}';
+  const p = cp.parsePlan(bad);
+  assert.strictEqual(p.title, '기도의\n중심');
+  assert.strictEqual(p.segments.length, 1);
+  assert.throws(() => cp.parsePlan('{"reply": "질문 "누구입니까" 를 뺐습니다"}'), (e) => e.code === 'format');
+});

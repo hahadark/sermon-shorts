@@ -120,15 +120,42 @@
     return parts.join('\n\n');
   }
 
+  /** 조금 어긋난 JSON 고치기: 문자열 안의 줄바꿈·탭, 끝에 남은 쉼표, // 주석, 똑똑한 따옴표 */
+  function repairJson(s) {
+    var out = '', inStr = false, esc = false;
+    for (var i = 0; i < s.length; i++) {
+      var c = s[i];
+      if (inStr) {
+        if (esc) { out += c; esc = false; continue; }
+        if (c === '\\') { out += c; esc = true; continue; }
+        if (c === '"') { inStr = false; out += c; continue; }
+        if (c === '\n') { out += '\\n'; continue; }
+        if (c === '\r') continue;
+        if (c === '\t') { out += '\\t'; continue; }
+        out += c;
+      } else {
+        if (c === '“' || c === '”') c = '"';
+        if (c === '"') { inStr = true; out += c; continue; }
+        if (c === '/' && s[i + 1] === '/') { while (i < s.length && s[i] !== '\n') i++; continue; }
+        out += c;
+      }
+    }
+    return out.replace(/,\s*([}\]])/g, '$1');
+  }
+
   /** AI 답에서 JSON 꺼내기 (코드 블록·앞뒤 글이 붙어도) */
   function parsePlan(text) {
     var s = String(text || '').trim();
     var fence = s.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (fence) s = fence[1].trim();
     var a = s.indexOf('{'), b = s.lastIndexOf('}');
-    if (a < 0 || b <= a) throw new Error('AI 답을 읽지 못했습니다. 다시 요청해 주세요.');
-    var obj;
-    try { obj = JSON.parse(s.slice(a, b + 1)); } catch (e) { throw new Error('AI 답의 형식이 잘못되었습니다. 다시 요청해 주세요.'); }
+    if (a < 0 || b <= a) throw Object.assign(new Error('AI 답을 읽지 못했습니다. 다시 요청해 주세요.'), { code: 'format' });
+    var obj, body = s.slice(a, b + 1);
+    try { obj = JSON.parse(body); }
+    catch (e) {
+      try { obj = JSON.parse(repairJson(body)); }
+      catch (e2) { throw Object.assign(new Error('AI 답의 형식이 잘못되었습니다. 다시 요청해 주세요.'), { code: 'format', detail: e2.message }); }
+    }
     if (!obj || typeof obj !== 'object') throw new Error('AI 답이 비어 있습니다.');
     obj.segments = Array.isArray(obj.segments) ? obj.segments : [];
     obj.corrections = Array.isArray(obj.corrections) ? obj.corrections : [];
@@ -223,6 +250,7 @@
   }
 
   return {
+    repairJson: repairJson,
     questionsIn: questionsIn,
     wordsFromJson3: wordsFromJson3, transcriptText: transcriptText, buildSystemPrompt: buildSystemPrompt,
     buildUserMessage: buildUserMessage, parsePlan: parsePlan, resolvePlan: resolvePlan,

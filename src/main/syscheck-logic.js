@@ -169,18 +169,13 @@ async function checkSystem(settingsApi, opts = {}) {
   return { rows, critical: rows.some(r => r.critical && r.status === 'error'), root: tools.root };
 }
 
-function updateYtdlp() {
-  return new Promise((resolve) => {
-    const proc = spawn(tools.ytdlp, ['-U'], { windowsHide: true });
-    let out = '';
-    proc.stdout.on('data', (d) => { out += d; });
-    proc.stderr.on('data', (d) => { out += d; });
-    proc.on('error', (e) => resolve({ ok: false, message: e.message }));
-    proc.on('close', (code) => {
-      const last = out.trim().split(/\r?\n/).filter(Boolean).pop() || '';
-      resolve({ ok: code === 0, message: last });
-    });
-  });
+async function updateYtdlp() {
+  try {
+    const r = await require('./ytdlp-manager').ensure({ force: true, minGap: 0 });
+    return { ok: true, message: r.updated ? `최신으로 바꿨습니다: ${r.before || '없음'} → ${r.version}` : `이미 최신입니다: ${r.version}` };
+  } catch (e) {
+    return { ok: false, message: 'yt-dlp 업데이트 실패: ' + e.message };
+  }
 }
 
 /** 실제로 유튜브 정보를 가져와 JS 런타임이 쓰이는지 확인 */

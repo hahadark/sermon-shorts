@@ -90,7 +90,19 @@ async function send(text, onDelta) {
   const messages = session.history.slice(-8).concat([{ role: 'user', content: userMsg }]);
   const t0 = Date.now();
   const { text: answer } = await complete(provider, { system, messages, onDelta });
-  const plan = chatPlan.parsePlan(answer);
+  let plan;
+  try {
+    plan = chatPlan.parsePlan(answer);
+  } catch (e) {
+    if (e.code !== 'format') throw e;
+    // 형식이 깨진 답이면 한 번 고쳐 달라고 한다
+    console.log('[SermonShorts] AI 답 형식 오류, 다시 요청:', e.detail || '', String(answer || '').slice(0, 200).replace(/\s+/g, ' '));
+    const fix = await complete(provider, { system, messages: messages.concat([
+      { role: 'assistant', content: String(answer || '').slice(0, 12000) },
+      { role: 'user', content: '방금 답은 JSON 형식이 잘못되어 읽을 수 없습니다. 같은 편집 내용을 [답 형식]에 맞는 올바른 JSON 하나로만 다시 쓰세요. 문자열 안의 따옴표는 \\" 로, 줄바꿈은 \\n 으로 쓰세요.' },
+    ]), onDelta });
+    plan = chatPlan.parsePlan(fix.text);
+  }
   const resolved = chatPlan.resolvePlan(plan, session.words);
   if (!resolved.ranges.length && session.plan) resolved.ranges = session.plan.ranges; // 질문만 한 경우
   if (plan.sermon && isFinite(plan.sermon.from) && isFinite(plan.sermon.to)) {
