@@ -21,7 +21,8 @@
 
   // 버튼으로 고르는 편집 조건 (이 PC 에 기억)
   const PREF_KEY = 'ss.chatPrefs.v1';
-  const DEFAULT_PREFS = { length: 120, tight: true, filler: true, questions: true, notices: true, gaps: true, ending: true };
+  const DEFAULT_PREFS = { length: 120, tight: true, filler: true, questions: true, notices: true, gaps: true, ending: true, contents: [], audience: 'all', intensity: 0, count: 3 };
+  const INTENSITIES = [[0, '상관없음'], [1, '1 잔잔'], [2, '2'], [3, '3'], [4, '4'], [5, '5 강하게']];
   const TIPS = {
     tight: '되풀이하는 말, 늘어지는 예화·설명을 빼고 핵심만 힘 있게',
     filler: '"그…", "어…" 말 끄는 소리와 더듬기, 같은 말 반복 빼기',
@@ -193,15 +194,24 @@
     const edited = !!video.edited;
     const lens = cp.LENGTHS.map(([s, l]) => `<button class="cq-btn len${Number(prefs.length) === s ? ' on' : ''}" data-len="${s}">${esc(l)}</button>`).join('');
     const togs = cp.STYLES.map(([k, l]) => `<button class="cq-btn tog${prefs[k] ? ' on' : ''}" data-tog="${k}" title="${esc(TIPS[k] || '')}">${esc(l)}</button>`).join('');
+    const conts = cp.CONTENTS.map(([k, l]) => `<button class="cq-btn tog${(prefs.contents || []).includes(k) ? ' on' : ''}" data-content="${k}" title="여러 개 고를 수 있습니다. 안 고르면 상관없음">${esc(l)}</button>`).join('');
+    const auds = cp.AUDIENCES.map(([k, l]) => `<button class="cq-btn len${(prefs.audience || 'all') === k ? ' on' : ''}" data-aud="${k}">${esc(l)}</button>`).join('');
+    const ints = INTENSITIES.map(([n, l]) => `<button class="cq-btn len${(Number(prefs.intensity) || 0) === n ? ' on' : ''}" data-int="${n}" title="1 = 잔잔한 위로, 5 = 강한 도전">${esc(l)}</button>`).join('');
+    const n = cp.countOf(prefs);
+    const cnts = cp.COUNTS.map((c) => `<button class="cq-btn len${n === c ? ' on' : ''}" data-count="${c}">${c}곳</button>`).join('');
     const acts = edited
       ? [['gaps-now', '공백 없애기', 'primary'], ['tight', '늘어지지 않게'], ['filler', '군말·반복 빼기'], ['questions', '질문·대답 빼기'], ['notices', '진행 안내 빼기'],
-        ['shorter', '더 짧게'], ['longer', '더 길게'], ['ending', '결론으로 끝내기'], ['title', '제목 다시'], ['typos', '자막 오타 고치기'], ['again', '다른 구간 3곳 추천']]
-      : [['recommend', '① 구간 3곳 추천받기', 'primary'], ['make', '바로 만들기']];
+        ['shorter', '더 짧게'], ['longer', '더 길게'], ['ending', '결론으로 끝내기'], ['title', '제목 다시'], ['typos', '자막 오타 고치기'], ['again', `다른 구간 ${n}곳 추천`]]
+      : [['recommend', `① 구간 ${n}곳 추천받기`, 'primary'], ['make', '바로 만들기']];
     q.innerHTML = `
       <div class="cq-head"><button class="cq-fold" id="cqFold" title="길이·다듬기 조건 열기/접기">${condOpen ? '▾' : '▸'} 편집 조건</button><span class="cq-sum">${esc(cp.conditionsSummary(prefs))}</span></div>
       <div class="cq-cond"${condOpen ? '' : ' style="display:none"'}>
         <div class="cq-row"><span class="cq-label">길이</span>${lens}</div>
         <div class="cq-row"><span class="cq-label">다듬기</span>${togs}</div>
+        <div class="cq-row"><span class="cq-label">내용</span>${conts}</div>
+        <div class="cq-row"><span class="cq-label">대상</span>${auds}</div>
+        <div class="cq-row"><span class="cq-label">강도</span>${ints}</div>
+        <div class="cq-row"><span class="cq-label">후보</span>${cnts}</div>
       </div>
       <div class="cq-row cq-acts">${acts.map(([k, l, c]) => `<button class="cq-btn act${c ? ' ' + c : ''}" data-act="${k}" title="${esc(actTip(k))}">${esc(l)}</button>`).join('')}</div>`;
     $('cqFold').addEventListener('click', () => { condOpen = !condOpen; renderQuick(); });
@@ -210,6 +220,14 @@
       if (video && video.edited) doAction('length', prefs.length); // 편집한 뒤에는 바로 그 길이로 맞춘다
     }));
     q.querySelectorAll('[data-tog]').forEach((b) => b.addEventListener('click', () => { prefs[b.dataset.tog] = !prefs[b.dataset.tog]; savePrefs(); renderQuick(); }));
+    q.querySelectorAll('[data-content]').forEach((b) => b.addEventListener('click', () => {
+      const k = b.dataset.content, cs = Array.isArray(prefs.contents) ? prefs.contents.slice() : [];
+      prefs.contents = cs.includes(k) ? cs.filter((x) => x !== k) : cs.concat([k]);
+      savePrefs(); renderQuick();
+    }));
+    q.querySelectorAll('[data-aud]').forEach((b) => b.addEventListener('click', () => { prefs.audience = b.dataset.aud; savePrefs(); renderQuick(); }));
+    q.querySelectorAll('[data-int]').forEach((b) => b.addEventListener('click', () => { prefs.intensity = Number(b.dataset.int); savePrefs(); renderQuick(); }));
+    q.querySelectorAll('[data-count]').forEach((b) => b.addEventListener('click', () => { prefs.count = Number(b.dataset.count); savePrefs(); renderQuick(); }));
     q.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => doAction(b.dataset.act)));
     q.style.display = '';
     setCompose(true);
@@ -697,11 +715,18 @@
       addMsg('sys', esc(`「${video.title}」 자막 ${video.words.length.toLocaleString()}단어를 불러왔습니다.`));
       addMsg('ai', '어떤 쇼츠를 만들까요? 아래 버튼으로 길이와 다듬기 조건을 고른 뒤 [구간 3곳 추천받기]를 누르거나, 원하는 내용을 말씀해 주세요.');
       renderQuick(); setCompose(true);
+      // 내용·대상·강도·후보 수 버튼
+      document.querySelector('#chatQuick [data-content="application"]').click();
+      document.querySelector('#chatQuick [data-content="gospel"]').click();
+      document.querySelector('#chatQuick [data-aud="seekers"]').click();
+      document.querySelector('#chatQuick [data-int="4"]').click();
+      document.querySelector('#chatQuick [data-count="3"]').click();
       await sleep(600);
       await SS.testShot('cache/chat_buttons/1_start.png');
       document.querySelector('#chatQuick [data-act="recommend"]').click();
       await waitFor(() => !busy && document.querySelectorAll('#chatBody .msg.cand').length === 3, 20000, 'candidates');
       step('recommend', { candidates: document.querySelectorAll('#chatBody .msg.cand').length });
+      for (const must of ['내용: 삶의 적용·복음 중심', '대상: 교회에 처음 온 분', '강도: 5단계 중 4', '구간 3곳을 추천']) if (!report.sent[0].includes(must)) throw new Error('추천 요청에 없음: ' + must);
       await sleep(400);
       await SS.testShot('cache/chat_buttons/2_candidates.png');
       document.querySelector('#chatBody .msg.cand [data-pick="1"]').click();

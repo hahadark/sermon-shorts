@@ -19,6 +19,14 @@ test('편집 조건: 길이는 공백을 줄일 몫까지 넉넉히, 켠 다듬�
   assert.ok(off.includes('남겨도 됩니다'));
   assert.ok(!off.includes('늘어지지 않게'));
   assert.ok(!cp.buildConditions({}).includes('길이:')); // 조건을 다 끄면 기본 원칙만 풀어 준다
+  // 내용·대상·강도 (예전 추천 조건)
+  const more = cp.buildConditions(Object.assign({}, ALL, { contents: ['application', 'core', 'nope'], audience: 'seekers', intensity: 4 }));
+  assert.ok(more.includes('내용: 핵심 메시지·삶의 적용 중심으로'), more);
+  assert.ok(more.includes('대상: 교회에 처음 온 분'));
+  assert.ok(more.includes('강도: 5단계 중 4'));
+  const plain = cp.buildConditions(Object.assign({}, ALL, { audience: 'all', intensity: 0, contents: [] }));
+  assert.ok(!plain.includes('내용:') && !plain.includes('대상:') && !plain.includes('강도:'));
+  assert.strictEqual(cp.conditionsSummary({ length: 90, contents: ['comfort'], audience: 'youth', intensity: 2 }), '1분 30초 · 위로 · 청년 · 강도 2');
   assert.strictEqual(cp.conditionsSummary(ALL), '2분 · 늘어지지 않게 · 군말·반복 빼기 · 질문·대답 빼기 · 진행 안내 빼기 · 공백 없애기 · 결론으로 끝내기');
   assert.deepStrictEqual([cp.fmtLen(60), cp.fmtLen(90), cp.fmtLen(45), cp.fmtLen(0)], ['1분', '1분 30초', '45초', '0초']);
 });
@@ -26,6 +34,9 @@ test('편집 조건: 길이는 공백을 줄일 몫까지 넉넉히, 켠 다듬�
 test('버튼 요청: 추천·만들기·후보 고르기에는 조건이 붙고, 다듬기 버튼은 짧은 지시만', () => {
   const rec = cp.actionRequest('recommend', ALL);
   assert.ok(rec.label.startsWith('구간 3곳 추천'));
+  assert.ok(cp.actionRequest('recommend', Object.assign({}, ALL, { count: 5 })).text.includes('구간 5곳을 추천'));
+  assert.ok(cp.actionRequest('again', { count: 4 }).label.includes('4곳'));
+  assert.strictEqual(cp.countOf({ count: 9 }), 3);
   assert.ok(rec.text.startsWith('[편집 조건]') && rec.text.includes('3곳') && rec.text.includes('아직 편집은 하지 마'));
   const pick = cp.actionRequest('pick', ALL, { no: 2, from: 4501, to: 4720, title: '기도의 결론' });
   assert.ok(pick.text.includes('2번 후보(#4501~#4720, 「기도의 결론」) 범위 안에서만'));

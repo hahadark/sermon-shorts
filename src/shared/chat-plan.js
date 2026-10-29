@@ -249,7 +249,20 @@
 
   // ---------------- 편집 조건 버튼 ----------------
   /** 길이 버튼 (초, 보이는 이름) */
-  var LENGTHS = [[60, '1분'], [90, '1분 30초'], [120, '2분'], [150, '2분 30초']];
+  var LENGTHS = [[60, '1분'], [90, '1분 30초'], [120, '2분'], [150, '2분 30초'], [180, '3분']];
+  /** 내용 버튼 (여러 개 고를 수 있음, 안 고르면 상관없음) */
+  var CONTENTS = [['core', '핵심 메시지'], ['story', '예화·이야기'], ['exposition', '말씀 풀이'], ['application', '삶의 적용'], ['comfort', '위로'], ['challenge', '도전'], ['gospel', '복음'], ['prayer', '기도']];
+  /** 대상 버튼 (하나) */
+  var AUDIENCES = [['all', '모두'], ['members', '성도'], ['seekers', '처음 온 분'], ['youth', '청년']];
+  var AUDIENCE_TEXT = {
+    members: '교회에 다니는 성도에게 깊이 있게 다가갈',
+    seekers: '교회에 처음 온 분이나 신앙이 없는 분도 이해하기 쉽고 교회 용어가 적은',
+    youth: '청년·학생이 공감할 만한',
+  };
+  /** 강도 1~5 (0 = 상관없음) */
+  var INTENSITY_TEXT = { 1: '아주 잔잔하게(위로·묵상)', 2: '잔잔하게', 3: '보통', 4: '힘 있게', 5: '아주 강하게(도전·결단)' };
+  /** 후보 수 */
+  var COUNTS = [3, 4, 5];
   /** 다듬기 버튼 (켜면 매번 지키는 조건) */
   var STYLES = [
     ['tight', '늘어지지 않게', '늘어지지 않게: 같은 내용을 되풀이하는 문장, 길게 늘어지는 예화·배경 설명, 곁가지 이야기는 빼고 핵심 메시지가 힘 있게 이어지게 고릅니다.'],
@@ -293,6 +306,11 @@
         out.push('길이: 남길 범위를 합쳐 약 ' + fmtLen(L) + ' (' + fmtLen(L - 10) + '~' + fmtLen(L + 10) + ').');
       }
     }
+    var names = contentNames(prefs);
+    if (names.length) out.push('내용: ' + names.join('·') + ' 중심으로 고릅니다.');
+    if (AUDIENCE_TEXT[prefs.audience]) out.push('대상: ' + AUDIENCE_TEXT[prefs.audience] + ' 부분을 고릅니다.');
+    var I = Math.round(Number(prefs.intensity));
+    if (I >= 1 && I <= 5) out.push('강도: 5단계 중 ' + I + ' — ' + INTENSITY_TEXT[I] + ' (1=잔잔한 위로, 5=강한 도전).');
     STYLES.forEach(function (st) {
       if (prefs[st[0]]) { if (st[2]) out.push(st[2]); }
       else if (STYLE_OFF[st[0]]) out.push(STYLE_OFF[st[0]]);
@@ -300,11 +318,25 @@
     return out.length ? '[편집 조건] (아래 조건이 [편집 원칙]보다 우선합니다)\n- ' + out.join('\n- ') : '';
   }
 
+  function contentNames(prefs) {
+    var cs = prefs && Array.isArray(prefs.contents) ? prefs.contents : [];
+    return CONTENTS.filter(function (c) { return cs.indexOf(c[0]) >= 0; }).map(function (c) { return c[1]; });
+  }
+  function countOf(prefs) {
+    var n = Math.round(Number(prefs && prefs.count));
+    return n >= 1 && n <= 5 ? n : 3;
+  }
+
   /** 조건 요약 (버튼 옆·말풍선에 보여 줄 짧은 글) */
   function conditionsSummary(prefs) {
     prefs = prefs || {};
     var parts = [];
     if (Number(prefs.length) > 0) parts.push(fmtLen(Number(prefs.length)));
+    parts = parts.concat(contentNames(prefs));
+    var aud = AUDIENCES.filter(function (a) { return a[0] === prefs.audience && a[0] !== 'all'; })[0];
+    if (aud) parts.push(aud[1]);
+    var I = Math.round(Number(prefs.intensity));
+    if (I >= 1 && I <= 5) parts.push('강도 ' + I);
     STYLES.forEach(function (st) { if (prefs[st[0]]) parts.push(st[1]); });
     return parts.join(' · ');
   }
@@ -319,8 +351,8 @@
     var cond = buildConditions(prefs), sum = conditionsSummary(prefs);
     var withCond = function (t) { return (cond ? cond + '\n\n' : '') + t; };
     switch (key) {
-      case 'recommend': return { label: '구간 3곳 추천' + (sum ? ' (' + sum + ')' : ''), text: withCond('이 설교에서 쇼츠로 쓸 만한 구간 3곳을 추천해 줘. 후보끼리 겹치지 않게, 각 후보는 길이 조건보다 30초쯤 넉넉하게 잡아 줘(나중에 다듬을 거야). 아직 편집은 하지 마.') };
-      case 'again': return { label: '다른 구간 3곳 추천', text: withCond('지금 편집과 앞서 추천한 것과 다른 구간으로 쇼츠 후보 3곳을 추천해 줘. 아직 편집은 바꾸지 마.') };
+      case 'recommend': { var n1 = countOf(prefs); return { label: '구간 ' + n1 + '곳 추천' + (sum ? ' (' + sum + ')' : ''), text: withCond('이 설교에서 쇼츠로 쓸 만한 구간 ' + n1 + '곳을 추천해 줘. 후보끼리 겹치지 않게, 각 후보는 길이 조건보다 30초쯤 넉넉하게 잡아 줘(나중에 다듬을 거야). 아직 편집은 하지 마.') }; }
+      case 'again': { var n2 = countOf(prefs); return { label: '다른 구간 ' + n2 + '곳 추천', text: withCond('지금 편집과 앞서 추천한 것과 다른 구간으로 쇼츠 후보 ' + n2 + '곳을 추천해 줘. 아직 편집은 바꾸지 마.') }; }
       case 'make': return { label: '바로 만들기' + (sum ? ' (' + sum + ')' : ''), text: withCond('설교의 결론과 삶의 적용을 중심으로 쇼츠를 만들어 줘.') };
       case 'pick': {
         var c = arg || {}, ttl = String(c.title || '').replace(/\s*\n\s*/g, ' ').trim();
@@ -382,6 +414,7 @@
     buildUserMessage: buildUserMessage, parsePlan: parsePlan, resolvePlan: resolvePlan,
     rangesDuration: rangesDuration, describeRanges: describeRanges, fmtTime: fmtTime, RULES: RULES,
     resolveCandidates: resolveCandidates, LENGTHS: LENGTHS, STYLES: STYLES, GAP_SHRINK: GAP_SHRINK, fmtLen: fmtLen,
+    CONTENTS: CONTENTS, AUDIENCES: AUDIENCES, COUNTS: COUNTS, countOf: countOf,
     buildConditions: buildConditions, conditionsSummary: conditionsSummary, actionRequest: actionRequest, withRo: withRo,
   };
 });
