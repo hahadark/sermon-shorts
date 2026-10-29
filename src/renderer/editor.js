@@ -95,7 +95,7 @@
       <button id="btnCheckAllCaptions" class="btn">전체 선택</button><button id="btnUncheckCaptions" class="btn" disabled>선택 해제</button>
       <button id="btnDeleteCheckedCaptions" class="btn" disabled>선택 구간 삭제</button><span id="lblCheckedCaptions" style="color:#aaa">0개 선택</span>
     </div>
-    <div style="font-size:11px; padding:4px 8px; color:#888; border-bottom:1px solid #333;">STT 원문에서 단어 삭제·복원 · 출력 자막에서 문장 수정 · Enter 적용 · Ctrl+Z 취소</div>
+    <div style="font-size:11px; padding:4px 8px; color:#888; border-bottom:1px solid #333;">STT 원문에서 단어 삭제·복원 · 출력 자막에서 문장 수정 · Enter 자막 나누기 · 맨 앞 Backspace 합치기 · Ctrl+Enter 적용 · Ctrl+Z 취소</div>
 
     <div id="transcriptBody" style="flex:1; overflow-y:auto; padding:12px; font-size:14px; line-height:1.6; user-select:text;">
       자막 생성 후 여기에 자막이 표시됩니다

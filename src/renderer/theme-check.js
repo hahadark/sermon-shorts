@@ -6,6 +6,67 @@
 (function () {
   'use strict';
   const SS = window.SS;
+
+  // 테스트 훅: SS_TEST_SCRIPT=caption-split — 출력 자막 칸에서 Enter 로 자막 나누기 (단어 사이·단어 가운데·맨 끝·되돌리기)
+  window.addEventListener('ss:run-test-script', async (e) => {
+    if (e.detail !== 'caption-split') return;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const report = { checks: [] };
+    const check = (name, ok, extra) => { report.checks.push({ name, ok: !!ok, extra }); if (!ok) throw new Error(name + ' ' + JSON.stringify(extra || '')); };
+    try {
+      const launch = await window.api.getLaunchInfo();
+      const dir = launch.cache + '/caption_split';
+      await window.api.mkdir(dir);
+      const t0 = Date.now();
+      while (!(SS.state && SS.state.words && SS.state.words.length && document.querySelector('.caption-output'))) { if (Date.now() - t0 > 60000) throw new Error('자막이 열리지 않았습니다'); await sleep(200); }
+      SS.preview.pause();
+      const body = document.getElementById('transcriptBody');
+      const outs = () => Array.from(body.querySelectorAll('.caption-output'));
+      const enter = (el, opts) => el.dispatchEvent(new KeyboardEvent('keydown', Object.assign({ key: 'Enter', bubbles: true, cancelable: true }, opts || {})));
+      // 1) 단어 사이에서 나누기
+      let el = outs().find((x) => / /.test(x.value) && x.value.split(' ').length >= 3);
+      check('띄어쓰기 있는 자막', el);
+      const before = el.value, n0 = outs().length, idx = +el.dataset.captionEditor;
+      const cut = before.indexOf(' ', Math.floor(before.length / 3));
+      el.focus(); el.setSelectionRange(cut, cut);
+      enter(el);
+      await sleep(300);
+      let list = outs();
+      check('자막이 하나 늘었다', list.length === n0 + 1, { n0, n1: list.length });
+      check('앞 자막', list[idx].value === before.slice(0, cut).trim(), { got: list[idx].value, want: before.slice(0, cut).trim() });
+      check('뒤 자막', list[idx + 1].value === before.slice(cut).trim(), { got: list[idx + 1].value });
+      check('커서가 뒤 자막 맨 앞으로', document.activeElement === list[idx + 1] && list[idx + 1].selectionStart === 0);
+      // 2) 단어 가운데에서 나누기
+      el = list.find((x) => x.value.split(' ').some((t) => t.length >= 4));
+      const v2 = el.value, i2 = +el.dataset.captionEditor, tok = v2.split(' ').find((t) => t.length >= 4), at = v2.indexOf(tok) + 2;
+      el.focus(); el.setSelectionRange(at, at); enter(el);
+      await sleep(300);
+      list = outs();
+      check('단어 가운데 앞', list[i2].value === v2.slice(0, at).trim(), { got: list[i2].value, want: v2.slice(0, at) });
+      check('단어 가운데 뒤', list[i2 + 1].value === v2.slice(at).trim(), { got: list[i2 + 1].value });
+      check('단어에 나눈 자리 기록', SS.state.words.some((w) => Array.isArray(w.captionSplits) && w.captionSplits.length));
+      await SS.testShot('cache/caption_split/1_split.png');
+      // 3) 맨 끝 Enter: 다음 자막으로
+      el = list[i2 + 1]; const n2 = list.length;
+      el.focus(); el.setSelectionRange(el.value.length, el.value.length); enter(el);
+      await sleep(200);
+      check('맨 끝은 다음 칸으로', outs().length === n2 && document.activeElement === outs()[i2 + 2]);
+      // 4) 되돌리기 두 번 → 처음 개수
+      document.activeElement.blur(); await sleep(100);
+      SS.undo(); await sleep(150); SS.undo(); await sleep(250);
+      check('되돌리기', outs().length === n0, { n: outs().length, n0 });
+      // 5) 내보내는 자막(SRT)도 나뉜 대로
+      SS.redo(); await sleep(250);
+      const srt = SS.edl.toSRT(SS.getLines());
+      check('SRT 에 나뉜 자막', srt.includes('\n' + before.slice(cut).trim() + '\n'));
+      await window.api.writeText(dir + '/report.json', JSON.stringify(report, null, 2));
+      window.api.notifyTestReady({ ok: true, checks: report.checks.length });
+    } catch (err) {
+      console.error(err);
+      try { const l = await window.api.getLaunchInfo(); await window.api.writeText(l.cache + '/caption_split/report.json', JSON.stringify(Object.assign(report, { error: String(err && err.stack || err) }), null, 2)); } catch (_) { /* */ }
+      window.api.notifyTestError(err && err.stack ? err.stack : String(err));
+    }
+  });
   window.addEventListener('ss:run-test-script', async (e) => {
     if (e.detail !== 'themes') return;
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

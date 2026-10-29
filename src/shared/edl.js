@@ -194,6 +194,38 @@
     }
     if (items.length === 0) return [];
 
+    // 손으로 나눈 자리(출력 자막 칸에서 Enter): 단어 글자 위치 captionSplits 에서 조각으로 나누고 앞 조각 뒤에서 줄을 바꾼다.
+    // 표시만 나눌 뿐 원문 단어·편집 시각은 바꾸지 않는다. 조각 시각은 글자 수로 나눈다.
+    var manualItems = [];
+    items.forEach(function (item) {
+      var marks = Array.isArray(item.w.captionSplits) ? item.w.captionSplits : null;
+      var chars = Array.from(String(item.w.text || ''));
+      var pts = [];
+      if (marks) marks.forEach(function (c) { c = Math.round(Number(c)); if (c > 0 && c < chars.length && pts.indexOf(c) < 0) pts.push(c); });
+      pts.sort(function (a, b) { return a - b; });
+      var pieces = [];
+      if (pts.length) {
+        var bounds = [0].concat(pts, [chars.length]);
+        for (var k = 0; k < bounds.length - 1; k++) {
+          var t = chars.slice(bounds[k], bounds[k + 1]).join('');
+          if (t.trim()) pieces.push({ text: t, from: bounds[k], to: bounds[k + 1] });
+        }
+      }
+      if (pieces.length < 2) { manualItems.push(item); return; }
+      var total = 0;
+      pieces.forEach(function (p) { total += charCount(p.text); });
+      var used = 0;
+      pieces.forEach(function (p, idx) {
+        var len = charCount(p.text);
+        var begin = item.outStart + (item.outEnd - item.outStart) * (total ? used / total : idx / pieces.length);
+        used += len;
+        var finish = item.outStart + (item.outEnd - item.outStart) * (total ? used / total : (idx + 1) / pieces.length);
+        manualItems.push({ w: Object.assign({}, item.w, { text: p.text, br: idx === pieces.length - 1 ? item.w.br : true }),
+          outStart: begin, outEnd: finish, len: len, textFrom: p.from, textTo: p.to });
+      });
+    });
+    items = manualItems;
+
     // Optional strict limit: split only display items, never source words or edit timing.
     if (settings.splitLongWords === true) {
       var splitItems = [];
@@ -210,10 +242,10 @@
           text += ch; if (visible) count++;
         });
         if (text.trim()) parts.push(text.trim());
-        var consumed = 0, sourceChars = Array.from(String(item.w.text || '')), textOffset = 0;
+        var consumed = 0, sourceChars = Array.from(String(item.w.text || '')), textOffset = 0, base = item.textFrom || 0;
         parts.forEach(function(part, index) {
           while (textOffset < sourceChars.length && /\s/.test(sourceChars[textOffset])) textOffset++;
-          var textFrom = textOffset, textTo = textOffset + Array.from(part).length; textOffset = textTo;
+          var textFrom = base + textOffset, textTo = base + textOffset + Array.from(part).length; textOffset += Array.from(part).length;
           var len = charCount(part);
           var begin = item.outStart + (item.outEnd - item.outStart) * consumed / item.len;
           consumed += len;

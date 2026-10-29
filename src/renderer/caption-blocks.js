@@ -32,6 +32,27 @@
     const anchor=String(result.anchor.id)+':'+result.anchor.from;const target=Array.from(body.querySelectorAll('.caption-output')).find(e=>e.dataset.captionAnchor===anchor);
     if(target){target.focus();target.setSelectionRange(result.caret,result.caret);target.scrollIntoView({block:'nearest'});}
   }
+  // 출력 자막 칸에서 Enter: 커서 자리에서 자막을 둘로 나눈다 (영상은 그대로). 맨 끝이면 다음 자막으로, 맨 앞이면 적용만.
+  function splitAtCaret(el,body){
+    const value=el.value,caret=el.selectionStart,index=+el.dataset.captionEditor;
+    if(el.selectionEnd!==caret||!value.slice(0,caret).trim()){commit();body.focus();return;}
+    if(!value.slice(caret).trim()){commit();const next=body.querySelector(`[data-caption-editor="${index+1}"]`);if(next){next.focus();next.setSelectionRange(0,0);next.scrollIntoView({block:'nearest'});}else body.focus();return;}
+    const first=visibleBlocks[index]?.editorLine?.parts?.[0];
+    commit(false);
+    const line=first?SS.getLines().find(l=>l.parts.some(p=>p.id===first.id&&p.from===first.from)):null;
+    if(!line)return;
+    // 입력칸 글과 줄 글의 띄어쓰기가 달라도 맞도록, 커서 앞 글자(공백 제외) 수로 자리를 찾는다
+    const want=Array.from(value.slice(0,caret).replace(/\s+/g,'')).length,t=line.text;let pos=0,seen=0;
+    while(pos<t.length&&seen<want){if(!/\s/.test(t[pos]))seen++;pos++;}
+    if(/\s$/.test(value.slice(0,caret)))while(pos<t.length&&/\s/.test(t[pos]))pos++;
+    const result=SS.captionEdit.split(SS.state.words,line,pos);
+    if(!result){SS.toast&&SS.toast('여기서는 자막을 나눌 수 없습니다');return;}
+    SS.pushUndo();SS.state.words=result.words;needsRender=false;SS.renderTranscript();SS.updateTemplatePreview();
+    const anchor=String(result.anchor.id)+':'+result.anchor.from;
+    const target=Array.from(body.querySelectorAll('.caption-output')).find(e=>e.dataset.captionAnchor===anchor)||body.querySelector(`[data-caption-editor="${index+1}"]`);
+    if(target){target.focus();target.setSelectionRange(0,0);target.scrollIntoView({block:'nearest'});}
+  }
+  SS.splitCaptionAtCaret=splitAtCaret;
   function style(){
     if(document.getElementById('caption-block-style'))return;
     const s=document.createElement('style');s.id='caption-block-style';s.textContent=`
@@ -87,7 +108,7 @@
       }
       if(openRun)html+='</span>';
       html+='</div></div><div class="caption-word-editor"></div><div class="caption-track"><span class="caption-track-label" style="color:#9ac7af">출력 자막</span>';
-      html+=live.length?`<textarea class="caption-output" rows="1" maxlength="2000" data-caption-editor="${n}" data-caption-anchor="${esc(row.parts[0]?String(row.parts[0].id)+':'+row.parts[0].from:'')}" title="맨 앞 Backspace: 위 자막과 합치기 · 영상은 유지됩니다" aria-label="${n+1}번 출력 자막" placeholder="빈칸이면 자막만 숨김 · 영상 유지">${esc(row.text)}</textarea>`:'<div class="caption-empty">삭제된 영상 구간 · 되살리면 자막도 복원됩니다</div>';
+      html+=live.length?`<textarea class="caption-output" rows="1" maxlength="2000" data-caption-editor="${n}" data-caption-anchor="${esc(row.parts[0]?String(row.parts[0].id)+':'+row.parts[0].from:'')}" title="Enter: 커서 자리에서 자막 나누기 · 맨 앞 Backspace: 위 자막과 합치기 · Ctrl+Enter: 적용 · 영상은 유지됩니다" aria-label="${n+1}번 출력 자막" placeholder="빈칸이면 자막만 숨김 · 영상 유지">${esc(row.text)}</textarea>`:'<div class="caption-empty">삭제된 영상 구간 · 되살리면 자막도 복원됩니다</div>';
       html+='</div></section>';
     });
     body.innerHTML=html;body.scrollTop=scroll;
@@ -107,7 +128,7 @@
       el.addEventListener('blur',()=>queueMicrotask(()=>{if(active?.el===el)commit();}));
       el.addEventListener('keydown',e=>{if(e.isComposing)return;
         if((e.ctrlKey||e.metaKey)&&!e.altKey&&['z','y'].includes(e.key.toLowerCase())&&!active?.dirty){e.preventDefault();commit(false);if(e.shiftKey||e.key.toLowerCase()==='y')SS.redo();else SS.undo();body.focus();e.stopPropagation();return;}
-        if(e.key==='Backspace'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&el.selectionStart===0&&el.selectionEnd===0){e.preventDefault();mergeAtStart(el,body);e.stopPropagation();return;}if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();commit();body.focus();}else if(e.key==='Escape'){e.preventDefault();cancel();body.focus();}else if(e.key==='Tab'){e.preventDefault();const index=+el.dataset.captionEditor;commit();body.querySelector(`[data-caption-editor="${index+(e.shiftKey?-1:1)}"]`)?.focus();}e.stopPropagation();});
+        if(e.key==='Backspace'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&el.selectionStart===0&&el.selectionEnd===0){e.preventDefault();mergeAtStart(el,body);e.stopPropagation();return;}if(e.key==='Enter'&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();splitAtCaret(el,body);e.stopPropagation();return;}if(e.key==='Enter'){e.preventDefault();commit();body.focus();}else if(e.key==='Escape'){e.preventDefault();cancel();body.focus();}else if(e.key==='Tab'){e.preventDefault();const index=+el.dataset.captionEditor;commit();body.querySelector(`[data-caption-editor="${index+(e.shiftKey?-1:1)}"]`)?.focus();}e.stopPropagation();});
     });
     refreshCaret(body);syncChecks(body);
   };
