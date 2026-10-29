@@ -55,8 +55,9 @@
       this.inner.style.transform = 'scale(' + sw / STAGE_W + ')';
     }
 
-    /** 영상 로드. loadedmetadata까지 기다린다. */
+    /** 영상 로드. loadeddata까지 기다린다. 다시 load 하면 이전 대기는 정리(조용히 종료)된다. */
     load(path, info) {
+      if (this._loadCancel) this._loadCancel();
       this.path = path;
       this.fps = (info && info.fps) || 30;
       this.duration = (info && info.duration) || 0;
@@ -64,14 +65,15 @@
       return new Promise((resolve, reject) => {
         const ok = () => { cleanup(); this.empty.style.display = 'none'; if (!this.duration) this.duration = v.duration; resolve(); };
         const bad = () => { cleanup(); reject(new Error('영상을 불러올 수 없습니다: ' + (v.error ? v.error.message || v.error.code : ''))); };
-        const cleanup = () => { v.removeEventListener('loadeddata', ok); v.removeEventListener('error', bad); };
+        const cleanup = () => { v.removeEventListener('loadeddata', ok); v.removeEventListener('error', bad); if (this._loadCancel === cancel) this._loadCancel = null; };
+        const cancel = () => { cleanup(); resolve(); };
+        this._loadCancel = cancel;
         v.addEventListener('loadeddata', ok);
         v.addEventListener('error', bad);
         v.src = toFileUrl(path);
         v.load();
       });
     }
-
     get loaded() { return !!this.path && this.video.readyState >= 1; }
     get currentTime() { return this.video.currentTime || 0; }
     get paused() { return this.video.paused; }
@@ -82,18 +84,30 @@
 
     clamp(t) { return Math.max(0, Math.min(this.duration || this.video.duration || 0, t)); }
 
-    /** 시크 (seeked 이벤트까지 기다리는 Promise) */
+    /** 시크 (seeked 까지 기다리는 Promise). 같은 자리·겹친 시크·영상 교체·이벤트 누락이어도 반드시 끝난다. */
     seek(t) {
       if (!this.loaded) return Promise.resolve();
       const v = this.video;
       t = this.clamp(t);
+      if (!isFinite(t)) return Promise.resolve();
+      if (!v.seeking && Math.abs((v.currentTime || 0) - t) < 0.0005) return Promise.resolve();
       return new Promise((resolve) => {
-        const done = () => { v.removeEventListener('seeked', done); resolve(); };
-        v.addEventListener('seeked', done);
-        v.currentTime = t;
+        let timer = 0;
+        const done = () => {
+          v.removeEventListener('seeked', onSeeked);
+          v.removeEventListener('emptied', done);
+          v.removeEventListener('error', done);
+          clearTimeout(timer);
+          resolve();
+        };
+        const onSeeked = () => { if (!v.seeking) done(); };   // 겹친 시크는 마지막 것이 끝나야 완료
+        v.addEventListener('seeked', onSeeked);
+        v.addEventListener('emptied', done);
+        v.addEventListener('error', done);
+        timer = setTimeout(done, 2500);                       // seeked 가 오지 않아도 영구 대기 방지
+        try { v.currentTime = t; } catch (_) { done(); }
       });
     }
-
     /** 프레임 단위 이동 (n 프레임, 프레임 경계에 맞춤) */
     stepFrames(n) {
       const fd = 1 / this.fps;

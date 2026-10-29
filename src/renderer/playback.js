@@ -17,6 +17,10 @@
   let skipping = false;
   let mutedBySkip = false;
   let timer = 0;
+  let skipGen = 0;         // 건너뛰기 세대 (오래된 seek 완료가 최신 상태를 덮지 않게)
+  let internalPause = 0;   // 코드가 낸 pause (포커스 이동 제외)
+  let stopSig = '';        // pendingStop/stopAtOut 을 정한 때의 구간 구성
+  let pendingTimer = 0;
 
   const video = () => SS.preview && SS.preview.video;
   const segs = () => (SS.getSegments ? SS.getSegments() : []) || [];
@@ -47,22 +51,29 @@
   function jump(to) {
     const v = video();
     if (!v) return;
+    const gen = ++skipGen;
     skipping = true;
     if (!v.muted) { v.muted = true; mutedBySkip = true; }
-    SS.preview.seek(to).then(() => {
+    const release = () => {
+      if (gen !== skipGen) return;   // 더 새로운 건너뛰기가 이어받음
       skipping = false;
       unmute();
       tick();
-    });
+    };
+    // seek 가 끝나지 않아도 잠기지 않도록 안전장치
+    const guard = setTimeout(release, 3000);
+    SS.preview.seek(to).then(() => { clearTimeout(guard); release(); }, () => { clearTimeout(guard); release(); });
   }
 
   function finish(to) {
     stopAtOut = null;
-    SS.preview.pause();
+    SS.preview.pause();   // 끝에서 멈춤: 그 자막으로 포커스
     unmute();
     // 끝 화면에 멈춰 둔다 (다시 재생을 누르면 처음부터)
     if (Math.abs(SS.preview.currentTime - to) > 0.05) SS.preview.seek(Math.max(0, to - 0.001));
   }
+
+  function sigOf(s) { return s.map((x) => x.start + ':' + x.end).join('|'); }
 
   function tick() {
     clearTimeout(timer); timer = 0;
@@ -71,8 +82,11 @@
     const t = v.currentTime;
     const s = segs();
     if (stopAtOut != null) {
-      const out = SS.edl.srcToOut(s, t);
-      if (out != null && out >= stopAtOut) { stopAtOut = null; SS.preview.pause(); return; }
+      if (stopSig && stopSig !== sigOf(s)) stopAtOut = null;   // 편집으로 구간이 바뀌면 옛 정지 지점은 버린다
+      else {
+        const out = SS.edl.srcToOut(s, t);
+        if (out != null && out >= stopAtOut) { stopAtOut = null; SS.preview.pause(); return; }
+      }
     }
     const p = plan(t);
     if (p.action === 'jump') { jump(p.to); return; }
@@ -89,7 +103,7 @@
 
   /** 재생 시작: 지운 곳이면 다음 남은 곳, 끝이면 처음부터 */
   function onPlay() {
-    if (pendingStop != null) { stopAtOut = pendingStop; pendingStop = null; }
+    if (pendingStop != null) { stopAtOut = pendingStop; pendingStop = null; clearTimeout(pendingTimer); }
     if (!active()) return;
     const s = segs();
     const p = plan(video().currentTime);
@@ -103,6 +117,11 @@
     if (rawOnce) { rawOnce = false; refreshTime(); }
     stopAtOut = null;
     if (!skipping) unmute();
+    if (internalPause > 0) { internalPause--; return; }
+    const v = video();
+    if (v && !v.ended && SS.focusPlaybackCaption && !skipping) {
+      try { SS.focusPlaybackCaption(v.currentTime); } catch (_) {}   // 멈춘 자리의 자막으로 포커스
+    }
   }
 
   // ---------------- 시간 표시 (편집 결과 기준) ----------------
@@ -154,7 +173,11 @@
     if (SS.setEditedPlayMode && !SS.getEditedPlayMode()) SS.setEditedPlayMode(true);
     rawOnce = false;
     pendingStop = b;
-    if (!SS.preview.paused) SS.preview.pause();
+    stopAtOut = null;
+    stopSig = sigOf(s);
+    clearTimeout(pendingTimer);
+    pendingTimer = setTimeout(() => { pendingStop = null; }, 4000);   // 재생이 시작되지 않으면 잔류 방지
+    if (!SS.preview.paused) { internalPause++; SS.preview.pause(); }
     SS.preview.seek(r.t);      // 자리 옮기기를 기다리지 않고 바로 재생 (준비되는 대로 그 자리부터)
     SS.preview.play();
   }

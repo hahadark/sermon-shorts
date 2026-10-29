@@ -32,6 +32,42 @@
     const anchor=String(result.anchor.id)+':'+result.anchor.from;const target=Array.from(body.querySelectorAll('.caption-output')).find(e=>e.dataset.captionAnchor===anchor);
     if(target){target.focus();target.setSelectionRange(result.caret,result.caret);target.scrollIntoView({block:'nearest'});}
   }
+  // STT 원문은 단어 사이 커서로 편집한다. 같은 경계가 앞줄 끝/뒷줄 시작 모두 될 수 있어 클릭한 줄도 기억한다.
+  let sourceAnchor = null;
+  function anchorOf(b) { const p=b?.editorLine?.parts?.[0]; return p ? p.id+':'+p.from : null; }
+  function rememberSource(el) { const b=visibleBlocks[+el?.dataset?.block]; sourceAnchor=anchorOf(b); }
+  SS.rememberSourceCaption=rememberSource;
+  function sourceBlockAtCaret() {
+    const c=SS.state.caret;
+    let b=visibleBlocks.find(x=>anchorOf(x)===sourceAnchor && c>=x.indices[0] && c<=x.indices.at(-1)+1);
+    if(!b)b=visibleBlocks.find(x=>c>=x.indices[0]&&c<x.indices.at(-1)+1);
+    if(!b&&c===SS.state.words.length)b=visibleBlocks.at(-1);
+    return b;
+  }
+  SS.mergeSourceAtBoundary=(dir)=>{
+    const sel=SS.state.selection;if(sel&&sel[0]!==sel[1])return false;
+    const b=sourceBlockAtCaret();if(!b?.line)return false;
+    const c=SS.state.caret;
+    if(c!==(dir<0?b.indices[0]:b.indices.at(-1)+1))return false;
+    const i=visibleBlocks.indexOf(b),other=visibleBlocks[i+dir];if(!other?.line)return false;
+    commit(false);
+    const left=dir<0?other:b,right=dir<0?b:other;
+    const result=SS.captionEdit.merge(SS.state.words,left.editorLine,right.editorLine);if(!result)return false;
+    SS.pushUndo();SS.state.words=result.words;needsRender=false;sourceAnchor=result.anchor.id+':'+result.anchor.from;
+    SS.state.caret=right.indices[0];SS.state.selection=null;SS.state.manualCaret=true;
+    SS.renderTranscript();SS.updateTemplatePreview();SS.pushUndo();
+    const body=document.getElementById('transcriptBody');body.focus({preventScroll:true});
+    body.querySelector('#the-caret')?.scrollIntoView({block:'nearest'});return true;
+  };
+  function mergeAtEnd(el,body){
+    const first=visibleBlocks[+el.dataset.captionEditor]?.editorLine?.parts?.[0];commit(false);
+    const ls=SS.getLines(),i=first?ls.findIndex(l=>l.parts.some(p=>p.id===first.id&&p.from===first.from)):-1;
+    if(i<0||i>=ls.length-1)return;
+    const result=SS.captionEdit.merge(SS.state.words,ls[i],ls[i+1]);if(!result)return;
+    SS.pushUndo();SS.state.words=result.words;needsRender=false;SS.renderTranscript();SS.updateTemplatePreview();
+    const target=Array.from(body.querySelectorAll('.caption-output')).find(e=>e.dataset.captionAnchor===result.anchor.id+':'+result.anchor.from);
+    if(target){target.focus();target.setSelectionRange(result.caret,result.caret);target.scrollIntoView({block:'nearest'});}
+  }
   // 출력 자막 칸에서 Enter: 커서 자리에서 자막을 둘로 나눈다 (영상은 그대로). 맨 끝이면 다음 자막으로, 맨 앞이면 적용만.
   function splitAtCaret(el,body){
     const value=el.value,caret=el.selectionStart,index=+el.dataset.captionEditor;
@@ -74,6 +110,7 @@
       .caption-output{display:block;width:100%;max-width:680px;box-sizing:border-box;resize:vertical;min-height:38px;line-height:1.6;font:inherit;font-size:16px;font-weight:600;padding:6px 11px;color:#0f172a;background:#f8fafc;border:1px solid #dfe5ee;border-radius:12px}
       .caption-output:focus{outline:none;border-color:#3b82f6;background:#fff;box-shadow:0 0 0 3px rgba(59,130,246,.14)}
       .caption-count{margin-left:auto;color:#64748b;font-weight:600}.caption-count.over-limit{color:#b45309}
+      .caption-delete{width:26px;height:26px;color:#b91c1c;flex:0 0 auto}.caption-delete:hover{background:#fef2f2}.caption-fine[aria-pressed="true"]{opacity:1;background:#eaf1fe;color:#2563eb}
       .caption-fine{width:28px;height:26px;opacity:.6}.caption-block:hover .caption-fine,.caption-fine:focus{opacity:1}
       .caption-word-editor:empty{display:none}.caption-word-editor{margin:6px 0 0 82px;color:#2563eb;font-size:12px}
       .caption-empty{color:#94a3b8;font-size:12.5px;padding:5px 0}
@@ -118,7 +155,7 @@
     blocks.forEach((block,n)=>{
       const first=ws[block.indices[0]],last=ws[block.indices.at(-1)];const live=block.indices.filter(i=>!ws[i].del);
       const row=block.line||{text:'',words:live.map(i=>ws[i].id),parts:live.map(i=>({id:ws[i].id,text:ws[i].text,from:0,to:Array.from(ws[i].text).length}))};block.editorLine=row;
-      html+=`<section class="caption-block" data-block="${n}" data-from="${block.indices[0]}" data-to="${block.indices.at(-1)+1}"><div class="caption-head"><label title="같은 STT 단어를 나눠 표시한 구간은 함께 선택됩니다"><input type="checkbox" class="caption-check" data-check-block="${n}" aria-label="${n+1}번 구간 선택" style="width:auto;cursor:pointer"> <strong>${String(n+1).padStart(3,'0')}</strong></label><button class="caption-seek" data-seek="${first.start}">${esc(SS.fmtTime(first.start+(SS.state.source?.offset||0)))} ~ ${esc(SS.fmtTime(last.end+(SS.state.source?.offset||0)))}</button><span class="caption-count">${count(row.text)} / ${max}자${row.manualMerge?' · 수동 병합':count(row.text)>max?' · 적용 시 자동 분할':''}</span>${live.length?`<button class="caption-fine btn sm ghost icon-only ico i-audio-waveform" data-fine="${n}" title="시작·끝 미세 조정 (STT 원문·출력 자막 두 번 누르기)" aria-label="${n+1}번 자막 미세 조정"></button>`:''}</div>`;
+      html+=`<section class="caption-block" data-block="${n}" data-from="${block.indices[0]}" data-to="${block.indices.at(-1)+1}"><div class="caption-head"><label title="같은 STT 단어를 나눠 표시한 구간은 함께 선택됩니다"><input type="checkbox" class="caption-check" data-check-block="${n}" aria-label="${n+1}번 구간 선택" style="width:auto;cursor:pointer"> <strong>${String(n+1).padStart(3,'0')}</strong></label>${live.length?`<button class="caption-delete btn sm ghost icon-only ico i-trash-2" data-delete-block="${n}" title="이 자막 구간 삭제 (영상·음성도 삭제 · Ctrl+Z로 복원)" aria-label="${n+1}번 구간 삭제"></button>`:''}<button class="caption-seek" data-seek="${first.start}">${esc(SS.fmtTime(first.start+(SS.state.source?.offset||0)))} ~ ${esc(SS.fmtTime(last.end+(SS.state.source?.offset||0)))}</button><span class="caption-count">${count(row.text)} / ${max}자${row.manualMerge?' · 수동 병합':count(row.text)>max?' · 적용 시 자동 분할':''}</span>${live.length?`<button class="caption-fine btn sm ghost icon-only ico i-audio-waveform" data-fine="${n}" title="시작·끝 미세 조정 (STT 원문·출력 자막 두 번 누르기)" aria-label="${n+1}번 자막 미세 조정"></button>`:''}</div>`;
       if(row.manualMerge)html+=`<button class="caption-unmerge" data-unmerge="${n}" style="font-size:11px;margin-bottom:5px">${max}자로 다시 나누기</button>`;
       html+='<div class="caption-track"><span class="caption-track-label">STT 원문</span><div class="caption-source">';
       let openRun=null;
@@ -137,13 +174,20 @@
       }
       if(openRun)html+='</span>';
       html+='</div></div><div class="caption-word-editor"></div><div class="caption-track"><span class="caption-track-label out">출력 자막</span>';
-      html+=live.length?`<textarea class="caption-output" rows="1" maxlength="2000" data-caption-editor="${n}" data-caption-anchor="${esc(row.parts[0]?String(row.parts[0].id)+':'+row.parts[0].from:'')}" title="Enter: 커서 자리에서 자막 나누기 · 맨 앞 Backspace: 위 자막과 합치기 · Ctrl+Enter: 적용 · 두 번 누르기: 시작·끝 미세 조정" aria-label="${n+1}번 출력 자막" placeholder="빈칸이면 자막만 숨김 · 영상 유지">${esc(row.text)}</textarea>`:'<div class="caption-empty">삭제된 영상 구간 · 되살리면 자막도 복원됩니다</div>';
+      html+=live.length?`<textarea class="caption-output" rows="1" maxlength="2000" data-caption-editor="${n}" data-caption-anchor="${esc(row.parts[0]?String(row.parts[0].id)+':'+row.parts[0].from:'')}" title="Enter: 커서 자리에서 자막 나누기 · 맨 앞 Backspace: 위 자막과 합치기 · 맨 끝 Delete: 아래 자막과 합치기 · Ctrl+Enter: 적용 · 두 번 누르기: 시작·끝 미세 조정" aria-label="${n+1}번 출력 자막" placeholder="빈칸이면 자막만 숨김 · 영상 유지">${esc(row.text)}</textarea>`:'<div class="caption-empty">삭제된 영상 구간 · 되살리면 자막도 복원됩니다</div>';
       html+='</div></section>';
     });
     body.innerHTML=html;body.scrollTop=scroll;
     body.querySelectorAll('.caption-check').forEach(el=>el.onchange=()=>{commit(false);const b=blocks[+el.dataset.checkBlock];b.indices.forEach(i=>{if(!ws[i].del){if(el.checked)checked.add(ws[i].id);else checked.delete(ws[i].id);}});syncChecks(body);});
     body.querySelectorAll('.caption-unmerge').forEach(el=>el.onclick=()=>{commit(false);SS.pushUndo();SS.state.words=SS.captionEdit.unmerge(SS.state.words,blocks[+el.dataset.unmerge].editorLine);needsRender=false;SS.renderTranscript();SS.updateTemplatePreview();});
-    body.querySelectorAll('.caption-fine').forEach(btn=>btn.onclick=()=>{commit(false);SS.openFineTuneBlock(btn.closest('.caption-block'));});
+    body.querySelectorAll('.caption-fine').forEach(btn=>{btn.setAttribute('aria-controls','trimPanel');btn.setAttribute('aria-pressed','false');btn.onclick=()=>{commit(false);SS.toggleFineTuneBlock(btn.closest('.caption-block'));};});
+    body.querySelectorAll('.caption-source').forEach(el=>el.addEventListener('mousedown',()=>rememberSource(el.closest('.caption-block'))));
+    body.querySelectorAll('.caption-delete').forEach(btn=>btn.onclick=()=>{
+      commit(false);const b=blocks[+btn.dataset.deleteBlock];if(!b)return;
+      SS.preview.pause();SS.pushUndo();b.indices.forEach(i=>{if(SS.state.words[i]){SS.state.words[i].del=true;checked.delete(SS.state.words[i].id);}});
+      if(SS.closeTrim)SS.closeTrim();needsRender=false;SS.state.selection=null;SS.state.caret=b.indices[0];SS.state.manualCaret=true;
+      SS.renderTranscript();SS.updateTemplatePreview();SS.pushUndo();body.focus({preventScroll:true});
+    });
     body.querySelectorAll('.gap-restore').forEach(btn=>btn.onmousedown=e=>{e.preventDefault();e.stopPropagation();commit(false);SS.restoreGap(+btn.dataset.gap);});
     body.querySelectorAll('.pause-chip').forEach(btn=>btn.onmousedown=e=>{e.preventDefault();e.stopPropagation();commit(false);SS.cutPause(+btn.dataset.cutgap);});
     body.querySelectorAll('.restore-run').forEach(btn=>btn.onmousedown=e=>{e.preventDefault();e.stopPropagation();commit(false);let i=+btn.dataset.runstart;while(ws[i]?.del)ws[i++].del=false;SS.renderTranscript();SS.updateTemplatePreview();});
@@ -160,6 +204,7 @@
       el.addEventListener('blur',()=>queueMicrotask(()=>{if(active?.el===el)commit();}));
       el.addEventListener('keydown',e=>{if(e.isComposing)return;
         if((e.ctrlKey||e.metaKey)&&!e.altKey&&['z','y'].includes(e.key.toLowerCase())&&!active?.dirty){e.preventDefault();commit(false);if(e.shiftKey||e.key.toLowerCase()==='y')SS.redo();else SS.undo();body.focus();e.stopPropagation();return;}
+        if(e.key==='Delete'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&el.selectionStart===el.value.length&&el.selectionEnd===el.value.length){e.preventDefault();mergeAtEnd(el,body);e.stopPropagation();return;}
         if(e.key==='Backspace'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&el.selectionStart===0&&el.selectionEnd===0){e.preventDefault();mergeAtStart(el,body);e.stopPropagation();return;}if(e.key==='Enter'&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();splitAtCaret(el,body);e.stopPropagation();return;}if(e.key==='Enter'){e.preventDefault();commit();body.focus();}else if(e.key==='Escape'){e.preventDefault();cancel();body.focus();}else if(e.key==='Tab'){e.preventDefault();const index=+el.dataset.captionEditor;commit();body.querySelector(`[data-caption-editor="${index+(e.shiftKey?-1:1)}"]`)?.focus();}e.stopPropagation();});
     });
     refreshCaret(body);syncChecks(body);

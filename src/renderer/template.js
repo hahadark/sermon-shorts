@@ -159,6 +159,10 @@
    * 글자 블록 그리기. 그린 영역 { top, bottom } 을 돌려준다.
    * opts: { groups, karaokeIndex, part: 'bg'(띠·상자만) | 'fg'(글자만) }
    */
+  // 미리보기 직접 편집용: 그린 개체의 영역을 모은다 (hitSink 가 있을 때만. 내보내기에서는 null)
+  let hitSink = null;
+  function addHit(key, rect, extra) { if (hitSink && rect) hitSink.push(Object.assign({ key: key }, rect, extra || {})); }
+
   function drawText(ctx, el, text, theme, opts) {
     if (text == null || text === '' || !el || !el.show) return null;
     const fx = SS.textfx;
@@ -173,6 +177,13 @@
     const align = el.align || 'center';
     const startX = (ln) => { const w = ln.w * ln.scale; return align === 'left' ? el.x : align === 'right' ? el.x - w : el.x - w / 2; };
     const top = firstY - el.size / 2, bottom = firstY + (n - 1) * lineH + el.size / 2;
+    const wMaxAll = Math.max(...L.lines.map((ln) => ln.w * ln.scale));
+    const left = align === 'left' ? el.x : align === 'right' ? el.x - wMaxAll : el.x - wMaxAll / 2;
+    if (doFg && opts && opts.key) {
+      const hx = el.box ? (el.box.padX != null ? el.box.padX : (el.box.padding != null ? el.box.padding : 10)) : 0;
+      const hy = el.box ? (el.box.padY != null ? el.box.padY : (el.box.padding != null ? el.box.padding : 10)) : 0;
+      addHit(opts.key, { x0: left - hx, y0: top - hy, x1: left + wMaxAll + hx, y1: bottom + hy }, opts.hit);
+    }
 
     // 띠 (화면 가로 전체)
     if (doBg && el.band) {
@@ -200,7 +211,7 @@
       }
     }
 
-    if (!doFg) { ctx.restore(); return { top, bottom }; }
+    if (!doFg) { ctx.restore(); return { top, bottom, left, right: left + wMaxAll }; }
     ctx.font = fontOf(el, theme);
     setSpacing(ctx, el);
     ctx.textAlign = 'left';
@@ -245,7 +256,7 @@
       });
     });
     ctx.restore();
-    return { top, bottom };
+    return { top, bottom, left, right: left + wMaxAll };
   }
 
   function drawBadge(ctx, b, vals, theme) {
@@ -259,6 +270,7 @@
     const bw = w + padX * 2, bh = b.size + padY * 2;
     const align = b.align || 'center';
     const x0 = align === 'left' ? b.x : align === 'right' ? b.x - bw : b.x - bw / 2;
+    addHit('badge', { x0: x0, y0: b.y - bh / 2, x1: x0 + bw, y1: b.y + bh / 2 });
     if (b.bg) { ctx.fillStyle = b.bg; roundRectPath(ctx, x0, b.y - bh / 2, bw, bh, b.radius != null ? b.radius : bh / 2); ctx.fill(); }
     ctx.fillStyle = b.color || '#FFFFFF';
     ctx.textAlign = 'left';
@@ -361,13 +373,13 @@
       // 띠·상자를 먼저 모두 그린 뒤 글자를 그린다 (제목을 구절 띠 위로 옮겨도 띠가 제목을 덮지 않게)
       if (titleText) drawText(ctx, t.title, titleText, t, { part: 'bg' });
       if (verse) drawText(ctx, t.verse, verse, t, { part: 'bg' });
-      if (titleText) drawText(ctx, t.title, titleText, t, { part: 'fg' });
-      if (verse) drawText(ctx, t.verse, verse, t, { part: 'fg' });
+      if (titleText) drawText(ctx, t.title, titleText, t, { part: 'fg', key: 'title' });
+      if (verse) drawText(ctx, t.verse, verse, t, { part: 'fg', key: 'verse' });
       drawBadge(ctx, t.badge, vals, t);
     }
 
     if (has('subtitle') && subtitleText && t.subtitle && t.subtitle.show) {
-      drawText(ctx, t.subtitle, subtitleText, t, { groups: params.subtitleGroups, karaokeIndex: params.karaokeIndex });
+      drawText(ctx, t.subtitle, subtitleText, t, { groups: params.subtitleGroups, karaokeIndex: params.karaokeIndex, key: 'subtitle' });
     }
 
     if (has('footer')) {
@@ -378,7 +390,7 @@
       const hasSpeaker = t.speaker.show && spkText;
 
       // 로고 + 교회 이름 + 설교자를 한 덩어리로 가운데 정렬
-      if (t.churchName.align === 'center' && t.speaker.align === 'center' && hasLogo) {
+      if (!t.logo.free && t.churchName.align === 'center' && t.speaker.align === 'center' && hasLogo) {
         const boxHeight = t.logo.height;
         const ratio = logoImg.naturalWidth / logoImg.naturalHeight;
         const crestW = boxHeight * ratio;
@@ -396,24 +408,28 @@
         const startX = Math.max(30, Math.min(1050 - totalW, t.logo.x - totalW / 2));
         const fy = t.logo.y;
         ctx.drawImage(logoImg, startX, fy, crestW, boxHeight);
+        addHit('logo', { x0: startX, y0: fy, x1: startX + crestW, y1: fy + boxHeight }, { mode: 'group' });
         const textCenterX = startX + crestW + gap + textBlockW / 2;
-        if (hasChurch) drawText(ctx, Object.assign({}, t.churchName, { x: textCenterX, y: fy + t.churchName.size / 2 + 5, maxLines: 1, wrap: false }), church, t);
-        if (hasSpeaker) drawText(ctx, Object.assign({}, t.speaker, { x: textCenterX, y: fy + boxHeight - t.speaker.size / 2, maxLines: 1, wrap: false }), spkText, t);
-      } else if (hasLogo && t.logo.inline) {
+        // 묶음 배치. 직접 편집에서 끌면 현재 좌표를 개별 값으로 굳히고(logo.free) 각 개체를 따로 옮긴다
+        if (hasChurch) drawText(ctx, Object.assign({}, t.churchName, { x: textCenterX, y: fy + t.churchName.size / 2 + 5, maxLines: 1, wrap: false }), church, t, { key: 'churchName', hit: { mode: 'group' } });
+        if (hasSpeaker) drawText(ctx, Object.assign({}, t.speaker, { x: textCenterX, y: fy + boxHeight - t.speaker.size / 2, maxLines: 1, wrap: false }), spkText, t, { key: 'speaker', hit: { mode: 'group' } });
+      } else if (!t.logo.free && hasLogo && t.logo.inline) {
         // 머리띠형: 로고(왼쪽 위 기준) 오른쪽에 교회 이름·설교자를 왼쪽 정렬로 붙인다 (로고가 넓어도 안 겹침)
         const h = t.logo.height, w = h * (logoImg.naturalWidth / logoImg.naturalHeight);
         ctx.drawImage(logoImg, t.logo.x, t.logo.y, w, h);
+        addHit('logo', { x0: t.logo.x, y0: t.logo.y, x1: t.logo.x + w, y1: t.logo.y + h }, { mode: 'inline' });
         const tx = t.logo.x + w + 18;
-        if (hasChurch) drawText(ctx, Object.assign({}, t.churchName, { align: 'left', x: tx, y: hasSpeaker ? t.logo.y + h * 0.3 : t.logo.y + h / 2, maxLines: 1, wrap: false }), church, t);
-        if (hasSpeaker) drawText(ctx, Object.assign({}, t.speaker, { align: 'left', x: tx, y: hasChurch ? t.logo.y + h * 0.76 : t.logo.y + h / 2, maxLines: 1, wrap: false }), spkText, t);
+        if (hasChurch) drawText(ctx, Object.assign({}, t.churchName, { align: 'left', x: tx, y: hasSpeaker ? t.logo.y + h * 0.3 : t.logo.y + h / 2, maxLines: 1, wrap: false }), church, t, { key: 'churchName', hit: { mode: 'inline' } });
+        if (hasSpeaker) drawText(ctx, Object.assign({}, t.speaker, { align: 'left', x: tx, y: hasChurch ? t.logo.y + h * 0.76 : t.logo.y + h / 2, maxLines: 1, wrap: false }), spkText, t, { key: 'speaker', hit: { mode: 'inline' } });
       } else {
         if (hasLogo) {
           const ratio = logoImg.naturalWidth / logoImg.naturalHeight;
           const w = t.logo.height * ratio;
           ctx.drawImage(logoImg, t.logo.x - w / 2, t.logo.y, w, t.logo.height);
+          addHit('logo', { x0: t.logo.x - w / 2, y0: t.logo.y, x1: t.logo.x + w / 2, y1: t.logo.y + t.logo.height });
         }
-        if (hasChurch) drawText(ctx, Object.assign({}, t.churchName, { maxLines: 1, wrap: false }), church, t);
-        if (hasSpeaker) drawText(ctx, Object.assign({}, t.speaker, { maxLines: 1, wrap: false }), spkText, t);
+        if (hasChurch) drawText(ctx, Object.assign({}, t.churchName, { maxLines: 1, wrap: false }), church, t, { key: 'churchName' });
+        if (hasSpeaker) drawText(ctx, Object.assign({}, t.speaker, { maxLines: 1, wrap: false }), spkText, t, { key: 'speaker' });
       }
       ctx.restore();
     }
@@ -603,7 +619,13 @@
       if (box) box.style.display = 'none';
     }
     if (SS.applyCrop) SS.applyCrop();
-    SS.drawTemplate(ctx, ['top', 'footer', 'subtitle'], params);
+    // 직접 편집 모드면 자막이 없는 장면에도 예시 자막을 보여 위치·크기를 조정할 수 있게 한다
+    if (SS.previewEdit && SS.previewEdit.active && !params.subtitleText) params.subtitleText = '자막 위치 예시';
+    const sink = [];
+    hitSink = sink;
+    try { SS.drawTemplate(ctx, ['top', 'footer', 'subtitle'], params); } finally { hitSink = null; }
+    SS.previewHits = sink;
+    window.dispatchEvent(new CustomEvent('ss:preview-drawn', { detail: { hits: sink } }));
   };
 
   // ---------------- 흐린 배경 미리보기 ----------------

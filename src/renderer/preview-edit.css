@@ -1,0 +1,24 @@
+/* 미리보기 직접 편집: 만나로풍 밝은 카드 (styles.css 의 색 변수 사용) */
+.pe-overlay { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; z-index: 20; pointer-events: none; touch-action: none; }
+.pe-overlay.on { pointer-events: auto; cursor: default; }
+.pe-box { position: absolute; box-sizing: border-box; border: 3px solid var(--primary, #2563eb); border-radius: 4px; background: rgba(37, 99, 235, .08); pointer-events: none; }
+.pe-box::after { content: attr(data-label); position: absolute; left: -2px; top: calc(-30px * var(--pe-s, 1)); padding: calc(3px * var(--pe-s, 1)) calc(10px * var(--pe-s, 1)); font: 600 calc(13px * var(--pe-s, 1)) var(--font, sans-serif); color: #fff; background: var(--primary, #2563eb); border-radius: calc(6px * var(--pe-s, 1)); white-space: nowrap; }
+.pe-guide { position: absolute; left: 539px; top: 0; width: 2px; height: 1920px; background: var(--primary, #2563eb); opacity: .55; pointer-events: none; }
+.pe-toggle.active { background: var(--primary-soft, #eaf1fe); border-color: var(--primary, #2563eb); color: var(--primary, #2563eb); }
+
+.pe-panel { flex: 0 0 auto; margin: 8px 0 0; padding: 10px 12px; background: var(--panel2, #f6f8fb); border: 1px solid var(--border, #e6ebf2); border-radius: var(--radius, 12px); color: var(--text, #0f172a); font-size: 13px; user-select: none; }
+.pe-panel[hidden] { display: none; }
+.pe-name { font-weight: 600; color: var(--text-2, #334155); }
+.pe-panel:not(.has-sel) .pe-grid, .pe-panel:not(.has-sel) .pe-hint { display: none; }
+.pe-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-top: 8px; }
+.pe-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.pe-row[hidden] { display: none; }
+.pe-row > span:first-child { flex: 0 0 34px; color: var(--muted, #64748b); }
+.pe-row-font, .pe-row-size { grid-column: 1 / -1; }
+.pe-panel select, .pe-panel input[type=number], .pe-panel input[type=text] { min-width: 0; height: 28px; padding: 0 8px; border: 1px solid var(--border-strong, #d5dde8); border-radius: var(--radius-sm, 10px); background: #fff; color: var(--text, #0f172a); font: inherit; user-select: text; }
+.pe-panel select { flex: 1; }
+.pe-panel input[type=number] { width: 64px; }
+.pe-panel input[type=range] { flex: 1; min-width: 0; accent-color: var(--primary, #2563eb); }
+.pe-panel input[type=color] { width: 36px; height: 28px; padding: 2px; border: 1px solid var(--border-strong, #d5dde8); border-radius: var(--radius-sm, 10px); background: #fff; }
+.pe-hex { width: 92px; font-family: ui-monospace, Consolas, monospace; }
+.pe-hint { margin-top: 8px; color: var(--muted, #64748b); font-size: 12px; line-height: 1.4; }

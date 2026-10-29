@@ -120,6 +120,7 @@
       let mode = 'editor';
       if (SS.state && SS.state.trimOpen) mode = 'trim';
       else if (SS.state && SS.state.dialogOpen) mode = 'dialog';
+      else if (SS.previewEdit && SS.previewEdit.active && !e.target?.closest?.('#transcriptBody')) mode = 'preview';
       // 지금 모드(예: 미세 조정 패널)의 단축키가 전역 단축키보다 먼저 (Space: 재생 → 패널 미리듣기)
       for (const want of [mode, 'global']) {
         for (let i = 0; i < this.bindings.length; i++) {
@@ -249,8 +250,8 @@
     keymap.setHandler('extend_sel_para_next', function() { SS.movePara(1, true); });
     keymap.setHandler('select_all', function() { SS.state.selAnchor = 0; SS.state.caret = SS.state.words.length; SS.state.selection = [0, SS.state.caret]; SS.renderTranscript(); });
     keymap.setHandler('find_bar', function() { if (SS.openFindBar) SS.openFindBar(); });
-    keymap.setHandler('delete_back', function() { SS.handleDelete(-1, false); });
-    keymap.setHandler('delete_fwd', function() { SS.handleDelete(1, false); });
+    keymap.setHandler('delete_back', function() { SS.handleDelete(-1, false, true); });
+    keymap.setHandler('delete_fwd', function(e) { SS.handleDelete(1, false, e && e.key === 'Delete'); });
     keymap.setHandler('delete_sent_back', function() { SS.handleDelete(-1, true); });
     keymap.setHandler('delete_sent_fwd', function() { SS.handleDelete(1, true); });
     keymap.setHandler('restore', function() { SS.handleRestore(); });

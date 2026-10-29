@@ -21,7 +21,7 @@
 
   function pushHistory() {
     SS.captionEdit.capture(SS.state.words);
-    const st = JSON.parse(JSON.stringify({ words: SS.state.words, overrides: SS.state.overrides, markI: SS.state.markI, markO: SS.state.markO, captionSettings: { maxLineChars: SS.state.settings.maxLineChars, splitLongWords: SS.state.settings.splitLongWords, semanticBreaks: SS.state.settings.semanticBreaks }, bgm: SS.state.bgm || null }));
+    const st = JSON.parse(JSON.stringify({ words: SS.state.words, overrides: SS.state.overrides, markI: SS.state.markI, markO: SS.state.markO, captionSettings: { maxLineChars: SS.state.settings.maxLineChars, splitLongWords: SS.state.settings.splitLongWords, semanticBreaks: SS.state.settings.semanticBreaks }, bgm: SS.state.bgm || null, activeTheme: SS.state.activeTheme || null }));
     if (historyIdx >= 0 && JSON.stringify(history[historyIdx]) === JSON.stringify(st)) return;
     history = history.slice(0, historyIdx + 1);
     history.push(st);
@@ -37,6 +37,8 @@
       SS.state.markI = history[historyIdx].markI; SS.state.markO = history[historyIdx].markO;
       if (history[historyIdx].captionSettings) Object.assign(SS.state.settings, history[historyIdx].captionSettings);
       if ('bgm' in history[historyIdx]) { SS.state.bgm = history[historyIdx].bgm ? JSON.parse(JSON.stringify(history[historyIdx].bgm)) : null; if (SS.bgmUi) { SS.bgmUi.render(); SS.bgmUi.drawWave(); } }
+      if ('activeTheme' in history[historyIdx] && history[historyIdx].activeTheme) SS.state.activeTheme = JSON.parse(JSON.stringify(history[historyIdx].activeTheme));
+      window.dispatchEvent(new Event('ss:theme-history'));
       SS.syncCaptionUI();
       renderTranscript(false); if (SS.updateTemplatePreview) SS.updateTemplatePreview(); if (trimState) { renderTrim(); trimHeader(); }
     }
@@ -50,6 +52,8 @@
       SS.state.markI = history[historyIdx].markI; SS.state.markO = history[historyIdx].markO;
       if (history[historyIdx].captionSettings) Object.assign(SS.state.settings, history[historyIdx].captionSettings);
       if ('bgm' in history[historyIdx]) { SS.state.bgm = history[historyIdx].bgm ? JSON.parse(JSON.stringify(history[historyIdx].bgm)) : null; if (SS.bgmUi) { SS.bgmUi.render(); SS.bgmUi.drawWave(); } }
+      if ('activeTheme' in history[historyIdx] && history[historyIdx].activeTheme) SS.state.activeTheme = JSON.parse(JSON.stringify(history[historyIdx].activeTheme));
+      window.dispatchEvent(new Event('ss:theme-history'));
       SS.syncCaptionUI();
       renderTranscript(false); if (SS.updateTemplatePreview) SS.updateTemplatePreview(); if (trimState) { renderTrim(); trimHeader(); }
     }
@@ -128,7 +132,7 @@
         <label class="ed-check" title="음성 인식(자막 만들기)이 끝나면 군말(음·어·아)과 0.3초 넘는 말 사이 공백을 바로 지웁니다. 지운 곳은 노란 표시로 보이고 누르면 되살립니다."><input type="checkbox" id="chkAutoTidy" checked> 음성 인식 뒤 군말·말 사이 공백 자동으로 지우기</label>
       </div>
     </div>
-    <div class="ed-hint">두 번 누르기: 시작·끝 미세 조정 · STT 원문: 단어 클릭 → Backspace 지우기 · 출력 자막: Enter 나누기 · 맨 앞 Backspace 합치기 · Ctrl+Z 취소 · F1 단축키</div>
+    <div class="ed-hint">두 번 누르기: 시작·끝 미세 조정 · STT 원문: 줄 맨 앞 Backspace / 맨 끝 Delete 합치기 · 출력 자막: Enter 나누기 · 체크 옆 휴지통: 구간 삭제 · Ctrl+Z 취소 · F1 단축키</div>
 
     <div id="transcriptBody">${emptyStateHtml()}</div>
     <div id="trimPanel" class="trim-panel" style="display:none;" role="region" aria-label="미세 조정">
@@ -246,9 +250,10 @@
 
 
 
-  SS.handleDelete = (dir, toSentence) => {
+  SS.handleDelete = (dir, toSentence, mergeBoundary = false) => {
     const ws = SS.state.words;
     if (ws.length === 0) return;
+    if (mergeBoundary && !toSentence && SS.mergeSourceAtBoundary && SS.mergeSourceAtBoundary(dir)) return;
 
     if (SS.state.selection && SS.state.selection[0] !== SS.state.selection[1]) {
        pushHistory();
@@ -639,6 +644,20 @@
   }
   SS.setFollowPlay = setFollow;
   SS.isFollowPlay = () => followPlay;
+  SS.focusPlaybackCaption = (time) => {
+    if (SS.state.trimOpen || SS.state.dialogOpen || !SS.state.words.length) return false;
+    const focused=document.activeElement;
+    if(focused && (focused.matches('input,textarea,select')||focused.isContentEditable)) return false;
+    const ws=SS.state.words;let i=ws.findIndex(w=>!w.del&&time>=w.start&&time<w.end);
+    if(i<0){let best=Infinity;ws.forEach((w,n)=>{if(w.del)return;const d=Math.min(Math.abs(time-w.start),Math.abs(time-w.end));if(d<best){best=d;i=n;}});}
+    if(i<0)return false;
+    if(SS.flushCaptionEdit)SS.flushCaptionEdit(false);
+    SS.state.caret=i;SS.state.selAnchor=i;SS.state.selection=null;SS.state.manualCaret=true;
+    createTranscriptDOMFull();setFollow(true);
+    const body=$('transcriptBody'),span=body.querySelector('span[data-wid="'+i+'"]');
+    if(span){if(SS.rememberSourceCaption)SS.rememberSourceCaption(span.closest('.caption-block'));span.closest('.caption-block').scrollIntoView({block:'center',behavior:'auto'});}
+    body.focus({preventScroll:true});return true;
+  };
   function userScrolled() { if (SS.preview && !SS.preview.paused && followPlay) setFollow(false); }
   const tbody = $('transcriptBody');
   tbody.addEventListener('wheel', userScrolled, { passive: true });
@@ -723,10 +742,11 @@
   function markFineBlock() {
     const body = $('transcriptBody');
     body.querySelectorAll('.caption-block.fine-active').forEach(el => el.classList.remove('fine-active'));
+    body.querySelectorAll('.caption-fine').forEach(btn=>{btn.setAttribute('aria-pressed','false');btn.title='시작·끝 미세 조정 열기 / 닫기';});
     if (!isRange()) return null;
     const i = trimState.idxB;
     const el = Array.from(body.querySelectorAll('.caption-block')).find(b => +b.dataset.from <= i && i < +b.dataset.to);
-    if (el) el.classList.add('fine-active');
+    if (el) { el.classList.add('fine-active'); const b=el.querySelector('.caption-fine');if(b){b.setAttribute('aria-pressed','true');b.title='미세 조정 닫기';} }
     return el;
   }
   SS.markFineBlock = markFineBlock;
@@ -741,7 +761,7 @@
     showPanel();
     trimState = { kind: 'cut', idxA, idxB, activeHandle: 'B' };
     trimBufA = null; trimBufB = null; trimPcmA = null; trimPcmB = null;
-    stopLoop(); markFineBlock(); await fetchTrimBuffers(); renderTrim(); trimHeader();
+    stopLoop(); markFineBlock(); if(await fetchTrimBuffers()){renderTrim();trimHeader();}
   }
   SS.openTrimPanel = openTrimPanel;
 
@@ -760,12 +780,19 @@
     trimBufA = null; trimBufB = null; trimPcmA = null; trimPcmB = null;
     stopLoop();
     markFineBlock(); ensureFineVisible();
-    await fetchTrimBuffers(); renderTrim(); trimHeader(); ensureFineVisible();
-    return true;
+    if(await fetchTrimBuffers()){renderTrim();trimHeader();ensureFineVisible();return true;}
+    return false;
   }
   SS.openFineTune = openFineTune;
   /** 자막 목록의 n번째 묶음(caption-block) 미세 조정 */
   SS.openFineTuneBlock = (el) => el ? openFineTune(+el.dataset.from, +el.dataset.to - 1) : false;
+  SS.toggleFineTuneBlock=(el)=>{
+    if(!el)return false;
+    let a=+el.dataset.from,b=+el.dataset.to-1;const ws=SS.state.words;
+    while(a<=b&&ws[a]?.del)a++;while(b>=a&&ws[b]?.del)b--;
+    if(trimState?.kind==='range'&&trimState.idxB===a&&trimState.idxA===b){closeTrimPanel();return false;}
+    return openFineTune(a,b);
+  };
 
   function closeTrimPanel() {
     $('trimPanel').style.display = 'none'; SS.state.trimOpen = false; trimState = null; stopLoop();
@@ -808,19 +835,19 @@
   $('btnTrimReset').addEventListener('click', () => SS.resetTrim());
 
   async function fetchTrimBuffers() {
-    if (!trimState) return;
-    const ws = SS.state.words, st = SS.state.settings;
-    if (isRange()) {
-      const a = trimState.idxB, b = trimState.idxA;
-      trimState.centerB = joinedBefore(a) ? boundary(a - 1, a) : Math.max(0, ws[a].start - st.padBefore);
-      trimState.centerA = joinedAfter(b) ? boundary(b, b + 1) : ws[b].end + st.padAfter;
-    } else {
-      trimState.centerA = ws[trimState.idxA].end + st.padAfter;
-      trimState.centerB = ws[trimState.idxB].start - st.padBefore;
-    }
-    trimBufA = await window.api.getPcm(SS.state.path, trimState.centerA - 2, trimState.centerA + 2, 48000);
-    trimBufB = await window.api.getPcm(SS.state.path, trimState.centerB - 2, trimState.centerB + 2, 48000);
-    trimPcmA = new Float32Array(trimBufA); trimPcmB = new Float32Array(trimBufB);
+    const current=trimState;if(!current)return false;
+    const ws=SS.state.words,st=SS.state.settings,path=SS.state.path;
+    if(!ws[current.idxA]||!ws[current.idxB])return false;
+    if(current.kind==='range'){
+      const a=current.idxB,b=current.idxA;
+      current.centerB=joinedBefore(a)?boundary(a-1,a):Math.max(0,ws[a].start-st.padBefore);
+      current.centerA=joinedAfter(b)?boundary(b,b+1):ws[b].end+st.padAfter;
+    }else{current.centerA=ws[current.idxA].end+st.padAfter;current.centerB=ws[current.idxB].start-st.padBefore;}
+    try{
+      const [a,b]=await Promise.all([window.api.getPcm(path,current.centerA-2,current.centerA+2,48000),window.api.getPcm(path,current.centerB-2,current.centerB+2,48000)]);
+      if(trimState!==current||SS.state.path!==path||SS.state.words!==ws)return false;
+      trimBufA=a;trimBufB=b;trimPcmA=new Float32Array(a);trimPcmB=new Float32Array(b);return true;
+    }catch(e){if(trimState===current&&SS.toast)SS.toast('미세 조정 소리를 읽지 못했습니다: '+e.message);return false;}
   }
   SS.getAEnd = () => (typeof SS.state.overrides['e:' + trimState.idxA] === 'number' ? SS.state.overrides['e:' + trimState.idxA] : trimState.centerA);
   SS.getBStart = () => (typeof SS.state.overrides['s:' + trimState.idxB] === 'number' ? SS.state.overrides['s:' + trimState.idxB] : trimState.centerB);
