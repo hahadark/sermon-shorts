@@ -74,6 +74,8 @@ contextBridge.exposeInMainWorld('api', {
   chatSend: (text) => ipcRenderer.invoke('chat:send', text),
   chatReset: () => ipcRenderer.invoke('chat:reset'),
   chatFetchClips: (url, spans) => ipcRenderer.invoke('chat:fetchClips', url, spans),
+  // 무음 구간 찾기: opts { start, end, minDur, noiseDb } → { noiseDb, meanDb, silences:[{start,end}] }
+  audioSilences: (file, opts) => ipcRenderer.invoke('audio:silences', file, opts),
   onChatDelta: (callback) => {
     const listener = (_event, d) => callback(d);
     ipcRenderer.on('chat:delta', listener);

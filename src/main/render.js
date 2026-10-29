@@ -11,6 +11,8 @@ function srtPathOf(outPath) { return String(outPath).replace(/\.mp4$/i, '') + '.
 
 function initRender() {
   ipcMain.handle('export:start', async (event, params) => runExport(event, params));
+  // 말 사이 공백 없애기: 실제 소리에서 무음 구간 찾기
+  ipcMain.handle('audio:silences', (_e, file, opts) => require('./silence').detectSilences(file, opts || {}));
   ipcMain.handle('fs:writeImage', (event, { dataUrl, filename }) => {
     fs.writeFileSync(guard.check(filename), String(dataUrl).replace(/^data:image\/png;base64,/, ''), 'base64');
     return true;

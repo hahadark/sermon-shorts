@@ -103,9 +103,12 @@
       '  "sermon": {"from": 설교 시작 단어번호, "to": 설교 끝 단어번호},',
       '  "segments": [ {"from": 첫 단어번호, "fromText": "첫 단어", "to": 끝 단어번호, "toText": "끝 단어"} ],',
       '  "corrections": [ {"id": 단어번호, "text": "바르게 고친 단어"} ],',
-      '  "tighten": "none | normal | strong (말 사이 공백을 얼마나 줄일지)"',
+      '  "tighten": "none | normal | strong (말 사이 공백을 얼마나 줄일지)",',
+      '  "candidates": [ {"title": "후보 제목", "from": 첫 단어번호, "fromText": "첫 단어", "to": 끝 단어번호, "toText": "끝 단어", "summary": "무슨 내용인지 한 문장", "why": "쇼츠로 좋은 까늭 한 문장"} ]',
       '}',
       'segments 는 남길 부분(포함 범위)을 시간 순서대로 적습니다. 바꿀 것이 없는 항목은 이전 답과 같게 둡니다.',
+      '사용자가 구간 추천을 부탁하면 candidates 에 서로 겹치지 않는 후보를 부탁한 개수만큼(보통 3개) 설교 안에서 골라 시간 순서대로 넣고, segments 는 빈 배열로 둡니다. 추천이 아닐 때는 candidates 를 쓰지 않습니다.',
+      '[편집 조건] 이 있으면 [편집 원칙] 보다 우선합니다.',
       'reply 는 교회 봉사자가 읽는 쉬운 우리말로 씁니다. tighten, segments 같은 항목 이름이나 영어 값은 쓰지 않습니다.',
       '사용자가 편집이 아닌 질문만 하면 segments 를 이전과 같게 두고 reply 로 답합니다.',
     ].filter(function (x) { return x !== ''; }).join('\n').replace(/\n\[/g, '\n\n[');
@@ -164,6 +167,7 @@
     obj.title = obj.title == null ? '' : String(obj.title);
     obj.verse = obj.verse == null ? '' : String(obj.verse);
     obj.tighten = ['none', 'normal', 'strong'].indexOf(obj.tighten) >= 0 ? obj.tighten : 'normal';
+    obj.candidates = Array.isArray(obj.candidates) ? obj.candidates.filter(function (c) { return c && typeof c === 'object'; }) : [];
     return obj;
   }
 
@@ -219,6 +223,127 @@
     return { ranges: merged, corrections: corrections, warnings: warnings };
   }
 
+  /** AI 가 추천한 후보 → 단어 범위·시각·길이·자막 미리보기 (최대 5개, 너무 짧은 것은 버림) */
+  function resolveCandidates(list, words) {
+    var n = words.length, out = [];
+    (Array.isArray(list) ? list : []).forEach(function (c) {
+      if (!c || out.length >= 5) return;
+      var f = Math.round(Number(c.from)), t = Math.round(Number(c.to));
+      if (!isFinite(f) || !isFinite(t)) return;
+      f = Math.max(0, Math.min(n - 1, f)); t = Math.max(0, Math.min(n - 1, t));
+      f = findNear(words, f, c.fromText, 1);
+      t = findNear(words, t, c.toText, -1);
+      if (t < f) { var x = f; f = t; t = x; }
+      if (t - f < 5) return;
+      var buf = [];
+      for (var k = f; k <= t; k++) buf.push(words[k].text);
+      var s = buf.join(' ');
+      out.push({
+        no: out.length + 1, title: String(c.title || '').trim(), summary: String(c.summary || '').trim(), why: String(c.why || '').trim(),
+        from: f, to: t, start: words[f].start, end: words[t].end, durationSec: words[t].end - words[f].start,
+        excerpt: s.length > 420 ? s.slice(0, 260) + ' … ' + s.slice(-140) : s
+      });
+    });
+    return out;
+  }
+
+  // ---------------- 편집 조건 버튼 ----------------
+  /** 길이 버튼 (초, 보이는 이름) */
+  var LENGTHS = [[60, '1분'], [90, '1분 30초'], [120, '2분'], [150, '2분 30초']];
+  /** 다듬기 버튼 (켜면 매번 지키는 조건) */
+  var STYLES = [
+    ['tight', '늘어지지 않게', '늘어지지 않게: 같은 내용을 되풀이하는 문장, 길게 늘어지는 예화·배경 설명, 곁가지 이야기는 빼고 핵심 메시지가 힘 있게 이어지게 고릅니다.'],
+    ['filler', '군말·반복 빼기', '군말 빼기: "그…", "어…", "음…"처럼 말을 끄는 소리, 더듬기, 같은 말 반복은 빼고 이어 붙입니다.'],
+    ['questions', '질문·대답 빼기', '질문 빼기: 회중에게 묻는 말과 그 대답, 물음표로 끝나는 문장은 뺍니다.'],
+    ['notices', '진행 안내 빼기', '진행 안내 빼기: 예배 진행 안내("이제 마무리하겠습니다", "성경 보시면" 등)는 뺍니다.'],
+    ['gaps', '공백 없애기', ''],
+    ['ending', '결론으로 끝내기', '끝맺음: 마지막은 힘 있는 결론이나 축복의 말로 끝나게 합니다.'],
+  ];
+  /** 끄면 AI 에게 따로 알려 줄 말 (기본 원칙을 풀어 주기) */
+  var STYLE_OFF = {
+    questions: '질문: 회중에게 묻는 말도 흐름에 필요하면 남겨도 됩니다.',
+    notices: '진행 안내: 흐름에 필요하면 남겨도 됩니다.',
+  };
+  /** 말 사이 공백을 줄이면 길이가 이만큼 줄어든다 (실제 편집에서 10~15%) */
+  var GAP_SHRINK = 0.88;
+
+  function fmtLen(sec) {
+    sec = Math.max(0, Math.round(sec));
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return (m ? m + '분' : '') + (s ? (m ? ' ' : '') + s + '초' : (m ? '' : '0초'));
+  }
+
+  /** '2분' → '2분으로', '1분 30초' → '1분 30초로' (받침이 있으면 '으로', ㄹ 받침은 '로') */
+  function withRo(word) {
+    var w = String(word || ''), c = w.charCodeAt(w.length - 1);
+    if (c >= 0xAC00 && c <= 0xD7A3) { var jong = (c - 0xAC00) % 28; return w + (jong && jong !== 8 ? '으로' : '로'); }
+    return w + '로';
+  }
+
+  /** 버튼으로 고른 조건 → AI 에게 줄 [편집 조건] 글 */
+  function buildConditions(prefs) {
+    prefs = prefs || {};
+    var out = [];
+    var L = Number(prefs.length);
+    if (L > 0) {
+      if (prefs.gaps) {
+        var raw = Math.round(L / GAP_SHRINK / 5) * 5;
+        out.push('길이: 남길 범위를 합쳐 약 ' + fmtLen(raw) + ' (' + fmtLen(raw - 10) + '~' + fmtLen(raw + 10) + '). 프로그램이 말 사이 공백을 줄이면 완성 길이가 약 ' + fmtLen(L) + '이 됩니다.');
+      } else {
+        out.push('길이: 남길 범위를 합쳐 약 ' + fmtLen(L) + ' (' + fmtLen(L - 10) + '~' + fmtLen(L + 10) + ').');
+      }
+    }
+    STYLES.forEach(function (st) {
+      if (prefs[st[0]]) { if (st[2]) out.push(st[2]); }
+      else if (STYLE_OFF[st[0]]) out.push(STYLE_OFF[st[0]]);
+    });
+    return out.length ? '[편집 조건] (아래 조건이 [편집 원칙]보다 우선합니다)\n- ' + out.join('\n- ') : '';
+  }
+
+  /** 조건 요약 (버튼 옆·말풍선에 보여 줄 짧은 글) */
+  function conditionsSummary(prefs) {
+    prefs = prefs || {};
+    var parts = [];
+    if (Number(prefs.length) > 0) parts.push(fmtLen(Number(prefs.length)));
+    STYLES.forEach(function (st) { if (prefs[st[0]]) parts.push(st[1]); });
+    return parts.join(' · ');
+  }
+
+  /**
+   * 버튼 하나 → AI 에게 보낼 요청. { label(말풍선에 보일 글), text(AI 에게 보낼 글) }
+   * key: recommend | make | pick | again | tight | filler | questions | notices | shorter | longer | ending | title | typos | length
+   * arg: pick 이면 후보 { no, from, to, title }, length 면 초
+   */
+  function actionRequest(key, prefs, arg) {
+    prefs = prefs || {};
+    var cond = buildConditions(prefs), sum = conditionsSummary(prefs);
+    var withCond = function (t) { return (cond ? cond + '\n\n' : '') + t; };
+    switch (key) {
+      case 'recommend': return { label: '구간 3곳 추천' + (sum ? ' (' + sum + ')' : ''), text: withCond('이 설교에서 쇼츠로 쓸 만한 구간 3곳을 추천해 줘. 후보끼리 겹치지 않게, 각 후보는 길이 조건보다 30초쯤 넉넉하게 잡아 줘(나중에 다듬을 거야). 아직 편집은 하지 마.') };
+      case 'again': return { label: '다른 구간 3곳 추천', text: withCond('지금 편집과 앞서 추천한 것과 다른 구간으로 쇼츠 후보 3곳을 추천해 줘. 아직 편집은 바꾸지 마.') };
+      case 'make': return { label: '바로 만들기' + (sum ? ' (' + sum + ')' : ''), text: withCond('설교의 결론과 삶의 적용을 중심으로 쇼츠를 만들어 줘.') };
+      case 'pick': {
+        var c = arg || {}, ttl = String(c.title || '').replace(/\s*\n\s*/g, ' ').trim();
+        return { label: c.no + '번 후보로 만들기' + (ttl ? ' 「' + ttl + '」' : ''), text: withCond(c.no + '번 후보(#' + c.from + '~#' + c.to + (ttl ? ', 「' + ttl + '」' : '') + ') 범위 안에서만 골라 쇼츠를 만들어 줘.') };
+      }
+      case 'length': {
+        var L = Number(arg) || Number(prefs.length) || 120;
+        var raw = prefs.gaps ? Math.round(L / GAP_SHRINK / 5) * 5 : L;
+        return { label: '길이를 ' + withRo(fmtLen(L)), text: '길이를 완성 약 ' + withRo(fmtLen(L)) + ' 맞춰 줘. 남길 범위를 합쳐 약 ' + fmtLen(raw) + '(' + fmtLen(raw - 10) + '~' + fmtLen(raw + 10) + ')가 되게, 흐름은 유지하고 덜 중요한 부분부터 빼거나 바로 앞뒤에서 더해 줘.' };
+      }
+      case 'tight': return { label: '늘어지지 않게', text: '늘어지지 않게 다시 다듬어 줘. 되풀이하는 말, 늘어지는 예화·설명, 곁가지를 빼서 핵심이 힘 있게 이어지게. 결론은 남겨 줘.' };
+      case 'filler': return { label: '군말·반복 빼기', text: '"그…", "어…", "음…" 같은 말 끄는 소리, 더듬기, 같은 말 반복을 남김없이 빼 줘. 빼고 나서도 문장이 자연스럽게 이어지게.' };
+      case 'questions': return { label: '질문·대답 빼기', text: '회중에게 묻는 말과 그 대답, 물음표로 끝나는 문장을 모두 빼 줘. 질문을 빼서 어색해진 대답 조각도 빼 줘.' };
+      case 'notices': return { label: '진행 안내 빼기', text: '예배 진행 안내 말("마무리하겠습니다", "성경 보시면" 등)을 빼 줘.' };
+      case 'shorter': return { label: '더 짧게', text: '20초쯤 더 짧게 줄여 줘. 덜 중요한 설명부터 빼고 결론은 남겨 줘.' };
+      case 'longer': return { label: '더 길게', text: '20초쯤 더 길게 해 줘. 바로 앞뒤에서 흐름에 필요한 말을 더해 줘.' };
+      case 'ending': return { label: '결론으로 끝내기', text: '마지막을 힘 있는 결론이나 축복의 말로 끝나게 해 줘.' };
+      case 'title': return { label: '제목 다시', text: '제목을 다시 지어 줘. 구간은 그대로 둡니다.' };
+      case 'typos': return { label: '자막 오타 고치기', text: '남긴 부분 자막에서 틀린 글자(교회 용어·고유명사·맞춤법)만 고쳐 줘. 구간은 그대로 둡니다.' };
+      default: return null;
+    }
+  }
+
   /** 남길 범위의 대략 길이(초) */
   function rangesDuration(ranges, words) {
     var sum = 0;
@@ -256,5 +381,7 @@
     wordsFromJson3: wordsFromJson3, transcriptText: transcriptText, buildSystemPrompt: buildSystemPrompt,
     buildUserMessage: buildUserMessage, parsePlan: parsePlan, resolvePlan: resolvePlan,
     rangesDuration: rangesDuration, describeRanges: describeRanges, fmtTime: fmtTime, RULES: RULES,
+    resolveCandidates: resolveCandidates, LENGTHS: LENGTHS, STYLES: STYLES, GAP_SHRINK: GAP_SHRINK, fmtLen: fmtLen,
+    buildConditions: buildConditions, conditionsSummary: conditionsSummary, actionRequest: actionRequest, withRo: withRo,
   };
 });

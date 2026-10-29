@@ -108,18 +108,30 @@ async function send(text, onDelta) {
     plan = chatPlan.parsePlan(fix.text);
   }
   const resolved = chatPlan.resolvePlan(plan, session.words);
+  // 구간 추천: 후보만 돌려주고 지금 편집은 그대로 둔다
+  const candidates = chatPlan.resolveCandidates(plan.candidates, session.words);
+  const recommend = candidates.length > 0; // 후보가 오면 추천으로 본다 (같이 온 segments 는 반영하지 않음)
+  if (candidates.length) session.candidates = candidates;
   if (!resolved.ranges.length && session.plan) resolved.ranges = session.plan.ranges; // 질문만 한 경우
   if (plan.sermon && isFinite(plan.sermon.from) && isFinite(plan.sermon.to)) {
     const n = session.words.length;
     const f = Math.max(0, Math.min(n - 1, Math.round(plan.sermon.from))), t = Math.max(0, Math.min(n - 1, Math.round(plan.sermon.to)));
     if (t > f) session.sermon = { from: f, to: t };
   }
-  session.plan = { title: plan.title || (session.plan && session.plan.title) || '', verse: plan.verse || (session.plan && session.plan.verse) || '', tighten: plan.tighten, ranges: resolved.ranges };
-  session.history.push({ role: 'user', content: text }, { role: 'assistant', content: JSON.stringify({ reply: plan.reply, title: session.plan.title, segments: chatPlan.describeRanges(resolved.ranges, session.words).map((r) => ({ from: r.from, to: r.to })) }) });
+  const prev = session.plan;
+  // 추천이면 지금 편집(구간·제목)은 그대로 둔다
+  session.plan = recommend
+    ? { title: (prev && prev.title) || '', verse: (prev && prev.verse) || plan.verse || '', tighten: prev ? prev.tighten : plan.tighten, ranges: prev ? prev.ranges : [] }
+    : { title: plan.title || (prev && prev.title) || '', verse: plan.verse || (prev && prev.verse) || '', tighten: plan.tighten, ranges: resolved.ranges };
+  const memo = { reply: plan.reply, title: session.plan.title, segments: chatPlan.describeRanges(session.plan.ranges, session.words).map((r) => ({ from: r.from, to: r.to })) };
+  if (candidates.length) memo.candidates = candidates.map((c) => ({ no: c.no, from: c.from, to: c.to, title: c.title }));
+  session.history.push({ role: 'user', content: text }, { role: 'assistant', content: JSON.stringify(memo) });
   return {
-    reply: plan.reply || '편집했습니다.',
-    title: session.plan.title, verse: session.plan.verse, tighten: plan.tighten,
-    ranges: resolved.ranges, corrections: resolved.corrections, warnings: resolved.warnings,
+    reply: plan.reply || (recommend ? '추천 구간입니다.' : '편집했습니다.'),
+    title: session.plan.title, verse: session.plan.verse, tighten: session.plan.tighten,
+    // 추천만 한 답이면 편집기에 다시 반영하지 않도록 빈 구간을 보낸다
+    ranges: recommend ? [] : resolved.ranges, corrections: recommend ? [] : resolved.corrections, warnings: resolved.warnings,
+    candidates: candidates.map((c) => ({ no: c.no, title: c.title, summary: c.summary, why: c.why, from: c.from, to: c.to, start: c.start, end: c.end, durationSec: c.durationSec, excerpt: c.excerpt })),
     questions: chatPlan.questionsIn(resolved.ranges, session.words),
     durationSec: chatPlan.rangesDuration(resolved.ranges, session.words),
     provider, ms: Date.now() - t0,
