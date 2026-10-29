@@ -27,6 +27,7 @@
     const d = b && dl[b.id];
     if (!d || d.state === 'done') { el.hidden = true; return; }
     el.hidden = false;
+    if (d.state === 'error' && b.id.startsWith('custom-')) { el.className = 'bgm-row bgm-dl err'; el.textContent = '직접 넣은 음악 파일이 없어졌습니다. [바꾸기]에서 음악을 다시 넣어 주세요. (이대로는 내보낼 때 음악을 섞지 못합니다)'; return; }
     if (d.state === 'error') { el.className = 'bgm-row bgm-dl err'; el.innerHTML = '음악 파일을 받지 못했습니다. 들어 보기는 되고, 내보낼 때 다시 받습니다. <a href="#" id="bgmDlRetry">다시 받기</a>'; $('bgmDlRetry').onclick = (e) => { e.preventDefault(); delete dl[b.id]; prefetch(b.id); }; return; }
     const pct = d.total ? Math.min(99, Math.floor((d.got / d.total) * 100)) : 0;
     el.className = 'bgm-row bgm-dl';
@@ -51,9 +52,17 @@
   function askCustom(id) {
     if (!id || !String(id).startsWith('custom-') || custom.has(id) || customAsked === id) return;
     customAsked = id;
-    api.bgmTrack(id).then((t) => { if (t) { custom.set(t.id, t); render(); drawWave(); } else { const n = $('bgmDl'); if (n) { n.hidden = false; n.className = 'bgm-row bgm-dl err'; n.textContent = '직접 넣은 음악 파일을 찾을 수 없습니다. [바꾸기]에서 음악을 다시 넣어 주세요.'; } } }).catch(() => {});
+    api.bgmTrack(id).then((t) => { if (t) { custom.set(t.id, t); render(); drawWave(); } else { lostId = id; render(); } }).catch(() => {});
   }
   const cur = () => (SS.state && SS.state.bgm ? SS.state.bgm : null);
+  let lostId = '';
+  /** 프로젝트가 가리키는 직접 넣은 음악이 이 컴퓨터에 없을 때(다른 PC·삭제) 안내 */
+  function lostNote(b) {
+    let n = $('bgmLost');
+    if (!n) { const host = $('bgmNone'); if (!host) return; n = document.createElement('div'); n.id = 'bgmLost'; n.className = 'bgm-row bgm-dl err'; host.appendChild(n); }
+    n.hidden = !b;
+    if (b) n.textContent = '이 프로젝트에 넣었던 음악(직접 넣은 파일)을 이 컴퓨터에서 찾을 수 없습니다. [음악 고르기]에서 다시 고르거나 파일을 다시 넣어 주세요. 그대로 두면 내보내기가 멈춥니다.';
+  }
   const outDur = () => (SS.getSegments ? SS.edl.segmentsDuration(SS.getSegments()) : 0);
   const planNow = () => { const b = cur(); return b ? B().plan(b, outDur()) : null; };
 
@@ -77,6 +86,7 @@
     const b = cur(), t = b && track(b.id);
     if (b && !t) askCustom(b.id);
     $('bgmNone').hidden = !!t; $('bgmOn').hidden = !t;
+    lostNote(b && !t && lostId === b.id ? b : null);
     $('tabMusic').classList.toggle('has', !!t);
     if (!t) return;
     prefetch(t.id); showDl();
@@ -106,6 +116,10 @@
 
   function change(patch, record) {
     const b = cur(); if (!b) return;
+    // 시작을 끝 뒤로·끝을 시작 앞으로 적으면 전체 구간으로 되돌아가 버리므로, 가까운 값(1초 간격)으로 맞춘다
+    patch = { ...patch };
+    if ('trackStart' in patch) patch.trackStart = Math.max(0, Math.min(patch.trackStart, b.trackEnd - 1));
+    if ('trackEnd' in patch) patch.trackEnd = Math.max(patch.trackEnd, b.trackStart + 1);
     SS.state.bgm = B().normalize({ ...b, ...patch, duration: (track(b.id) || {}).durationSec || b.duration });
     if (record !== false && SS.pushUndo) SS.pushUndo();
     render(); drawWave(); sync(true);
@@ -193,7 +207,11 @@
     else if (Math.abs(d) > 0.05) { const r = 1 - Math.sign(d) * Math.min(0.08, Math.max(0.02, Math.abs(d) * 0.2)); if (Math.abs(mix.playbackRate - r) > 0.005) { mix.playbackRate = r; syncStats.nudges++; } }
     else if (mix.playbackRate !== 1) mix.playbackRate = 1;
   }
+  let shownKey = '';
   (function loop() {
+    // 프로젝트 열기·되돌리기 등으로 곡·설정이 바뀌면 패널도 따라 바꾼다 (다른 코드가 SS.state.bgm 을 통째로 바꿔도 됨)
+    const cb = cur(), bk = cb ? [cb.id, cb.trackStart, cb.trackEnd, cb.align, cb.fadeIn, cb.fadeOut, cb.volume].join('|') : '';
+    if (bk !== shownKey && !drag) { shownKey = bk; render(); drawWave(); }
     sync(false);
     if (!$('bgmPane') || !$('bgmPane').hidden) { if (!mix.paused || !lib.paused) drawWave(); }
     requestAnimationFrame(loop);
@@ -295,7 +313,7 @@
   }
   const cleanErr = (e) => String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
   SS.bgmImport = { file: importFile, youtube: importYt, custom }; // 시험용
-  function closeLib() { const m = $('bgmLib'); if (m) m.hidden = true; stopLib(); if (SS.state) SS.state.dialogOpen = false; }
+  function closeLib() { const m = $('bgmLib'); const was = !!(m && !m.hidden); if (m) m.hidden = true; stopLib(); if (was && SS.state) SS.state.dialogOpen = false; }
   function renderLib() {
     const C = CAT();
     const mine = Array.from(custom.values()).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));

@@ -48,7 +48,7 @@
     $('expInfo').innerHTML = esc((Number.isFinite(dur) && dur > 0 ? '길이 ' + SS.fmtTime(dur).replace(/\.\d+$/, '') + ' · ' : '') + 'MP4' + (info.srtPath ? '와 자막(SRT)' : '') + '을 저장했습니다.') + ' <span class="exp-path">' + esc(outPath) + '</span>';
     const v = $('expVideo');
     v.src = (SS.toFileUrl ? SS.toFileUrl(outPath) : 'file:///' + String(outPath).replace(/\\/g, '/')) + '?t=' + Date.now();
-    wasDialog = !!(SS.state && SS.state.dialogOpen);
+    if (m.hidden) wasDialog = !!(SS.state && SS.state.dialogOpen); // 이미 열린 채 다시 열면(연속 내보내기) 처음 상태를 기억해 둔다
     if (SS.state) SS.state.dialogOpen = true;
     m.hidden = false;
     v.currentTime = 0;

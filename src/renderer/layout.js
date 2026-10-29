@@ -152,4 +152,21 @@
     for (const ev of ['ss:transcript-ready', 'ss:video-opened', 'ss:source-loaded', 'ss:words-changed']) window.addEventListener(ev, () => setTimeout(syncAiCorrect, 0));
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+  // ---------------- Esc 로 설정·AI 연결·시스템 점검·단축키 도움말·유튜브 가져오기·교인 자료 닫기 ----------------
+  // 이 화면들은 자체 Esc 처리가 없어 키보드로 닫을 수 없었다. 맨 위 화면의 닫기 단추를 눌러 원래 닫기 동작을 그대로 쓴다.
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('.menu.open')) return;
+    const list = Array.from(document.querySelectorAll('.settings-overlay, .syscheck-overlay, .ss-modal-overlay, #keyhelpModal, #mnStudio'))
+      .filter((o) => !o.classList.contains('hidden') && o.getBoundingClientRect().width > 0);
+    if (!list.length) return;
+    const z = (o) => (parseInt(getComputedStyle(o).zIndex, 10) || 0);
+    const top = list.reduce((a, b) => (z(b) >= z(a) ? b : a));
+    if (top.id === 'mnStudio' && top.contains(document.activeElement)) return; // 교인 자료 화면 안은 자체 Esc 처리
+    const btn = top.id === 'mnStudio' ? top.querySelector('#mnClose')
+      : top.classList.contains('ss-modal-overlay') && !top.classList.contains('ai-conn') ? Array.from(top.querySelectorAll('button')).find((b) => /취소|닫기/.test(b.textContent))
+      : top.querySelector('.modal-close, #aiClose');
+    if (!btn) return;
+    e.preventDefault(); e.stopPropagation();
+    btn.click();
+  }, true);
 })();

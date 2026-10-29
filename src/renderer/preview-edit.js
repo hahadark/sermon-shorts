@@ -178,12 +178,17 @@
 
   // ---------- 키보드 ----------
   function typing(t) { return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable); }
+  // 설정·AI 연결·테마 편집기·유튜브·교인 자료 같은 화면이 떠 있으면 Esc·화살표는 그 화면 것이다
+  function dialogShown() {
+    if (SS.dialogOpen) return true;
+    return Array.from(document.querySelectorAll('.modal-close, #themeEditor, .ss-modal-overlay, #mnStudio, .modal-overlay')).some((b) => !b.classList.contains('hidden') && b.getBoundingClientRect().width > 0 && !(b.hidden));
+  }
   function onKey(e) {
     if (!active) return;
     // 자막 원문 편집·구간 다듬기·대화상자에서는 원래 단축키를 그대로 둔다
     if (e.target && e.target.closest && e.target.closest('#transcriptBody')) return;
     if (SS.state && SS.state.trimOpen) return;
-    if (Array.from(document.querySelectorAll('.modal-close')).some((b) => b.offsetParent)) return;
+    if (dialogShown()) return;
     const inPanel = panel && panel.contains(e.target);
     if (e.key === 'Escape') {
       if (typing(e.target) && !inPanel) return;
@@ -317,6 +322,8 @@
     });
     window.addEventListener('ss:theme-history', () => { sess = false; clearTimeout(commitTimer); renderBox(); renderPanel(); });
     window.addEventListener('resize', renderBox);
+    // 속성 칸이 나타나거나 창 배치가 바뀌어 미리보기 크기가 달라지면 테두리 굵기·위치를 다시 맞춘다
+    if (window.ResizeObserver && inner.parentElement) new ResizeObserver(() => requestAnimationFrame(() => requestAnimationFrame(renderBox))).observe(inner.parentElement);
 
     buildPanel();
     const btn = $('btnEditTheme');

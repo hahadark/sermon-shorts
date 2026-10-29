@@ -62,7 +62,7 @@
       const srtPath=outPath.replace(/\.mp4$/i,'')+'.srt';
       await window.api.writeText(srtPath,SS.edl.toSRT(lines));
       return {...result,outPath,srtPath,duration:SS.edl.segmentsDuration(segments)};
-    } catch(e) { console.error('Export failed',e);return {success:false,error:e.message}; }
+    } catch(e) { console.error('Export failed',e);return {success:false,error:String(e&&e.message||e).replace(/^Error invoking remote method '[^']+': (Error: )?/,'')}; }
     finally { busy=false; if (SS.refreshExportUI) SS.refreshExportUI(); }
   };
   // 내보낸 뒤 유튜브 업로드: 로그인되어 있으면 [영상 만들면 바로 올리기]일 때 바로, 아니면 물어보고 올린다

@@ -191,6 +191,13 @@ async function runExport(event, params) {
   } else if (result.code !== 0) {
     console.error('ffmpeg 실패:', result.error);
   }
-  return result.code === 0 ? { success: true } : { success: false, error: result.error };
+  if (result.code === 0) return { success: true };
+  // ffmpeg 로그 전체 대신 끝부분만 (토스트에 길게 뜨지 않게)
+  const raw = String(result.error || '');
+  if (/Error opening output|No such file or directory/.test(raw) && /Error opening output/.test(raw)) return { success: false, error: '저장할 폴더를 찾을 수 없습니다. 폴더가 있는지 확인하고 다시 내보내 주세요.' };
+  if (/Permission denied|Access is denied/i.test(raw)) return { success: false, error: '이 위치에 저장할 수 없습니다. 같은 이름의 영상이 다른 프로그램(재생기 등)에서 열려 있거나 쓰기 권한이 없습니다. 닫거나 다른 이름·폴더로 저장해 주세요.' };
+  if (/No space left/i.test(raw)) return { success: false, error: '저장 공간이 부족합니다.' };
+  const tail = raw.split(/\r?\n/).filter((l) => l.trim()).slice(-4).join(' / ').slice(-400);
+  return { success: false, error: '영상 만들기에 실패했습니다. ' + tail };
 }
 module.exports = { initRender, buildExportArgs, blurBackgroundFilter, srtPathOf, defaultEncoder };

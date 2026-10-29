@@ -22,3 +22,7 @@
 .pe-panel input[type=color] { width: 36px; height: 28px; padding: 2px; border: 1px solid var(--border-strong, #d5dde8); border-radius: var(--radius-sm, 10px); background: #fff; }
 .pe-hex { width: 92px; font-family: ui-monospace, Consolas, monospace; }
 .pe-hint { margin-top: 8px; color: var(--muted, #64748b); font-size: 12px; line-height: 1.4; }
+
+/* 위치 줄은 칸 전체를 쓴다 (Y 네 자리 숫자가 잘리던 문제) */
+.pe-row-pos { grid-column: 1 / -1; }
+.pe-row-pos input[type=number] { flex: 1 1 0; width: auto; min-width: 56px; }

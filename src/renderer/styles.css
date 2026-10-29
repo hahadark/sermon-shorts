@@ -426,17 +426,17 @@ input[type=checkbox], input[type=range] { accent-color: var(--primary); }
   padding: 16px 18px 12px;
   position: relative;
 }
-.ed-head { display: flex; align-items: center; gap: 12px; min-height: 26px; }
-.ed-title { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 17px; letter-spacing: -.3px; color: var(--text); }
+.ed-head { display: flex; align-items: center; gap: 4px 12px; min-height: 26px; flex-wrap: wrap; }
+.ed-title { display: flex; align-items: center; gap: 8px; white-space: nowrap; flex: 0 0 auto; font-weight: 800; font-size: 17px; letter-spacing: -.3px; color: var(--text); }
 .ed-title .ico::before { color: var(--muted); }
 .ed-stats { font-weight: 500; font-size: 12px; color: var(--muted); margin-left: 4px; }
 .tidy-stat { color: var(--warn); font-weight: 700; }
-.ed-switch { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2); cursor: pointer; }
+.ed-switch { margin-left: auto; white-space: nowrap; display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2); cursor: pointer; }
 .ed-toolbar {
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   padding: 6px 8px; background: var(--panel2); border: 1px solid var(--border); border-radius: 14px;
 }
-.tb-group { display: flex; align-items: center; gap: 4px; padding-right: 6px; border-right: 1px solid var(--border); }
+.tb-group { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-right: 6px; border-right: 1px solid var(--border); }
 .tb-group:nth-last-of-type(1) { border-right: 0; }
 .tb-spacer { flex: 1 1 auto; }
 /* 선택한 것이 없으면 '선택 해제'·'선택 구간 삭제'는 숨긴다 (선택하면 나타남) */
@@ -681,3 +681,11 @@ input[type=checkbox], input[type=range] { accent-color: var(--primary); }
 .te-footer { gap: 8px !important; }
 /* 테마 편집기 안의 세이프 존·선택 표시·안내선 숨기기 (예전에는 숨김 규칙이 없어 늘 보였다) */
 #themeEditor .hidden { display: none !important; }
+
+/* ---- 작은 창(1100~1366px)에서 가운데 자막 칸이 찌그러지지 않게: 양옆 칸이 함께 줄어든다 ---- */
+#workspace > #leftCol { flex: 0 1 440px; width: auto; min-width: 360px; }
+#workspace > #chatCol { flex: 0 1 380px; width: auto; min-width: 280px; }
+#workspace > #rightCol { flex: 1 1 0; min-width: 300px; }
+/* 미리보기 편집 속성 칸 등으로 세로가 모자라면 미리보기를 작게 줄이는 대신 왼쪽 칸이 스크롤된다 */
+#leftCol { overflow-y: auto; overflow-x: hidden; }
+#stageWrap { min-height: 240px; }

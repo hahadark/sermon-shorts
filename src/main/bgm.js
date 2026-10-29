@@ -30,16 +30,23 @@ function customTrack(id) {
     license: e.kind === 'youtube' ? '유튜브에서 가져옴' : '내 파일', attribution: null, licenseQuote: '직접 넣은 음악입니다. 저작권은 직접 확인해 주세요.', contentIdRisk: 'unknown', addedAt: e.addedAt || 0 };
 }
 function listCustom() { return Object.keys(loadCustom()).map(customTrack).filter(Boolean).sort((a, b) => b.addedAt - a.addedAt); }
-function probeDuration(file) {
+function probeDuration(file) { return probeAudio(file).then((r) => r.duration); }
+/** 길이와 소리 줄기 여부 (영상만 있는 mp4 는 길이는 있어도 소리가 없다) */
+function probeAudio(file) {
   return new Promise((resolve) => {
-    const p = spawn(tools.ffprobe, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], { windowsHide: true });
+    const p = spawn(tools.ffprobe, ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_type:format=duration', '-of', 'json', file], { windowsHide: true });
     let out = ''; p.stdout.on('data', (d) => { out += d; });
-    p.on('error', () => resolve(0)); p.on('close', () => resolve(parseFloat(out) || 0));
+    const none = { duration: 0, hasAudio: false };
+    p.on('error', () => resolve(none));
+    p.on('close', () => { try { const j = JSON.parse(out); resolve({ duration: parseFloat(j.format && j.format.duration) || 0, hasAudio: !!(j.streams && j.streams.length) }); } catch (_) { resolve(none); } });
   });
 }
 async function addCustom(id, entry) {
-  const dur = await probeDuration(entry.file);
-  if (!(dur > 1)) { try { if (entry.file.startsWith(customDir())) fs.unlinkSync(entry.file); } catch (_) { /* */ } throw new Error('소리를 읽을 수 없는 파일입니다. mp3·m4a·wav 같은 음악 파일을 골라 주세요.'); }
+  const { duration: dur, hasAudio } = await probeAudio(entry.file);
+  if (!(dur > 1) || !hasAudio) {
+    try { if (entry.file.startsWith(customDir()) && !loadCustom()[id]) fs.unlinkSync(entry.file); } catch (_) { /* */ }
+    throw new Error(dur > 1 && !hasAudio ? '소리가 들어 있지 않은 파일입니다 (영상만 있음). 음악이 담긴 파일을 골라 주세요.' : (dur > 0 ? '너무 짧은 파일입니다 (1초 이하). 음악 파일을 골라 주세요.' : '소리를 읽을 수 없는 파일입니다. mp3·m4a·wav 같은 음악 파일을 골라 주세요.'));
+  }
   const m = loadCustom();
   m[id] = { ...entry, durationSec: Math.round(dur * 100) / 100, addedAt: Date.now() };
   saveCustom(m);
@@ -49,11 +56,12 @@ async function importFile(src) {
   src = String(src || '');
   const ext = (path.extname(src).slice(1) || '').toLowerCase();
   if (!AUDIO_EXT.includes(ext)) throw new Error('음악 파일(mp3·m4a·wav·ogg·flac 등)을 골라 주세요.');
-  const st = fs.statSync(src);
+  let st; try { st = fs.statSync(src); } catch (_) { throw new Error('파일을 찾을 수 없습니다. 이름이나 위치가 바뀌었는지 확인해 주세요.'); }
+  if (!st.isFile()) throw new Error('파일이 아니라 폴더입니다. 음악 파일을 골라 주세요.');
   if (st.size > 200 * 1024 * 1024) throw new Error('음악 파일이 너무 큽니다(200MB 넘음).');
   const hash = require('crypto').createHash('sha1').update(src + '|' + st.size + '|' + st.mtimeMs).digest('hex').slice(0, 12);
   const file = path.join(customDir(), 'f-' + hash + '.' + ext);
-  if (!fs.existsSync(file)) fs.copyFileSync(src, file);
+  if (!fs.existsSync(file)) { try { fs.copyFileSync(src, file); } catch (e) { throw new Error('음악 파일을 복사하지 못했습니다: ' + (e && e.code || e.message)); } }
   return addCustom('custom-f-' + hash, { kind: 'file', title: path.basename(src, path.extname(src)), artist: '내 파일', file, source: src });
 }
 async function importYoutube(url, onProgress) {
@@ -66,6 +74,7 @@ function removeCustom(id) {
   const m = loadCustom(); const e = m[id]; if (!e) return false;
   delete m[id]; saveCustom(m);
   try { if (e.file && e.file.startsWith(customDir())) fs.unlinkSync(e.file); } catch (_) { /* */ }
+  try { for (const f of fs.readdirSync(dir())) if (f.startsWith(id + '.peaks')) fs.unlinkSync(path.join(dir(), f)); } catch (_) { /* 파형 캐시 정리 */ }
   return true;
 }
 

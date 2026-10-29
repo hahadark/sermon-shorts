@@ -106,6 +106,20 @@ async function generate(type, options, ctx) {
   }
 }
 
+/** 파일 쓰기 실패(열려 있는 파일·권한)를 알아보기 쉬운 말로 */
+function writeFileFriendly(f, data) {
+  try { fs.writeFileSync(f, data); } catch (e) {
+    const why = e && e.code === 'EBUSY' || e && e.code === 'EPERM' || e && e.code === 'EACCES' ? '같은 이름의 파일이 다른 프로그램에서 열려 있거나 쓸 수 없는 위치입니다. 파일을 닫거나 다른 이름·폴더로 저장해 주세요.' : (e && e.code === 'ENOSPC' ? '저장 공간이 부족합니다.' : String(e && e.message || e));
+    throw new Error('저장하지 못했습니다. ' + why);
+  }
+}
+/** 이미 있는 파일을 덮어쓰지 않게 '이름 (2)' 로 */
+function freeBase(folder, base, count) {
+  const has = (b) => { for (let i = 1; i <= count; i++) if (fs.existsSync(path.join(folder, `${b}_${String(i).padStart(2, '0')}.png`))) return true; return false; };
+  if (!has(base)) return base;
+  for (let n = 2; n < 100; n++) if (!has(`${base} (${n})`)) return `${base} (${n})`;
+  return base + ' ' + Date.now();
+}
 function safeName(s) { return String(s || '자료').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60) || '자료'; }
 
 function initMaterials() {
@@ -127,6 +141,8 @@ function initMaterials() {
     if (/\.docx$/i.test(f)) text = docxText(buf);
     else {
       text = buf.toString('utf8').replace(/^\uFEFF/, '');
+      // 윈도우 메모장 옛 저장(ANSI=CP949) 한글 파일은 깨져 보이므로 한 번 더 시도
+      if (text.includes('\uFFFD')) { try { const alt = new TextDecoder('euc-kr').decode(buf); if ((alt.match(/\uFFFD/g) || []).length < (text.match(/\uFFFD/g) || []).length) text = alt; } catch (_) { /* */ } }
       if (/\.srt$/i.test(f)) text = text.replace(/^\d+\s*$/gm, '').replace(/^[\d:,]+\s*-->\s*[\d:,]+\s*$/gm, '').replace(/\n{2,}/g, '\n');
     }
     return { name: path.basename(f), text: text.trim().slice(0, 200000) };
@@ -136,7 +152,7 @@ function initMaterials() {
     const r = await dialog.showSaveDialog(w, { title: 'PDF 로 저장', defaultPath: safeName(name) + '.pdf', filters: [{ name: 'PDF', extensions: ['pdf'] }] });
     if (r.canceled || !r.filePath) return null;
     const pdf = await toPdf(String(body), String(css || ''));
-    fs.writeFileSync(r.filePath, pdf);
+    writeFileFriendly(r.filePath, pdf);
     return r.filePath;
   });
   ipcMain.handle('materials:print', async (_e, { body, css }) => {
@@ -156,11 +172,12 @@ function initMaterials() {
     const r = await dialog.showOpenDialog(w, { title: '카드 그림을 저장할 폴더', properties: ['openDirectory', 'createDirectory'] });
     if (r.canceled || !r.filePaths[0]) return null;
     const out = [];
+    name = freeBase(r.filePaths[0], safeName(name), items.length);
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       const png = await toPng(String(it.body), String(css || ''), it.width | 0 || 1080, it.height | 0 || 1350);
-      const f = path.join(r.filePaths[0], `${safeName(name)}_${String(i + 1).padStart(2, '0')}.png`);
-      fs.writeFileSync(f, png);
+      const f = path.join(r.filePaths[0], `${name}_${String(i + 1).padStart(2, '0')}.png`);
+      writeFileFriendly(f, png);
       out.push(f);
     }
     return { folder: r.filePaths[0], files: out };

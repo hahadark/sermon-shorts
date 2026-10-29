@@ -59,7 +59,7 @@ window.addEventListener('ss:run-test-script',async e=>{
      await SS.openFineTune(12,14);SS.updateTrimValue('B',SS.getBStart()+.04);SS.closeTrim();
      SS.undo();SS.redo();$('transcriptBody').focus();
      const ss=SS.getSegments(),a=ss[0],next=ss[1];
-     await SS.preview.seek(a.end-.25);await SS.preview.play();await sleep(650);
+     await SS.preview.seek(a.end-.25);await SS.preview.play();await sleep(650);for(let k=0;k<20&&(SS.preview.video.muted||SS.playback.isSkipping());k++)await sleep(50);
      check('복합 편집 뒤 재생 '+(cycle+1),!SS.preview.paused&&SS.preview.currentTime>=next.start-.05&&!SS.preview.video.muted,{time:SS.preview.currentTime,next:next.start,paused:SS.preview.paused});
      SS.preview.pause();
    }
