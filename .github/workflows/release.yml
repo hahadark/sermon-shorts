@@ -73,6 +73,10 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           path: out
@@ -80,18 +84,36 @@ jobs:
       - name: SHA256 목록
         working-directory: out
         run: sha256sum * | tee SHA256SUMS.txt
+      # 바뀐 점: 지난 릴리스 태그 이후 커밋 메시지에서 "- " 로 시작하는 줄을 모은다 (없으면 제목에서 "vX.Y.Z: " 를 뺀 것)
+      - name: 릴리스 설명 만들기
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          prev=$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || true)
+          range="${prev:+$prev..}$TAG"
+          notes="$RUNNER_TEMP/notes.md"
+          {
+            echo '## 바뀐 점'
+            for c in $(git rev-list --no-merges "$range"); do
+              items=$(git log -1 --format=%b "$c" | grep -E '^- ' || true)
+              if [ -n "$items" ]; then echo "$items"
+              else echo "- $(git log -1 --format=%s "$c" | sed -E 's/^v[0-9][^:]*: *//')"; fi
+            done
+            echo
+            echo '## 내려받기'
+            echo '- **Windows**: `SermonShorts-Setup-*-x64.exe` ← 보통 이것을 받으세요 · 압축 해제판 `*-win-x64.zip`'
+            echo
+            echo '이미 설치한 PC 는 프로그램을 열면 새 버전을 알아서 받아 설치합니다.'
+            echo '코드 서명이 없는 베타입니다. Windows는 SmartScreen에서 "추가 정보 → 실행"을 누르세요. Mac 판은 당분간 만들지 않습니다.'
+            echo '파일 확인용 해시는 `SHA256SUMS.txt`에 있습니다. 자세한 내용: [설치 안내](https://github.com/hahadark/sermon-shorts/blob/main/docs/INSTALL.md)'
+            if [ -n "$prev" ]; then echo; echo "**전체 변경 내역**: https://github.com/${{ github.repository }}/compare/$prev...$TAG"; fi
+          } > "$notes"
+          cat "$notes"
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           name: 설교쇼츠편집기 ${{ inputs.tag || github.ref_name }}
           prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
           overwrite_files: true
-          generate_release_notes: true
           files: out/*
-          body: |
-            ## 내려받기
-            - **Windows**: `SermonShorts-Setup-*-x64.exe` ← 보통 이것을 받으세요 · 압축 해제판 `*-win-x64.zip`
-
-            이미 설치한 PC 는 프로그램을 열면 새 버전을 알아서 받아 설치합니다.
-            코드 서명이 없는 베타입니다. Windows는 SmartScreen에서 "추가 정보 → 실행"을 누르세요. Mac 판은 당분간 만들지 않습니다.
-            파일 확인용 해시는 `SHA256SUMS.txt`에 있습니다. 자세한 내용: [설치 안내](https://github.com/hahadark/sermon-shorts/blob/main/docs/INSTALL.md)
+          body_path: ${{ runner.temp }}/notes.md
