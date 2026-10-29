@@ -32,6 +32,20 @@
   }
   SS.toast = toast;
 
+  // 창(모달) 바깥 어두운 곳을 누르면 닫는다: 그 창의 닫기·취소 버튼을 대신 눌러 각 창의 정리 코드가 돌게 한다.
+  // 닫기·취소 버튼이 없는 창(진행 중 표시 등)은 닫지 않는다. 창 안에서 끌다가 바깥에서 놓은 경우도 닫지 않는다.
+  const isBackdrop = (el) => !!(el && el.classList && (el.classList.contains('modal-overlay') || el.classList.contains('ss-modal-overlay')));
+  let backdropDown = null;
+  document.addEventListener('mousedown', (e) => { backdropDown = isBackdrop(e.target) ? e.target : null; }, true);
+  document.addEventListener('click', (e) => {
+    const overlay = e.target;
+    if (!isBackdrop(overlay) || overlay !== backdropDown) return;
+    backdropDown = null;
+    const btn = overlay.querySelector('.modal-close, #btnAiCancel, #aiClose, [data-act="close"], .ss-btn-cancel')
+      || [...overlay.querySelectorAll('button')].find((b) => /^(닫기|취소)$/.test(b.textContent.trim()));
+    if (btn && !btn.disabled) btn.click();
+  });
+
   // 테스트용: 창이 가려져 있으면 capturePage 가 이전 프레임을 줄 때가 있어 두 번 찍는다
   SS.testShot = async (p) => { await api.testScreenshot(p); await new Promise((r) => setTimeout(r, 400)); return api.testScreenshot(p); };
 

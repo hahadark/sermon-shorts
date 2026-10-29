@@ -19,6 +19,7 @@ const syscheck = require('./syscheck-logic');
 const guard = require('./fs-guard');
 const setup = require('./setup');
 const { initLlm } = require('./llm');
+const { initUpdater } = require('./updater');
 
 ai.setKeyProvider(() => {
   const k = getGeminiApiKey();
@@ -186,6 +187,7 @@ function registerIpc() {
   ipcMain.handle('sys:openLink', (_e, key) => setup.openLink(key));
   ipcMain.handle('sys:installEngine', (event, force) => setup.installEngine(!!force, setupProgress(event, 'python')));
   ipcMain.handle('sys:downloadModel', (event) => setup.downloadModel(setupProgress(event, 'model')));
+  ipcMain.handle('sys:installFfmpeg', (event) => setup.installFfmpeg(setupProgress(event, 'ffmpeg')));
   ipcMain.handle('sys:markSeen', () => { settingsMod.saveSettings({ sysCheckSeen: true }); return true; });
 
   // 테스트: 렌더러가 준비되면 창을 캡처하고 종료
@@ -257,10 +259,13 @@ app.whenReady().then(() => {
   initRender();
   initLlm();
   registerIpc();
+  initUpdater({ getWindow: () => mainWindow, log, disabled: !!SCREENSHOT });
   // yt-dlp: 처음이면 준비하고, 하루에 한 번 최신으로 (유튜브가 바뀌면 오래된 yt-dlp 는 403 으로 실패한다)
   const ytdlpManager = require('./ytdlp-manager');
   ytdlpManager.setLogger((m) => log(m));
   ytdlpManager.ensure().then((r) => log('yt-dlp', r.version, r.updated ? '(바뀜)' : '')).catch((e) => log('yt-dlp 준비 실패:', e.message));
+  // 빠진 ffmpeg 는 묻지 않고 받아 넣는다 (yt-dlp 는 위에서 같은 식으로 준비된다)
+  if (!SCREENSHOT) syscheck.autoInstallMissing((m) => log(m)).catch((e) => log('자동 설치 실패:', e.message));
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

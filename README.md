@@ -7,7 +7,7 @@
 "결론 위주로 2분 정도", "회중에게 묻는 말은 빼 줘"처럼 말로 부탁하면<br>
 교회 이름·설교자·성경 구절이 들어간 세로 영상(1080×1920)과 자막 파일이 나옵니다.
 
-[**⬇ 내려받기 (Windows · Mac)**](https://github.com/hahadark/sermon-shorts/releases/latest) · [사용 설명서](docs/USER_GUIDE.md) · [설치 안내](docs/INSTALL.md)
+[**⬇ 내려받기 (Windows)**](https://github.com/hahadark/sermon-shorts/releases/latest) · [사용 설명서](docs/USER_GUIDE.md) · [설치 안내](docs/INSTALL.md)
 
 </div>
 
@@ -19,15 +19,17 @@
 - [내려받기 페이지](https://github.com/hahadark/sermon-shorts/releases/latest)의 **Assets** 아래에서 `SermonShorts-Setup-버전-x64.exe`(Windows)를 눌러 받고 실행합니다.
 - 파란 경고창(PC 보호)이 나오면 **추가 정보 → 실행**을 누릅니다. (코드 서명이 없는 무료 프로그램이라 나오는 경고입니다)
 - 설치 끝에 *"자막 엔진도 설치할까요?"*가 나오면 **아니요**를 눌러도 됩니다.
-- Mac 은 `*-mac-arm64.zip`(Apple 칩) 또는 `*-mac-intel.zip` → [Mac 설치 안내](docs/INSTALL.md#mac-베타)
+- 한 번 설치하면 그다음부터는 프로그램이 새 버전을 알아서 받아 설치합니다.
+- Mac 판은 당분간 새로 만들지 않습니다. (예전 Mac 판: [Mac 설치 안내](docs/INSTALL.md#mac-베타))
 
-**2. AI 연결** — 프로그램을 처음 열면 [AI 연결] 창이 뜹니다. 셋 중 **하나만** 연결하세요.
+**2. AI 연결** — 프로그램을 처음 열면 [AI 연결] 창이 뜹니다. 넷 중 **하나만** 연결하세요.
 
 | 쓰고 있는 AI | 하는 방법 | 비용 |
 |---|---|---|
 | **챗GPT** (Plus·Go·Pro) | [ChatGPT로 계속하기] → 브라우저에서 로그인 → "요금제 사용" 허용 | 내 챗GPT 요금제 안에서 |
 | **클로드** (Pro 이상) | [Claude Code 설치] → [클로드 로그인] → [다시 확인] | 내 클로드 요금제 안에서 |
 | **제미나이** (구독 없어도 됨) | [키 발급 페이지 열기] → 구글 로그인 → Create API key → 복사해 붙여넣기 | 무료 사용량 안에서 무료 |
+| **오픈라우터** (구독 없어도 됨) | [키 발급 페이지 열기] → 가입·로그인 → Create API Key → 복사해 붙여넣기 | 무료 모델만 써서 무료 (하루 횟수 제한) |
 
 <img src="docs/images/12-ai-connect.png" width="560" alt="AI 연결 창">
 
@@ -149,7 +151,7 @@ npm run build:win  # bin/ffmpeg.exe, ffprobe.exe, yt-dlp.exe 준비 후 dist/ �
 npm run build:mac  # Mac용 ZIP (arm64·intel), ffmpeg·yt-dlp 자동 다운로드
 ```
 
-릴리스: `package.json`의 버전을 올리고 같은 이름의 태그(예: `v0.2.1`)를 푸시하면 GitHub Actions가 Windows·Mac에서 빌드해 [Releases](https://github.com/hahadark/sermon-shorts/releases)에 자동으로 올립니다.
+릴리스: `package.json`의 버전을 올리고 같은 이름의 태그(예: `v0.2.1`)를 푸시하면 GitHub Actions가 Windows에서 빌드해(Mac 빌드는 쉬는 중) [Releases](https://github.com/hahadark/sermon-shorts/releases)에 자동으로 올립니다.
 
 [설계](docs/ARCHITECTURE.md) · [편집 규칙](docs/EDITING.md) · [회귀 검증](docs/TESTING.md) · [서드파티 고지](docs/THIRD_PARTY_NOTICES.md)
 

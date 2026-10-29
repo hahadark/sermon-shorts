@@ -4,7 +4,7 @@ const { spawn, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const tools = require('./tools');
-const { ffmpeg, cacheDir, ensureDir, root, IS_WIN, EXE } = tools;
+const { cacheDir, ensureDir, root, IS_WIN, EXE } = tools;
 const ytdlpManager = require('./ytdlp-manager');
 
 /** yt-dlp 실패 → 알기 쉬운 한국어 오류 (원래 출력은 err.stderr 에 남긴다) */
@@ -199,7 +199,7 @@ async function downloadSection(url, start, end, options = {}, onProgress) {
       '--newline', '--no-playlist', '-N', '4',
       '-f', 'bv*[height<=1080][vcodec^=avc1]+ba[ext=m4a]/bv*[height<=1080]+ba/b',
       '--merge-output-format', 'mp4',
-      '--ffmpeg-location', path.dirname(ffmpeg),
+      '--ffmpeg-location', path.dirname(tools.ffmpeg),
       ...runtimeArgs(),
       '-o', path.join(targetDir, `${id}_full.%(ext)s`),
       '--', url

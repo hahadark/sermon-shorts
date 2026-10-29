@@ -1,10 +1,11 @@
 'use strict';
-// AI 연결(챗GPT·클로드·제미나이)과 대화형 편집 세션. 렌더러에는 토큰·키를 절대 보내지 않는다.
+// AI 연결(챗GPT·클로드·제미나이·오픈라우터)과 대화형 편집 세션. 렌더러에는 토큰·키를 절대 보내지 않는다.
 const { ipcMain, shell, app, safeStorage } = require('electron');
 const settingsMod = require('../settings');
 const youtube = require('../youtube');
 const claude = require('./claude');
 const gemini = require('./gemini');
+const openrouter = require('./openrouter');
 const chatPlan = require('../../shared/chat-plan');
 
 let chatgpt = null;
@@ -16,13 +17,14 @@ function getChatGPT() {
   return chatgpt;
 }
 
-const PROVIDERS = ['chatgpt', 'claude', 'gemini'];
+const PROVIDERS = ['chatgpt', 'claude', 'gemini', 'openrouter'];
 const LINKS = {
   chatgptUsage: 'https://chatgpt.com/settings/usage',
   chatgptPlans: 'https://chatgpt.com/pricing',
   claudePlans: 'https://claude.com/pricing',
   claudeSetup: 'https://code.claude.com/docs/en/setup',
   geminiKey: 'https://aistudio.google.com/apikey',
+  openrouterKey: 'https://openrouter.ai/settings/keys',
 };
 
 function activeProvider() {
@@ -41,6 +43,7 @@ async function statusAll() {
     chatgpt: gpt,
     claude: cl,
     gemini: { hasKey: !!(pub.hasApiKey || pub.hasEnvApiKey), suffix: pub.apiKeySuffix || '' },
+    openrouter: { hasKey: !!pub.hasOpenrouterKey, suffix: pub.openrouterKeySuffix || '', model: pub.openrouterModel || openrouter.DEFAULT_MODEL },
     platform: process.platform,
   };
 }
@@ -49,6 +52,7 @@ async function complete(provider, { system, messages, onDelta }) {
   if (provider === 'chatgpt') return getChatGPT().complete({ instructions: system, messages, onDelta });
   if (provider === 'claude') return claude.complete({ system, messages, model: 'sonnet' });
   if (provider === 'gemini') return gemini.complete({ system, messages });
+  if (provider === 'openrouter') return openrouter.complete({ system, messages, model: settingsMod.loadSettings().openrouterModel || undefined, keyProvider: settingsMod.getOpenrouterApiKey });
   throw Object.assign(new Error('AI 가 연결되어 있지 않습니다. [AI 연결]에서 하나를 골라 연결해 주세요.'), { code: 'no_provider' });
 }
 

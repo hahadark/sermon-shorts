@@ -27,8 +27,6 @@ function findTool(name) {
 
 const paths = {
   root: ROOT,
-  ffmpeg: findTool('ffmpeg'),
-  ffprobe: findTool('ffprobe'),
   dataRoot: DATA_ROOT,
   engineDir: path.join(DATA_ROOT, 'engine'),
   models: path.join(DATA_ROOT, 'engine', 'models'),
@@ -59,6 +57,19 @@ function ytdlpPath() {
 }
 paths.managedYtdlp = managedYtdlp;
 
+// ffmpeg·ffprobe: 점검 창에서 자동 설치한 것(데이터 폴더 bin/) → 설치본 bin/ → PATH 순서. 설치 직후에도 바로 쓰이게 매번 본다
+const managedBin = path.join(DATA_ROOT, 'bin');
+const found = {};
+function toolPath(name) {
+  const managed = path.join(managedBin, name + EXE);
+  if (fs.existsSync(managed)) return managed;
+  if (!found[name] || !fs.existsSync(found[name])) found[name] = findTool(name);
+  return found[name];
+}
+paths.managedBin = managedBin;
+
 module.exports = { ...paths, paths, ensureDir, cacheDir, IS_WIN, EXE, ytdlpPath };
-Object.defineProperty(module.exports, 'ytdlp', { get: ytdlpPath, enumerable: true });
-Object.defineProperty(paths, 'ytdlp', { get: ytdlpPath, enumerable: true });
+for (const [key, get] of [['ytdlp', ytdlpPath], ['ffmpeg', () => toolPath('ffmpeg')], ['ffprobe', () => toolPath('ffprobe')]]) {
+  Object.defineProperty(module.exports, key, { get, enumerable: true });
+  Object.defineProperty(paths, key, { get, enumerable: true });
+}

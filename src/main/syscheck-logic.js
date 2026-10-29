@@ -57,21 +57,24 @@ function clearableCacheDirs() {
 }
 
 async function checkFfmpeg() {
+  if (autoRunning) await autoRunning.catch(() => {}); // 시작할 때 자동으로 받는 중이면 끝난 뒤 본다
   const a = await run(tools.ffmpeg, ['-hide_banner', '-version']);
   const b = await run(tools.ffprobe, ['-hide_banner', '-version']);
   const ver = (a.stdout.match(/ffmpeg version (\S+)/) || [])[1];
   if (a.ok && b.ok) return { id: 'ffmpeg', name: 'ffmpeg / ffprobe', status: 'ok', value: ver || '설치됨' };
   const missing = [!a.ok && 'ffmpeg' + tools.EXE, !b.ok && 'ffprobe' + tools.EXE].filter(Boolean).join(', ');
   return { id: 'ffmpeg', name: 'ffmpeg / ffprobe', status: 'error', critical: true, value: missing + ' 없음',
-    hint: tools.IS_WIN ? 'bin 폴더에 ffmpeg.exe, ffprobe.exe를 넣으세요 (https://www.gyan.dev/ffmpeg/builds/ 의 release full 빌드).' : 'Homebrew로 설치하세요: brew install ffmpeg', actions: ['open:ffmpeg'] };
+    hint: tools.IS_WIN ? '[설치]를 누르면 공식 빌드(gyan.dev, 약 100MB)를 받아 넣습니다.' : 'Homebrew로 설치하세요: brew install ffmpeg', actions: tools.IS_WIN ? ['install-ffmpeg', 'open:ffmpeg'] : ['open:ffmpeg'] };
 }
 
 async function checkYtdlp() {
+  // 없으면 앱이 공식 최신판을 받아 넣는다 (시작할 때 이미 받는 중이면 끝날 때까지 기다린다)
+  await require('./ytdlp-manager').ready().catch(() => {});
   const r = await run(tools.ytdlp, ['--version']);
   if (r.ok) return { id: 'ytdlp', name: 'yt-dlp', status: 'ok', value: r.stdout.trim(), actions: ['update-ytdlp'],
     hint: '유튜브 가져오기가 갑자기 안 되면 [업데이트]를 누르세요.' };
   return { id: 'ytdlp', name: 'yt-dlp', status: 'error', critical: true, value: '없음',
-    hint: tools.IS_WIN ? 'bin 폴더에 yt-dlp.exe를 넣으세요 (https://github.com/yt-dlp/yt-dlp/releases).' : 'Homebrew로 설치하세요: brew install yt-dlp', actions: ['open:ytdlp'] };
+    hint: '[설치]를 누르면 공식 최신판(GitHub)을 받아 넣습니다.', actions: ['install-ytdlp', 'open:ytdlp'] };
 }
 
 function checkJsRuntime() {
@@ -169,6 +172,23 @@ async function checkSystem(settingsApi, opts = {}) {
   return { rows, critical: rows.some(r => r.critical && r.status === 'error'), root: tools.root };
 }
 
+/** 빠진 필수 도구(ffmpeg·yt-dlp)를 조용히 설치한다. 시작할 때 부른다. 엔진(3GB)은 묻고 설치하므로 여기서 하지 않는다 */
+let autoRunning = null;
+function autoInstallMissing(log = () => {}) {
+  if (!autoRunning) autoRunning = autoInstallOnce(log).finally(() => { autoRunning = null; });
+  return autoRunning;
+}
+async function autoInstallOnce(log) {
+  const done = [];
+  if (tools.IS_WIN && !(await run(tools.ffmpeg, ['-hide_banner', '-version'])).ok) {
+    log('ffmpeg 없음 → 자동 설치');
+    const r = await setup.installFfmpeg(() => {});
+    log(r.message);
+    if (r.ok) done.push('ffmpeg');
+  }
+  return done;
+}
+
 async function updateYtdlp() {
   try {
     const r = await require('./ytdlp-manager').ensure({ force: true, minGap: 0 });
@@ -205,4 +225,4 @@ function clearCache() {
   return { ok: true, removed: dirs.length, freed, message: fmtBytes(freed) + ' 정리됨' };
 }
 
-module.exports = { checkSystem, updateYtdlp, testYoutube, clearCache };
+module.exports = { checkSystem, updateYtdlp, testYoutube, clearCache, autoInstallMissing };

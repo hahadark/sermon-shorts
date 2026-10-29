@@ -1,5 +1,5 @@
 'use strict';
-// 시스템 점검 창의 설치 버튼: 자막 엔진 설치(setup_engine.ps1, Python 3.12가 없으면 함께 설치), Whisper 모델 받기, 안내 페이지 열기
+// 시스템 점검 창의 설치 버튼: ffmpeg 받기(Windows), 자막 엔진 설치(setup_engine.ps1, Python 3.12가 없으면 함께 설치), Whisper 모델 받기, 안내 페이지 열기
 const { execFile, spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -162,4 +162,70 @@ function downloadModel(onProgress) {
   });
 }
 
-module.exports = { LINKS, findPython312, openLink, installEngine, downloadModel };
+// Windows: gyan.dev 공식 빌드(essentials zip)에서 ffmpeg.exe·ffprobe.exe 만 꺼내 데이터 폴더 bin/ 에 둔다
+const FFMPEG_ZIP = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip';
+
+/** 내려받으면서 진행률 보고. onPct(0~100, 받은 MB) */
+async function downloadTo(url, dest, onPct) {
+  const res = await fetch(url, { redirect: 'follow' });
+  if (!res.ok || !res.body) throw new Error('내려받기 실패 (HTTP ' + res.status + ')');
+  const total = Number(res.headers.get('content-length')) || 0;
+  const out = fs.createWriteStream(dest);
+  let got = 0, last = 0;
+  try {
+    for await (const chunk of res.body) {
+      got += chunk.length;
+      if (!out.write(chunk)) await new Promise((r) => out.once('drain', r));
+      if (Date.now() - last > 500) { last = Date.now(); onPct(total ? Math.round(got / total * 100) : null, Math.round(got / 1048576)); }
+    }
+  } finally {
+    await new Promise((r) => out.end(r));
+  }
+  if (total && got < total) throw new Error('내려받다가 끊겼습니다');
+}
+
+function installFfmpeg(onProgress) {
+  return exclusive('ffmpeg', async () => {
+    if (!tools.IS_WIN) return { ok: false, message: 'Mac 은 터미널에서 brew install ffmpeg 로 설치하세요.' };
+    const bin = tools.managedBin;
+    fs.mkdirSync(bin, { recursive: true });
+    const work = path.join(tools.cache, 'ffmpeg-setup');
+    fs.rmSync(work, { recursive: true, force: true });
+    fs.mkdirSync(work, { recursive: true });
+    const zip = path.join(work, 'ffmpeg.zip');
+    try {
+      onProgress({ pct: 0, message: 'ffmpeg 받는 중 (약 100MB)' });
+      await downloadTo(FFMPEG_ZIP, zip, (pct, mb) => onProgress({ pct: pct == null ? undefined : Math.round(pct * 0.9), message: 'ffmpeg 받는 중… ' + mb + ' MB' }));
+      onProgress({ pct: 92, message: '압축 푸는 중' });
+      // Windows 10 이상에 들어 있는 tar.exe 는 zip 도 푼다
+      const tar = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
+      const r = await spawnLines(fs.existsSync(tar) ? tar : 'tar', ['-xf', zip, '-C', work], {}, () => {});
+      if (r.code !== 0) return { ok: false, message: '압축 풀기 실패: ' + (r.error || (r.tail || []).slice(-2).join(' ')) };
+      const pick = (name) => {
+        const stack = [work];
+        while (stack.length) {
+          const d = stack.pop();
+          for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+            const p = path.join(d, e.name);
+            if (e.isDirectory()) stack.push(p);
+            else if (e.name.toLowerCase() === name) return p;
+          }
+        }
+        return null;
+      };
+      for (const name of ['ffmpeg.exe', 'ffprobe.exe']) {
+        const src = pick(name);
+        if (!src) return { ok: false, message: '받은 파일에 ' + name + ' 이 없습니다' };
+        fs.copyFileSync(src, path.join(bin, name));
+      }
+      onProgress({ pct: 100, message: 'ffmpeg 설치 완료' });
+      return { ok: true, message: 'ffmpeg·ffprobe 를 설치했습니다' };
+    } catch (e) {
+      return { ok: false, message: 'ffmpeg 설치 실패: ' + e.message };
+    } finally {
+      fs.rmSync(work, { recursive: true, force: true });
+    }
+  });
+}
+
+module.exports = { LINKS, findPython312, openLink, installEngine, downloadModel, installFfmpeg };

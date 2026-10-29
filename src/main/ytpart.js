@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const yt = require('./youtube');
 const tools = require('./tools');
-const { ffmpeg, ensureDir, root } = tools;
+const { ensureDir, root } = tools;
 const ytdlpManager = require('./ytdlp-manager');
 
 const CACHE_ROOT = path.join(root, 'cache', 'yt');
@@ -189,7 +189,7 @@ async function downloadTrack(url, track, T0, T1, file, onBytes) {
 
 function runFfmpeg(args) {
   return new Promise((resolve, reject) => {
-    const proc = spawn(ffmpeg, ['-hide_banner', '-loglevel', 'error', ...args], { windowsHide: true });
+    const proc = spawn(tools.ffmpeg, ['-hide_banner', '-loglevel', 'error', ...args], { windowsHide: true });
     let err = '';
     proc.stderr.on('data', (d) => { err += d; });
     proc.on('error', reject);

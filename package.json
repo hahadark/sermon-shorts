@@ -1,7 +1,7 @@
 {
   "name": "sermonshorts",
   "productName": "SermonShorts",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "AI 와 대화하며 설교 영상을 쇼츠로 만드는 편집기",
   "main": "src/main/main.js",
   "private": true,
@@ -25,6 +25,11 @@
     "directories": {
       "output": "dist",
       "buildResources": "build"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "hahadark",
+      "repo": "sermon-shorts"
     },
     "files": [
       "src/**/*",
@@ -126,5 +131,8 @@
       "title": "설교쇼츠편집기 ${version}",
       "artifactName": "SermonShorts-${version}-mac-${arch}.${ext}"
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
   }
 }

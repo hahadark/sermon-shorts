@@ -1,4 +1,6 @@
-# v로 시작하는 태그(예: v0.2.1)를 푸시하면 Windows·Mac에서 빌드해 GitHub 릴리스에 올린다.
+# v로 시작하는 태그(예: v0.2.1)를 푸시하면 Windows 에서 빌드해 GitHub 릴리스에 올린다.
+# Mac 빌드는 당분간 쉰다 (다시 하려면 mac 작업을 되살리고 release 의 needs 에 넣는다).
+# latest.yml·blockmap 은 앱 자동 업데이트가 읽으므로 꼭 함께 올린다.
 # 수동 실행(workflow_dispatch)에서 tag를 넣으면 그 태그의 릴리스에 파일을 다시 올린다. 비우면 빌드만 시험한다.
 name: Release
 
@@ -62,30 +64,12 @@ jobs:
           path: |
             dist/*.exe
             dist/*.zip
-          if-no-files-found: error
-
-  mac:
-    needs: test
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - name: Mac ZIP 빌드 (arm64·intel, ad-hoc 서명)
-        run: bash scripts/build_mac.sh
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mac
-          path: dist/SermonShorts-*-mac-*.zip
+            dist/*.blockmap
+            dist/latest.yml
           if-no-files-found: error
 
   release:
-    needs: [windows, mac]
+    needs: [windows]
     if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
     runs-on: ubuntu-latest
     steps:
@@ -107,9 +91,7 @@ jobs:
           body: |
             ## 내려받기
             - **Windows**: `SermonShorts-Setup-*-x64.exe` ← 보통 이것을 받으세요 · 압축 해제판 `*-win-x64.zip`
-            - **Mac (Apple 칩)**: `*-mac-arm64.zip`
-            - **Mac (Intel)**: `*-mac-intel.zip`
 
-            코드 서명이 없는 베타입니다. Windows는 SmartScreen에서 "추가 정보 → 실행",
-            Mac은 처음 열기 전에 터미널에서 `xattr -cr /Applications/SermonShorts.app`을 실행하세요.
+            이미 설치한 PC 는 프로그램을 열면 새 버전을 알아서 받아 설치합니다.
+            코드 서명이 없는 베타입니다. Windows는 SmartScreen에서 "추가 정보 → 실행"을 누르세요. Mac 판은 당분간 만들지 않습니다.
             파일 확인용 해시는 `SHA256SUMS.txt`에 있습니다. 자세한 내용: [설치 안내](https://github.com/hahadark/sermon-shorts/blob/main/docs/INSTALL.md)

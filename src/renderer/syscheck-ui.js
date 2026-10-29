@@ -24,6 +24,8 @@
     'install-engine': '엔진 설치',
     'reinstall-engine': '엔진 다시 설치',
     'download-model': '지금 받기',
+    'install-ffmpeg': '설치',
+    'install-ytdlp': '설치',
     'open:python': '다운로드 페이지',
     'open:ffmpeg': '다운로드 페이지',
     'open:ytdlp': '다운로드 페이지',
@@ -34,7 +36,12 @@
     'install-engine': { confirm: '자막 엔진을 설치할까요?\nPython 3.12가 없으면 함께 설치하고, PyTorch와 음성 인식 라이브러리 약 3GB를 내려받습니다. 10분 이상 걸릴 수 있으며, 끝날 때까지 앱을 닫지 마세요.', busy: '자막 엔진 설치 준비 중...', run: () => api.sysInstallEngine(false) },
     'reinstall-engine': { confirm: '기존 엔진을 지우고 다시 설치할까요?\nPyTorch와 음성 인식 라이브러리 약 3GB를 다시 내려받습니다. 10분 이상 걸릴 수 있습니다.', busy: '자막 엔진 다시 설치 준비 중...', run: () => api.sysInstallEngine(true) },
     'download-model': { confirm: 'Whisper 모델을 지금 받을까요? (GPU: large-v3 약 3GB, CPU: medium 약 1.5GB)', busy: 'Whisper 모델 받기 준비 중...', run: () => api.sysDownloadModel() },
+    'install-ffmpeg': { busy: 'ffmpeg 받는 중...', run: () => api.sysInstallFfmpeg() },
+    'install-ytdlp': { busy: 'yt-dlp 받는 중...', run: () => api.sysUpdateYtdlp() },
   };
+  // [필요한 것 모두 설치] 순서와 크기 안내 (작은 것부터)
+  const ALL_ORDER = [['install-ffmpeg', 'ffmpeg (약 100MB)'], ['install-ytdlp', 'yt-dlp (약 20MB)'], ['install-engine', '자막 엔진 (약 3GB, 10분 이상)'], ['reinstall-engine', '자막 엔진 다시 설치 (약 3GB)'], ['download-model', 'Whisper 모델 (1.5~3GB)']];
+  let lastRows = [];
   // 설치 진행 상황 (점검 창을 닫았다 열어도 다시 보이게 행 id별로 보관)
   const setupStatus = {};
   let installing = false;
@@ -66,6 +73,7 @@
         <div class="syscheck-sub">이 PC에서 설교쇼츠편집기에 필요한 도구를 확인합니다.</div>
         <div class="syscheck-list"><div class="syscheck-loading">점검 중...</div></div>
         <div class="modal-footer">
+          <button class="btn" data-act="install-all" disabled>필요한 것 모두 설치</button>
           <button class="btn" data-act="refresh">다시 점검</button>
           <button class="btn primary" data-act="close">닫기</button>
         </div>
@@ -74,7 +82,7 @@
     overlay.querySelector('.modal-close').onclick = close;
     overlay.querySelector('[data-act="close"]').onclick = close;
     overlay.querySelector('[data-act="refresh"]').onclick = refresh;
-    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-act="install-all"]').onclick = installAll;
     await refresh();
     if (api.sysMarkSeen) api.sysMarkSeen();
   }
@@ -91,6 +99,9 @@
       return;
     }
     if (!overlay) return;
+    lastRows = res.rows;
+    const allBtn = overlay.querySelector('[data-act="install-all"]');
+    if (allBtn) allBtn.disabled = installing || !pendingInstalls().length;
     list.innerHTML = res.rows.map((r) => `
       <div class="syscheck-item ${r.status}" data-id="${r.id}">
         <div class="syscheck-main">
@@ -157,10 +168,38 @@
     }
   }
 
-  async function runInstall(btn, act) {
+  /** 지금 점검 결과에서 설치할 수 있는 것들 [{ id, act, label }] */
+  function pendingInstalls() {
+    const out = [];
+    for (const r of lastRows) {
+      const hit = ALL_ORDER.find(([a]) => (r.actions || []).includes(a));
+      if (hit && r.status !== 'ok') out.push({ id: r.id, act: hit[0], label: hit[1] });
+    }
+    return out.sort((a, b) => ALL_ORDER.findIndex(([x]) => x === a.act) - ALL_ORDER.findIndex(([x]) => x === b.act));
+  }
+
+  async function installAll() {
+    if (installing) return;
+    let todo = pendingInstalls();
+    if (!todo.length) return;
+    if (!confirm('다음을 차례로 설치합니다. 끝날 때까지 앱을 닫지 마세요.\n\n' + todo.map((t) => '· ' + t.label).join('\n'))) return;
+    const allBtn = overlay && overlay.querySelector('[data-act="install-all"]');
+    if (allBtn) allBtn.disabled = true;
+    while (todo.length && overlay) {
+      const t = todo.shift();
+      const btn = overlay.querySelector(`.syscheck-item[data-id="${t.id}"] button[data-action="${t.act}"]`);
+      if (!btn) continue;
+      const r = await runInstall(btn, t.act, true);
+      if (!r || !r.ok) break;
+      // 엔진을 깐 뒤에야 모델 받기가 생기므로 점검 결과로 다시 고른다
+      todo = pendingInstalls().filter((x) => x.act !== t.act);
+    }
+  }
+
+  async function runInstall(btn, act, skipConfirm) {
     const job = INSTALL[act];
     if (installing) return;
-    if (!confirm(job.confirm)) return;
+    if (!skipConfirm && job.confirm && !confirm(job.confirm)) return;
     const id = btn.closest('.syscheck-item').dataset.id;
     installing = true;
     overlay.querySelectorAll('button[data-action]').forEach((b) => { if (INSTALL[b.dataset.action]) b.disabled = true; });
@@ -171,10 +210,11 @@
     installing = false;
     delete setupStatus[id];
     if (r && r.ok && SS.toast) SS.toast(r.message, 6000);
-    if (!overlay) { if (r && !r.ok && SS.toast) SS.toast(r.message, 8000); return; }
+    if (!overlay) { if (r && !r.ok && SS.toast) SS.toast(r.message, 8000); return r; }
     await refresh();
     const box = overlay && overlay.querySelector(`.syscheck-item[data-id="${id}"] .result`);
     if (box) { box.className = 'result ' + (r && r.ok ? 'ok' : 'error'); box.textContent = (r && r.message) || ''; }
+    return r;
   }
 
   SS.openSysCheck = open;

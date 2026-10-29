@@ -1,11 +1,11 @@
-// 대화형 AI 편집 패널 + AI 연결(챗GPT·클로드·제미나이) 안내 창
+// 대화형 AI 편집 패널 + AI 연결(챗GPT·클로드·제미나이·오픈라우터) 안내 창
 (function () {
   'use strict';
   const SS = window.SS = window.SS || {};
   const api = window.api;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const NAMES = { chatgpt: '챗GPT', claude: '클로드', gemini: '제미나이' };
+  const NAMES = { chatgpt: '챗GPT', claude: '클로드', gemini: '제미나이', openrouter: '오픈라우터' };
 
   let status = null;           // llm 상태
   let video = null;            // { url, title, duration, words:[{text,start,end}] }
@@ -110,7 +110,7 @@
     const box = document.createElement('div');
     box.className = 'chat-start';
     box.innerHTML = `
-      <p><b>1.</b> 오른쪽 위 <b>AI 연결</b>에서 챗GPT·클로드·제미나이 중 하나를 연결합니다. (처음 한 번)</p>
+      <p><b>1.</b> 오른쪽 위 <b>AI 연결</b>에서 챗GPT·클로드·제미나이·오픈라우터 중 하나를 연결합니다. (처음 한 번)</p>
       <p><b>2.</b> 유튜브에 올린 <b>설교 영상 주소</b>를 넣고 [불러오기]를 누릅니다.</p>
       <p><b>3.</b> "결론 위주로 2분 정도"처럼 말로 부탁하고, 화면에서 재생해 보며 계속 고쳐 달라고 하면 됩니다.</p>
       <input id="chatUrl" class="chat-input" placeholder="https://youtube.com/live/... 또는 https://youtu.be/...">
@@ -280,6 +280,7 @@
     if (name === 'chatgpt') return !!(status.chatgpt && status.chatgpt.connected && status.chatgpt.planEnabled);
     if (name === 'claude') return !!(status.claude && status.claude.loggedIn);
     if (name === 'gemini') return !!(status.gemini && status.gemini.hasKey);
+    if (name === 'openrouter') return !!(status.openrouter && status.openrouter.hasKey);
     return false;
   }
 
@@ -300,12 +301,12 @@
   async function renderCards() {
     await refreshStatus();
     const box = $('aiCards'); if (!box) return;
-    const s = status || { chatgpt: {}, claude: {}, gemini: {} };
+    const s = status || { chatgpt: {}, claude: {}, gemini: {}, openrouter: {} };
     const act = s.active;
-    const g = s.chatgpt || {}, c = s.claude || {}, m = s.gemini || {};
+    const g = s.chatgpt || {}, c = s.claude || {}, m = s.gemini || {}, o = s.openrouter || {};
     const useBtn = (name) => isReady(name) ? (act === name ? `<span class="state ok">대화에 사용 중</span>` : `<button class="btn primary" data-use="${name}">이 AI 로 대화하기</button>`) : '';
     box.innerHTML = `
-      <p style="color:#aaa;font-size:13px;margin:0 0 12px">셋 중 <b>하나만</b> 연결하면 됩니다. 이미 쓰고 있는 AI 가 있다면 그것을 고르세요.</p>
+      <p style="color:#aaa;font-size:13px;margin:0 0 12px">넷 중 <b>하나만</b> 연결하면 됩니다. 이미 쓰고 있는 AI 가 있다면 그것을 고르세요.</p>
       <div class="ai-card ${act === 'chatgpt' ? 'active' : ''}">
         <h3>챗GPT <span class="state ${g.connected && g.planEnabled ? 'ok' : ''}">${g.connected ? (g.planEnabled ? '연결됨 · ' + esc(g.email || '') : '요금제 사용 허용 필요') : '연결 안 됨'}</span></h3>
         <p>챗GPT 계정으로 로그인합니다. <b>Plus·Go·Pro 요금제</b>가 있으면 그 사용량 안에서 쓰고, 따로 돈이 들지 않습니다.</p>
@@ -333,6 +334,14 @@
         <div class="row"><button class="btn" data-link="geminiKey">키 발급 페이지 열기</button>
           <input type="password" id="geminiKey" class="chat-input" placeholder="복사한 API 키 전체를 붙여 넣으세요"><button class="btn primary" data-act="gmSave">저장</button>${useBtn('gemini')}</div>
         <p class="note">키는 이 컴퓨터에 암호화되어 저장됩니다. 무료 사용량을 넘으면 잠시 쉬었다가 다시 쓰면 됩니다.</p>
+      </div>
+      <div class="ai-card ${act === 'openrouter' ? 'active' : ''}">
+        <h3>오픈라우터 <span class="state ${o.hasKey ? 'ok' : ''}">${o.hasKey ? '키 저장됨 (…' + esc(o.suffix) + ')' : '키 필요'}</span></h3>
+        <p>openrouter.ai 의 <b>무료 모델</b>을 씁니다. 결제 정보 없이 가입만 하면 됩니다. 그때 쓸 수 있는 무료 모델을 오픈라우터가 골라 주고, 붐비면 다른 무료 모델로 바꿔 다시 해 봅니다.</p>
+        <ol><li>[키 발급 페이지 열기] → 구글 계정 등으로 가입·로그인합니다.</li><li><b>Create API Key</b>(키 만들기)를 눌러 나온 키(sk-or-…)를 복사합니다.</li><li>아래 칸에 붙여 넣고 [저장]을 누릅니다.</li></ol>
+        <div class="row"><button class="btn" data-link="openrouterKey">키 발급 페이지 열기</button>
+          <input type="password" id="openrouterKey" class="chat-input" placeholder="sk-or- 로 시작하는 키를 붙여 넣으세요"><button class="btn primary" data-act="orSave">저장</button>${useBtn('openrouter')}</div>
+        <p class="note">무료 모델은 하루 쓸 수 있는 횟수가 정해져 있고, 다른 AI 보다 편집 품질이 들쭉날쭉할 수 있습니다. 대화 내용이 무료 모델 제공 회사의 학습에 쓰일 수 있습니다.</p>
       </div>
       <div id="aiConnMsg" class="note" style="min-height:18px"></div>`;
     box.querySelectorAll('[data-use]').forEach((b) => b.addEventListener('click', async () => { await api.llmSetActive(b.dataset.use); await renderCards(); }));
@@ -364,12 +373,20 @@
         const t = await api.llmTest('gemini').catch((e) => ({ ok: false, text: cleanErr(e) }));
         msg(t.ok ? '제미나이가 연결되었습니다.' : '키를 저장했지만 연결 확인에 실패했습니다: ' + t.text);
         if (t.ok) await api.llmSetActive('gemini');
+      } else if (what === 'orSave') {
+        const k = ($('openrouterKey').value || '').trim();
+        if (!k || /\s/.test(k) || k.length < 20) { msg('키가 너무 짧거나 띄어쓰기가 들어 있습니다. 복사한 키 전체를 그대로 붙여 넣어 주세요.'); return; }
+        await api.saveSettings({ openrouterApiKey: k });
+        msg('저장했습니다. 연결을 확인하는 중… (무료 모델은 30초쯤 걸릴 수 있습니다)');
+        const t = await api.llmTest('openrouter').catch((e) => ({ ok: false, text: cleanErr(e) }));
+        msg(t.ok ? '오픈라우터가 연결되었습니다.' : '키를 저장했지만 연결 확인에 실패했습니다: ' + t.text);
+        if (t.ok) await api.llmSetActive('openrouter');
       }
       const prev = status && status.active;
       await renderCards();
       // 하나만 준비된 경우 자동으로 고른다
       if (!status.active || !isReady(status.active)) {
-        const ready = ['chatgpt', 'claude', 'gemini'].filter(isReady);
+        const ready = ['chatgpt', 'claude', 'gemini', 'openrouter'].filter(isReady);
         if (ready.length === 1 && ready[0] !== prev) { await api.llmSetActive(ready[0]); await renderCards(); }
       }
     } catch (e) {

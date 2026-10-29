@@ -50,6 +50,8 @@ function defaults() {
     lastExportDir: '',
     sysCheckSeen: false,
     geminiApiKeyEnc: '',
+    openrouterApiKeyEnc: '',
+    openrouterModel: '',
   };
 }
 
@@ -108,8 +110,11 @@ function saveSettings(newSettings = {}) {
   const cur = loadSettings();
   const incoming = { ...newSettings };
   const key = incoming.geminiApiKey;
+  const orKey = incoming.openrouterApiKey;
   delete incoming.geminiApiKey;
+  delete incoming.openrouterApiKey;
   delete incoming.geminiApiKeyEnc; // 렌더러가 암호문을 덮어쓰지 못하게
+  delete incoming.openrouterApiKeyEnc;
   delete incoming.hasApiKey;
   delete incoming.apiKeySuffix;
 
@@ -124,6 +129,12 @@ function saveSettings(newSettings = {}) {
   } else if (key === '') {
     merged.geminiApiKeyEnc = '';
   }
+  if (typeof orKey === 'string' && orKey.trim()) {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('이 PC에서는 키 암호화를 쓸 수 없습니다.');
+    merged.openrouterApiKeyEnc = safeStorage.encryptString(orKey.trim()).toString('base64');
+  } else if (orKey === '') {
+    merged.openrouterApiKeyEnc = '';
+  }
 
   settingsCache = normalize(merged);
   fs.mkdirSync(path.dirname(getSettingsPath()), { recursive: true });
@@ -133,22 +144,28 @@ function saveSettings(newSettings = {}) {
   return pub;
 }
 
-function getGeminiApiKey() {
+function decryptField(field) {
   const s = loadSettings();
-  if (s.geminiApiKeyEnc && safeStorage.isEncryptionAvailable()) {
+  if (s[field] && safeStorage.isEncryptionAvailable()) {
     try {
-      return safeStorage.decryptString(Buffer.from(s.geminiApiKeyEnc, 'base64'));
+      return safeStorage.decryptString(Buffer.from(s[field], 'base64'));
     } catch (e) {
       return '';
     }
   }
   return '';
 }
+function getGeminiApiKey() { return decryptField('geminiApiKeyEnc'); }
+function getOpenrouterApiKey() { return decryptField('openrouterApiKeyEnc') || process.env.OPENROUTER_API_KEY || ''; }
 
 function getPublicSettings() {
   const s = loadSettings();
   const pub = JSON.parse(JSON.stringify(s));
   delete pub.geminiApiKeyEnc;
+  delete pub.openrouterApiKeyEnc;
+  const orKey = getOpenrouterApiKey();
+  pub.hasOpenrouterKey = !!orKey;
+  pub.openrouterKeySuffix = orKey ? orKey.slice(-4) : '';
   const key = s.geminiApiKeyEnc ? getGeminiApiKey() : '';
   pub.hasApiKey = !!key;
   pub.apiKeySuffix = key ? key.slice(-4) : '';
@@ -202,4 +219,4 @@ function initSettings() {
   ipcMain.handle('settings:chooseLogo', (e) => chooseLogo(BrowserWindow.fromWebContents(e.sender)));
 }
 
-module.exports = { initSettings, loadSettings, saveSettings, getGeminiApiKey, getPublicSettings, getLogoDataUrl, DEFAULT_LOGO };
+module.exports = { initSettings, loadSettings, saveSettings, getGeminiApiKey, getOpenrouterApiKey, getPublicSettings, getLogoDataUrl, DEFAULT_LOGO };

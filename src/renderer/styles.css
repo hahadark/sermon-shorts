@@ -346,3 +346,20 @@ body {
 .te-selection-outline {
   position: absolute; border: 2px solid var(--accent2); pointer-events: none; box-shadow: 0 0 4px rgba(47,140,255,0.8);
 }
+
+/* ---- 자동 업데이트 알림 줄 ---- */
+.update-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+  padding: 0 4px 0 12px;
+  height: 34px;
+  border-radius: 6px;
+  background: #1d3a5c;
+  border: 1px solid #2f5f94;
+  color: #e6f0ff;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.update-bar.hidden, #updateAction.hidden { display: none; }

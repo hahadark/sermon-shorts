@@ -59,6 +59,7 @@ contextBridge.exposeInMainWorld('api', {
   sysOpenLink: (key) => ipcRenderer.invoke('sys:openLink', key),
   sysInstallEngine: (force) => ipcRenderer.invoke('sys:installEngine', force),
   sysDownloadModel: () => ipcRenderer.invoke('sys:downloadModel'),
+  sysInstallFfmpeg: () => ipcRenderer.invoke('sys:installFfmpeg'),
   // AI 연결(챗GPT·클로드·제미나이) — 토큰·키는 오지 않는다
   llmStatus: () => ipcRenderer.invoke('llm:status'),
   llmSetActive: (name) => ipcRenderer.invoke('llm:setActive', name),
@@ -77,6 +78,16 @@ contextBridge.exposeInMainWorld('api', {
     const listener = (_event, d) => callback(d);
     ipcRenderer.on('chat:delta', listener);
     return () => ipcRenderer.removeListener('chat:delta', listener);
+  },
+  // 앱 자동 업데이트: 상태 { state, version, percent, current }
+  updateGet: () => ipcRenderer.invoke('update:get'),
+  updateCheck: () => ipcRenderer.invoke('update:check'),
+  updateInstall: () => ipcRenderer.invoke('update:install'),
+  updateOpenPage: () => ipcRenderer.invoke('update:openPage'),
+  onUpdateStatus: (callback) => {
+    const listener = (_event, s) => callback(s);
+    ipcRenderer.on('update:status', listener);
+    return () => ipcRenderer.removeListener('update:status', listener);
   },
   // 테마
   listThemes: () => ipcRenderer.invoke('theme:list'),
