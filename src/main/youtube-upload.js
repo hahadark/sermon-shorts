@@ -233,4 +233,4 @@ function initYoutubeUpload() {
   }));
 }
 
-module.exports = { initYoutubeUpload, buildMetadata };
+module.exports = { initYoutubeUpload, buildMetadata, _forTest: { signIn, signOut, status, getAccessToken, channelName, UPLOAD_URL } };

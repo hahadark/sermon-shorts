@@ -110,7 +110,9 @@
                 <button id="btnYtSignIn" class="btn sm primary">구글로 로그인</button>
                 <button id="btnYtSignOut" class="btn sm">로그아웃</button>
               </div>
-              <div class="settings-note">브라우저에서 구글 공식 화면으로 로그인합니다. 이 앱은 비밀번호를 받지 않습니다.</div>
+              <div class="settings-note">브라우저에서 구글 공식 화면으로 로그인합니다. 이 앱은 비밀번호를 받지 않습니다.<br>
+                지금은 시험 운영 중이라 <b>미리 등록한 구글 계정만</b> 로그인됩니다. 브라우저에 '액세스 차단됨'이 나오면 개발자에게 구글 이메일 등록을 요청하거나, 아래 [고급]에 우리 교회 클라이언트를 넣으세요.<br>
+                교회 채널에 올리려면 계정 선택 화면에서 그 채널(브랜드 계정)을 고르세요. 목록에 없으면 채널 소유자가 로그인해야 합니다.</div>
             </div>
             <div class="settings-row inline">
               <input type="checkbox" id="ytAuto">
