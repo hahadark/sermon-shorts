@@ -68,7 +68,8 @@ def main():
     model_dir = os.path.join(engine_dir, "models")
     os.makedirs(model_dir, exist_ok=True)
     
-    initial_prompt = "하나님, 예수님, 성령, 말씀, 기도, 아멘"
+    # 군말(음·어·아)도 글자로 받아 적게 앞에 예를 둔다 (편집기가 찾아서 지우고 표시한다)
+    initial_prompt = "음, 어... 그러니까 아, 네. 음... 하나님, 예수님, 성령, 말씀, 기도, 아멘"
     if args.terms.strip():
         initial_prompt += ", " + args.terms.strip()
     

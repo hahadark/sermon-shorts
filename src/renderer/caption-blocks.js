@@ -68,7 +68,14 @@
       .caption-output{display:block;width:100%;max-width:640px;box-sizing:border-box;resize:vertical;min-height:34px;line-height:1.6;font:inherit;font-size:16px;padding:4px 7px;color:#fff;background:#222a34;border:1px solid #526278;border-radius:4px}
       .caption-output:focus{outline:1px solid #7bb9e9;border-color:#7bb9e9}.caption-count{margin-left:auto;color:#8aa79b}.caption-count.over-limit{color:#edc17e}
       .caption-word-editor:empty{display:none}.caption-word-editor{margin:5px 0 0 82px;color:#9bc4e6;font-size:11px}
-      .caption-empty{color:#8d929b;font-size:12px;padding:4px 0}.hide-scissors,.cut-marker{cursor:pointer;padding:0 4px;background:#343b43;border-radius:3px;font-size:11px}
+      .caption-empty{color:#8d929b;font-size:12px;padding:4px 0}.hide-scissors,.cut-marker{cursor:pointer;padding:0 5px;background:#343b43;border-radius:3px;font-size:11px;color:#c5ccd6}
+      .cut-marker.ico{display:inline-flex;align-items:center;gap:3px;vertical-align:1px;line-height:18px}.cut-marker.gap-cut{background:rgba(227,182,92,.14);color:#e3b65c;border:1px solid rgba(227,182,92,.4)}
+      .caption-source .filler-run{background:rgba(227,182,92,.13);color:#e3b65c}.caption-source .filler-run [data-wid]{color:#e3b65c;text-decoration-color:#e3b65c}
+      .run-tag{font-size:10px;font-weight:700;color:#1b1406;background:#e3b65c;border-radius:3px;padding:0 4px;margin:0 3px 0 1px;pointer-events:none}
+      .caption-source .filler-live{text-decoration:underline dotted #e3b65c;text-underline-offset:4px}
+      .gap-restore{font-size:10px;padding:0 4px;margin:0 2px 0 3px;cursor:pointer}
+      .pause-chip{font:inherit;font-size:11px;line-height:18px;padding:0 5px;border-radius:3px;background:transparent;border:1px dashed #5b6472;color:#9aa6b4;cursor:pointer;display:inline-flex;align-items:center;gap:3px;vertical-align:1px}
+      .pause-chip:hover{border-color:#e3b65c;color:#e3b65c}
     `;document.head.appendChild(s);
   }
   function refreshCaret(body){
@@ -90,6 +97,11 @@
     visibleBlocks=blocks;
     const runs=Caret.runsOf(ws),runMap=new Map();for(const [a,b] of runs)for(let i=a;i<b;i++)runMap.set(i,{a,b});
     const cuts=new Map(SS.edl.cutPoints(segments).map(c=>[c.keyEnd,c]));
+    // 군말·공백 표시: 군말만 지운 묶음은 노란 '군말', 이웃 단어 사이에서 잘라 낸 곳은 '공백 0.4초', 남겨 둔 긴 쉼은 '⏸ 0.8초'
+    const D=SS.disfluency,isFill=t=>!!(D&&D.isFiller(t)),fillRun=new Map();
+    for(const [a,b] of runs){let all=true;for(let i=a;i<b;i++)if(!isFill(ws[i].text)){all=false;break;}fillRun.set(a,all);}
+    const pauseAt=new Map();if(D)D.pauses(ws,segments,0.5).forEach(p=>pauseAt.set(p.prev,p));
+    const sec=v=>(Math.round(v*100)/100).toFixed(2).replace(/0$/,'');
     let html='';
     blocks.forEach((block,n)=>{
       const first=ws[block.indices[0]],last=ws[block.indices.at(-1)];const live=block.indices.filter(i=>!ws[i].del);
@@ -100,11 +112,16 @@
       let openRun=null;
       for(const i of block.indices){const w=ws[i],run=runMap.get(i);if(openRun&&(!w.del||openRun.a!==run?.a)){html+='</span>';openRun=null;}
         if(w.del&&SS.state.hideDeleted){if(i===block.indices[0]||!ws[i-1]?.del)html+=`<span class="hide-scissors" data-runstart="${run.a}">삭제 구간 펼치기</span>`;continue;}
-        if(w.del&&!openRun){html+=`<span class="deleted-run" data-runstart="${run.a}">`;openRun=run;}
-        const marker=i===SS.state.markI?' title="쇼츠 시작점"':i===SS.state.markO?' title="쇼츠 끝점"':'';
-        html+=`<span data-wid="${i}"${marker}>${esc(SS.captionEdit.sourceText(w))}</span> `;
+        if(w.del&&!openRun){const f=fillRun.get(run.a);html+=`<span class="deleted-run${f?' filler-run':''}" data-runstart="${run.a}"${f?' title="군말(음·어·아)이라 지웠습니다 · 누르면 되살리기"':''}>`+(f?'<span class="run-tag">군말</span>':'');openRun=run;}
+        const fill=isFill(w.text);
+        const marker=i===SS.state.markI?' title="쇼츠 시작점"':i===SS.state.markO?' title="쇼츠 끝점"':(!w.del&&fill?' title="군말로 보입니다 · 클릭한 뒤 Backspace로 지우기"':'');
+        html+=`<span data-wid="${i}"${fill?` class="${w.del?'filler':'filler-live'}"`:''}${marker}>${esc(SS.captionEdit.sourceText(w))}</span> `;
         if(w.del&&(i===block.indices.at(-1)||!ws[i+1]?.del)){html+=`<button class="restore-run" data-runstart="${run.a}">되살리기</button></span>`;openRun=null;}
-        const cut=cuts.get('e:'+w.id);if(cut&&!w.del)html+=`<span class="cut-marker" data-c1="${i}" data-c2="${cut.keyStart.slice(2)}" title="컷 정밀 조정 (T)">컷 조정</span>`;
+        const cut=cuts.get('e:'+w.id);
+        if(cut&&!w.del){const c2=+cut.keyStart.slice(2),j=SS.idxOfWordId?SS.idxOfWordId(c2):c2,gone=Math.max(0,cut.inStart-cut.outEnd),gap=j===i+1;
+          html+=gap?`<span class="cut-marker gap-cut ico xs i-scissors" data-c1="${i}" data-c2="${c2}" title="말 사이 공백 ${sec(gone)}초를 잘라 냈습니다 · 누르면 컷 미세 조정 (T)">공백 ${sec(gone)}초</span>`+(ws[j]?.gapCut?`<button class="gap-restore" data-gap="${j}" title="잘라 낸 공백 되살리기">되살리기</button>`:'')
+            :`<span class="cut-marker ico xs i-scissors" data-c1="${i}" data-c2="${c2}" title="여기서 ${sec(gone)}초를 잘라 냈습니다 · 누르면 컷 미세 조정 (T)">${sec(gone)}초</span>`;}
+        else if(!w.del&&pauseAt.has(i)){const p=pauseAt.get(i);html+=`<button class="pause-chip ico xs i-pause" data-cutgap="${p.i}" title="말 사이 쉼 ${sec(p.gap)}초 · 누르면 잘라 냅니다">${sec(p.gap)}초</button>`;}
       }
       if(openRun)html+='</span>';
       html+='</div></div><div class="caption-word-editor"></div><div class="caption-track"><span class="caption-track-label" style="color:#9ac7af">출력 자막</span>';
@@ -114,6 +131,8 @@
     body.innerHTML=html;body.scrollTop=scroll;
     body.querySelectorAll('.caption-check').forEach(el=>el.onchange=()=>{commit(false);const b=blocks[+el.dataset.checkBlock];b.indices.forEach(i=>{if(!ws[i].del){if(el.checked)checked.add(ws[i].id);else checked.delete(ws[i].id);}});syncChecks(body);});
     body.querySelectorAll('.caption-unmerge').forEach(el=>el.onclick=()=>{commit(false);SS.pushUndo();SS.state.words=SS.captionEdit.unmerge(SS.state.words,blocks[+el.dataset.unmerge].editorLine);needsRender=false;SS.renderTranscript();SS.updateTemplatePreview();});
+    body.querySelectorAll('.gap-restore').forEach(btn=>btn.onmousedown=e=>{e.preventDefault();e.stopPropagation();commit(false);SS.restoreGap(+btn.dataset.gap);});
+    body.querySelectorAll('.pause-chip').forEach(btn=>btn.onmousedown=e=>{e.preventDefault();e.stopPropagation();commit(false);SS.cutPause(+btn.dataset.cutgap);});
     body.querySelectorAll('.restore-run').forEach(btn=>btn.onmousedown=e=>{e.preventDefault();e.stopPropagation();commit(false);let i=+btn.dataset.runstart;while(ws[i]?.del)ws[i++].del=false;SS.renderTranscript();SS.updateTemplatePreview();});
     body.querySelectorAll('.caption-seek').forEach(btn=>btn.onclick=()=>{commit(false);SS.preview.seek(+btn.dataset.seek);});
     body.querySelectorAll('.caption-output').forEach(el=>{

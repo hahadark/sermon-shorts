@@ -81,7 +81,7 @@
   panel.innerHTML = `
     <div class="ed-head">
       <div class="ed-title"><span class="ico i-captions" aria-hidden="true"></span>자막 편집
-        <span class="ed-stats"><span id="lblCaptionStats">자막 0개</span> · 결과 <span id="lblDuration">00:00</span> · <span id="lblCuts">0</span>컷</span>
+        <span class="ed-stats"><span id="lblCaptionStats">자막 0개</span> · 결과 <span id="lblDuration">00:00</span> · <span id="lblCuts">0</span>컷<span id="lblTidy" class="tidy-stat"></span></span>
       </div>
       <label class="ed-switch" title="지운 부분은 건너뛰고 편집 결과대로 재생합니다"><input type="checkbox" id="chkEditedPlay" checked> 편집 결과로 재생</label>
     </div>
@@ -92,7 +92,7 @@
         <button id="btnKeepSel" class="btn sm ico i-crop" title="선택한 부분만 남기고 나머지 지우기 (Ctrl+K)">선택만 남기기</button>
       </div>
       <div class="tb-group">
-        <button id="btnAutoClean" class="btn sm ico i-wand-sparkles" title="자동 정리: 군말·같은 말 반복·긴 공백 (Ctrl+Shift+C)">자동 정리</button>
+        <button id="btnAutoClean" class="btn sm ico i-wand-sparkles" title="자동 정리: 군말(음·어·아)·되풀이한 말·말 사이 공백 지우기, 지운 곳은 노란 표시 (Ctrl+Shift+C)">자동 정리</button>
         <button id="btnAiCorrect" class="btn sm ico i-spell-check" title="AI 용어 교정: 교회 용어·고유명사 오타 고치기, 제미나이 키 필요 (Ctrl+Shift+T)" disabled>용어 교정</button>
       </div>
       <div class="tb-group">
@@ -122,6 +122,9 @@
         <label class="ed-num">페이드 <input type="number" id="inpFade" value="10" step="1"></label>
         <span class="muted">ms</span>
       </div>
+      <div class="ed-set-row">
+        <label class="ed-check" title="음성 인식(자막 만들기)이 끝나면 군말(음·어·아)과 0.3초 넘는 말 사이 공백을 바로 지웁니다. 지운 곳은 노란 표시로 보이고 누르면 되살립니다."><input type="checkbox" id="chkAutoTidy" checked> 음성 인식 뒤 군말·말 사이 공백 자동으로 지우기</label>
+      </div>
     </div>
     <div class="ed-hint">STT 원문: 단어 클릭 → Backspace 지우기 · 출력 자막: Enter 나누기 · 맨 앞 Backspace 합치기 · Ctrl+Enter 적용 · Ctrl+Z 취소 · F1 단축키</div>
 
@@ -142,6 +145,8 @@
     </div>
   `;
 
+  if (SS.autoTidyEnabled) $('chkAutoTidy').checked = SS.autoTidyEnabled();
+  $('chkAutoTidy').addEventListener('change', e => { if (SS.setAutoTidy) SS.setAutoTidy(e.target.checked); });
   $('inpPadB').addEventListener('change', e => { SS.state.settings.padBefore = parseFloat(e.target.value); updateOutput(); });
   $('inpPadA').addEventListener('change', e => { SS.state.settings.padAfter = parseFloat(e.target.value); updateOutput(); });
   $('inpFade').addEventListener('change', e => { SS.state.settings.fadeMs = parseInt(e.target.value); updateOutput(); });
@@ -191,7 +196,7 @@
 
   function updateOutput() {
     if (!SS.state.words || SS.state.words.length === 0) {
-      segments = []; lines = []; $('lblCaptionStats').textContent = '자막 0개'; $('lblDuration').textContent = '00:00'; $('lblCuts').textContent = '0'; return;
+      segments = []; lines = []; $('lblCaptionStats').textContent = '자막 0개'; $('lblDuration').textContent = '00:00'; $('lblCuts').textContent = '0'; if ($('lblTidy')) $('lblTidy').textContent = ''; return;
     }
     segments = edl.buildSegments(SS.state.words, SS.state.settings, SS.state.overrides, SS.preview.duration);
     lines = edl.buildLines(SS.state.words, segments, SS.state.settings);
@@ -203,6 +208,15 @@
 
     let cuts = edl.cutPoints(segments).length;
     $('lblCuts').textContent = cuts;
+    // 지운 군말·잘라 낸 공백 요약
+    const tl = $('lblTidy');
+    if (tl && SS.disfluency) {
+      const s = SS.disfluency.summary(SS.state.words, segments), parts = [];
+      if (s.fillers) parts.push('군말 ' + s.fillers);
+      if (s.gaps) parts.push('공백 ' + s.gaps + '곳 −' + s.gapSec.toFixed(1) + '초');
+      tl.textContent = parts.length ? ' · ' + parts.join(' · ') : '';
+      tl.title = '지운 군말(음·어·아)과 잘라 낸 말 사이 공백 · 자막 편집의 노란 표시를 누르면 되살립니다';
+    }
   }
 
   function getSelectionRange() {
@@ -538,6 +552,8 @@
     renderTranscript();
     editedPlayMode = true;
     $('chkEditedPlay').checked = true;
+    // 새로 음성 인식한 자막이면 군말·공백을 바로 지우고 표시한다 (설정에서 끌 수 있음)
+    if (e.detail.autoTidy && SS.tidy && SS.autoTidyEnabled && SS.autoTidyEnabled()) setTimeout(() => SS.tidy({ auto: true }), 0);
 
     // Seek to the first word of the range (if not deleted)
     const firstWord = SS.state.words.find(w => !w.del);

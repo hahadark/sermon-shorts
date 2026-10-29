@@ -399,6 +399,7 @@
 
   function doAutoClean() {
     if (!window.SS.state.words) return;
+    if (window.SS.tidy) { window.SS.tidy({ duplicates: true }); return; }   // 군말·되풀이·말 사이 공백 (지운 곳 표시)
     if (window.SS.pushUndo) window.SS.pushUndo();
     window.SS.state.words = window.SS.edl.autoClean(window.SS.state.words, { maxGap: 1.0 });
     window.dispatchEvent(new Event('ss:words-changed'));

@@ -134,6 +134,56 @@
       SS.toggleCaptionSettings(true); await sleep(200);
       await shot('3_semantic');
       SS.toggleCaptionSettings(false);
+
+      // ---------- 5) 군말·공백 찾아 지우고 보여 주기 ----------
+      const orig = JSON.parse(JSON.stringify(SS.state.words));
+      const fake = orig.map((w) => Object.assign({}, w, { del: false, cutBefore: false, gapCut: undefined }));
+      fake[50].text = '음...'; fake[90].text = '어'; fake[91].text = '어';
+      SS.state.overrides = {};
+      window.dispatchEvent(new CustomEvent('ss:transcript-ready', { detail: { path: SS.state.path, offset: 0, words: fake, autoTidy: true } }));
+      const tw = Date.now();
+      while (!document.querySelector('.cut-marker.gap-cut')) { if (Date.now() - tw > 20000) throw new Error('자동 정리가 안 됨'); await sleep(200); }
+      await sleep(300);
+      const W = SS.state.words;
+      check('음성 인식 뒤 군말 자동 삭제', W[50].del && W[90].del && W[91].del, [W[50].del, W[90].del, W[91].del]);
+      check('군말 표시(노란 군말)', document.querySelectorAll('.filler-run .run-tag').length >= 2, document.querySelectorAll('.filler-run').length);
+      const sum = SS.disfluency.summary(W, SS.getSegments());
+      const chips = document.querySelectorAll('.cut-marker.gap-cut').length;
+      check('공백 잘라 낸 곳 표시', sum.gaps > 0 && chips === sum.gaps, [sum.gaps, chips]);
+      check('요약 표시', /군말 3/.test($('lblTidy').textContent) && /공백 \d+곳/.test($('lblTidy').textContent), $('lblTidy').textContent);
+      report.tidy = { gaps: sum.gaps, gapSec: +sum.gapSec.toFixed(2), label: $('lblTidy').textContent };
+      const firstFill = body.querySelector('.filler-run'); if (firstFill) firstFill.scrollIntoView({ block: 'center' });
+      await sleep(200);
+      await shot('5_tidy');
+      // 공백 하나 되살리기 → 한 곳 줄고, Ctrl+Z 로 다시 잘림
+      const rb = body.querySelector('.gap-restore'); const j = +rb.dataset.gap;
+      rb.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await sleep(200);
+      check('공백 되살리기', !SS.state.words[j].cutBefore && document.querySelectorAll('.cut-marker.gap-cut').length === chips - 1, [chips, document.querySelectorAll('.cut-marker.gap-cut').length]);
+      SS.undo(); await sleep(200);
+      check('되살리기 취소', SS.state.words[j].cutBefore && document.querySelectorAll('.cut-marker.gap-cut').length === chips);
+      // 군말 묶음 눌러 되살리기
+      const fr = body.querySelector('.filler-run');
+      fr.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); await sleep(200);
+      check('군말 되살리기', document.querySelectorAll('.filler-run').length === 1 || !SS.state.words[50].del || !SS.state.words[90].del);
+      SS.undo(); await sleep(200);
+      // 전체 되돌리기: 정리 전 원래 인식 결과로
+      SS.undo(); await sleep(250);
+      check('Ctrl+Z 한 번에 정리 전체 취소', !SS.state.words[50].del && !SS.state.words.some((w) => w.gapCut), SS.state.words.filter((w) => w.gapCut).length);
+      // 남긴 긴 쉼 표시 → 눌러 자르기
+      const pc = body.querySelector('.pause-chip');
+      if (pc) {
+        const k = +pc.dataset.cutgap;
+        pc.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); await sleep(200);
+        check('쉼 표시 눌러 자르기', SS.state.words[k].cutBefore && SS.state.words[k].gapCut);
+        SS.undo(); await sleep(150);
+      }
+      report.pauseChip = !!pc;
+      // [자동 정리] 단추도 같은 정리
+      $('btnAutoClean').click();
+      const tb = Date.now();
+      while (!(SS.state.words[50].del && document.querySelector('.cut-marker.gap-cut'))) { if (Date.now() - tb > 20000) throw new Error('자동 정리 단추 안 됨'); await sleep(200); }
+      check('자동 정리 단추 = 군말·공백 정리', SS.state.words[90].del && document.querySelectorAll('.cut-marker.gap-cut').length > 0);
       report.success = true;
     } catch (err) {
       report.success = false; report.error = err.stack || String(err);

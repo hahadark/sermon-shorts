@@ -582,7 +582,7 @@
     const plan = SS.gaps.planGapCuts(st.words, segs, found.silences, { padBefore: 0.05, padAfter: 0.07, minCut: 0.08 });
     if (!plan.cuts) return { cuts: 0, before, after: before, noiseDb: found.noiseDb };
     SS.pushUndo();
-    plan.cutBefore.forEach((i) => { st.words[i].cutBefore = true; });
+    plan.cutBefore.forEach((i) => { st.words[i].cutBefore = true; st.words[i].gapCut = true; });
     st.overrides = Object.assign({}, st.overrides || {}, plan.overrides);
     window.dispatchEvent(new Event('ss:words-changed'));
     if (SS.updateTemplatePreview) SS.updateTemplatePreview();

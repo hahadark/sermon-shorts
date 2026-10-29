@@ -484,7 +484,7 @@
           if (cancelled) return;
           close();
           window.dispatchEvent(new CustomEvent('ss:transcript-ready', {
-            detail: { path: source.path, offset: source.offset || 0, words: result.words, language: result.language },
+            detail: { path: source.path, offset: source.offset || 0, words: result.words, language: result.language, autoTidy: true },
           }));
           resolveOuter(result);
         } catch (e) {
