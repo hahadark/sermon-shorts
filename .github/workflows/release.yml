@@ -104,8 +104,9 @@ jobs:
             echo '## 바뀐 점'
             for c in $(git rev-list --no-merges "$range"); do
               items=$(git log -1 --format=%b "$c" | grep -E '^- ' || true)
+              subject=$(git log -1 --format=%s "$c")
               if [ -n "$items" ]; then echo "$items"
-              else echo "- $(git log -1 --format=%s "$c" | sed -E 's/^v[0-9][^:]*: *//')"; fi
+              elif ! echo "$subject" | grep -qE '^v[0-9][0-9.]*$'; then echo "- $(echo "$subject" | sed -E 's/^v[0-9][^:]*: *//')"; fi
             done
             echo
             echo '## 내려받기'
