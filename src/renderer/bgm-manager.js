@@ -85,6 +85,7 @@
       <button class="btn sm ${t.id === sel ? '' : 'primary'}" data-use${t.missing ? ' disabled' : ''}>${t.id === sel ? '쓰는 중' : '쓰기'}</button>
       <button class="btn sm ghost icon-only ico i-folder-open" data-reveal title="폴더에서 보기" aria-label="폴더에서 보기"></button>
       <button class="btn sm ghost icon-only ico i-trash-2" data-del title="보관함에서 지우기" aria-label="지우기"></button>
+      ${SS.bgmSeekBar ? SS.bgmSeekBar.html(t.id, t.durationSec) : ''}
     </div>`).join('');
     $('bmList').querySelectorAll('.bm-row').forEach((row) => {
       const id = row.dataset.id, t = lib.tracks.find((x) => x.id === id);
@@ -96,13 +97,28 @@
       row.querySelector('[data-del]').addEventListener('click', () => remove(t));
       const a = row.querySelector('[data-src]'); if (a) a.addEventListener('click', (e) => { e.preventDefault(); if (api.ytupOpenUrl) api.ytupOpenUrl(a.dataset.src); });
     });
+    if (SS.bgmSeekBar) SS.bgmSeekBar.bind($('bmList'), player, fallbackOf, seekTo);
     renderPlayButtons();
+  }
+  const fallbackOf = (id) => { const t = lib.tracks.find((x) => x.id === id); return t ? t.durationSec : 0; };
+  function updateProg() { if (SS.bgmSeekBar) SS.bgmSeekBar.update($('bmList'), player, playingId, false, fallbackOf(playingId)); }
+  let raf = 0;
+  function loop() { raf = 0; updateProg(); if (!player.paused) raf = requestAnimationFrame(loop); }
+  player.addEventListener('play', () => { if (!raf) raf = requestAnimationFrame(loop); });
+  ['pause', 'seeked', 'timeupdate', 'loadedmetadata', 'progress', 'ended'].forEach((ev) => player.addEventListener(ev, updateProg));
+  function seekTo(id, x) {
+    const t = lib.tracks.find((y) => y.id === id); if (!t) return;
+    if (playingId !== id) { player.src = 'ssbgm://track/' + encodeURIComponent(id); playingId = id; player.addEventListener('loadedmetadata', () => { try { player.currentTime = x; } catch (_) { /* */ } }, { once: true }); }
+    else { try { player.currentTime = x; } catch (_) { /* */ } }
+    player.volume = 0.8; player.play().catch(() => {});
+    updateProg();
   }
   function renderPlayButtons() {
     document.querySelectorAll('#bmList .bm-row').forEach((row) => {
       const on = playingId === row.dataset.id && !player.paused, b = row.querySelector('[data-play]');
       b.classList.toggle('i-play', !on); b.classList.toggle('i-pause', on); b.classList.toggle('playing', on);
     });
+    updateProg();
   }
   function play(t) {
     if (playingId === t.id && !player.paused) { player.pause(); return; }

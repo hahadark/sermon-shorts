@@ -739,3 +739,25 @@ input[type=checkbox], input[type=range] { accent-color: var(--primary); }
 .bm-empty { padding: 36px 20px; text-align: center; color: var(--muted); font-size: 12.5px; line-height: 1.7; }
 .bm-empty b { display: block; color: var(--text-2); font-size: 14px; }
 #bgmNone #btnBgmMgr { margin-top: 6px; }
+
+/* ---------------- 음악 미리 듣기 재생 바 (고르기 창·관리 창) ---------------- */
+.bgm-item, .bm-row { flex-wrap: wrap; }
+.bgm-prog { flex: 1 0 100%; display: flex; align-items: center; gap: 10px; padding: 2px 4px 0 48px; font-size: 11.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.bm-row .bgm-prog { padding-left: 44px; }
+.bgm-prog[hidden] { display: none; }
+.bgm-pt, .bgm-pd { flex: 0 0 auto; min-width: 34px; }
+.bgm-pd { text-align: right; color: var(--muted); }
+.bgm-pbar { position: relative; flex: 1; height: 18px; cursor: pointer; outline: none; touch-action: none; }
+.bgm-pbar::before { content: ''; position: absolute; left: 0; right: 0; top: 7px; height: 4px; border-radius: 2px; background: var(--panel3, #e2e8f0); }
+.bgm-pbuf, .bgm-pfill { position: absolute; left: 0; top: 7px; height: 4px; border-radius: 2px; pointer-events: none; }
+.bgm-pbuf { background: #cbd5e1; }
+.bgm-pfill { background: var(--primary); }
+.bgm-pknob { position: absolute; top: 9px; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: #fff; border: 2px solid var(--primary); box-shadow: 0 1px 3px rgba(15,23,42,.25); pointer-events: none; transition: transform .1s; }
+.bgm-pbar:hover .bgm-pknob, .bgm-prog.dragging .bgm-pknob, .bgm-pbar:focus-visible .bgm-pknob { transform: scale(1.25); }
+.bgm-pbar:hover::before { background: #d5dde8; }
+.bgm-pbar:focus-visible::before { box-shadow: 0 0 0 3px var(--primary-soft); }
+.bgm-prog.loading .bgm-pfill { width: 30% !important; animation: bgm-prog-load 1.1s ease-in-out infinite; }
+.bgm-prog.loading .bgm-pknob { display: none; }
+@keyframes bgm-prog-load { 0% { left: -30%; } 100% { left: 100%; } }
+.bgm-item.listening, .bm-row.listening { border-color: #93c5fd; }
+.bgm-prog.loading .bgm-pbar { overflow: hidden; }

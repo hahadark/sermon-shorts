@@ -242,6 +242,82 @@
     lib.addEventListener('playing', () => requestAnimationFrame(libStop), { once: true });
     refreshLibButtons();
   }
+  // ---------------- 미리 듣기 재생 바: 지금 위치·전체 길이, 눌러서/끌어서 옮기기, ←→ 5초 ----------------
+  // 곡 줄마다 <div data-prog="id"> 를 두고, 듣는 곡의 줄에만 보인다. audio·현재 곡 id·길이를 받아 다시 그린다.
+  const seekBar = {
+    html(id, dur) {
+      return `<div class="bgm-prog" data-prog="${esc(id)}" hidden><span class="bgm-pt">0:00</span>`
+        + `<div class="bgm-pbar" role="slider" tabindex="0" aria-label="재생 위치" aria-valuemin="0" aria-valuemax="${Math.round(dur || 0)}" title="눌러서 옮기기 · ←→ 5초"><span class="bgm-pbuf"></span><span class="bgm-pfill"></span><span class="bgm-pknob"></span></div>`
+        + `<span class="bgm-pd">${B().fmt(dur)}</span></div>`;
+    },
+    durOf(audio, fallback) { const d = audio.duration; return isFinite(d) && d > 0 ? d : (fallback || 0); },
+    update(root, audio, id, loading, fallback) {
+      if (!root) return;
+      root.querySelectorAll('[data-prog]').forEach((el) => {
+        const mine = !!id && el.dataset.prog === id;
+        const on = mine && (loading || !audio.paused || (audio.currentTime > 0.05 && !audio.ended));
+        if (el.hidden === on) el.hidden = !on;
+        el.closest('.bgm-item, .bm-row') && el.closest('.bgm-item, .bm-row').classList.toggle('listening', on);
+        if (on) seekBar.paint(el, audio, fallback, loading);
+      });
+    },
+    paint(el, audio, fallback, loading) {
+      {
+        const d = seekBar.durOf(audio, fallback), x = el._drag != null ? el._drag : audio.currentTime;
+        const f = d ? Math.max(0, Math.min(1, x / d)) : 0;
+        el.querySelector('.bgm-pfill').style.width = (f * 100).toFixed(2) + '%';
+        el.querySelector('.bgm-pknob').style.left = (f * 100).toFixed(2) + '%';
+        let buf = 0; try { const b = audio.buffered; if (b.length && d) buf = Math.min(1, b.end(b.length - 1) / d); } catch (_) { /* */ }
+        el.querySelector('.bgm-pbuf').style.width = (buf * 100).toFixed(2) + '%';
+        el.querySelector('.bgm-pt').textContent = B().fmt(x);
+        el.querySelector('.bgm-pd').textContent = B().fmt(d);
+        const bar = el.querySelector('.bgm-pbar'); bar.setAttribute('aria-valuenow', String(Math.round(x))); bar.setAttribute('aria-valuetext', B().fmt(x) + ' / ' + B().fmt(d));
+        el.classList.toggle('loading', !!loading);
+      }
+    },
+    /** root 안의 재생 바에 누르기·끌기·키보드를 붙인다. seek(id, 초) 로 옮긴다 */
+    bind(root, audio, getFallback, seek) {
+      root.querySelectorAll('[data-prog]').forEach((el) => {
+        const bar = el.querySelector('.bgm-pbar'), id = el.dataset.prog;
+        const at = (e) => { const r = bar.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / Math.max(1, r.width))) * seekBar.durOf(audio, getFallback(id)); };
+        bar.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0) return;
+          e.preventDefault(); bar.focus({ preventScroll: true });
+          try { bar.setPointerCapture(e.pointerId); } catch (_) { /* */ }
+          el._drag = at(e); el.classList.add('dragging'); seekBar.paint(el, audio, getFallback(id));
+          const move = (ev) => { el._drag = at(ev); seekBar.paint(el, audio, getFallback(id)); };
+          const up = (ev) => {
+            bar.removeEventListener('pointermove', move); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up);
+            const x = ev.type === 'pointercancel' ? null : at(ev); el._drag = null; el.classList.remove('dragging');
+            if (x != null) seek(id, x);
+          };
+          bar.addEventListener('pointermove', move); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
+        });
+        bar.addEventListener('keydown', (e) => {
+          const step = e.key === 'ArrowRight' ? 5 : e.key === 'ArrowLeft' ? -5 : e.key === 'Home' ? -1e9 : e.key === 'End' ? 1e9 : 0;
+          if (!step) return;
+          e.preventDefault(); e.stopPropagation();
+          const d = seekBar.durOf(audio, getFallback(id));
+          seek(id, Math.max(0, Math.min(Math.max(0, d - 0.2), audio.currentTime + step)));
+        });
+      });
+    },
+  };
+  SS.bgmSeekBar = seekBar;
+  const libFallback = (id) => { const t = id && track(id); return t ? t.durationSec : 0; };
+  function updateLibProg() { seekBar.update($('bgmList'), lib, libId, libLoading === libId, libFallback(libId)); }
+  let progRaf = 0;
+  function progLoop() { progRaf = 0; updateLibProg(); if (!lib.paused) progRaf = requestAnimationFrame(progLoop); }
+  lib.addEventListener('play', () => { if (!progRaf) progRaf = requestAnimationFrame(progLoop); });
+  ['pause', 'seeked', 'timeupdate', 'loadedmetadata', 'progress', 'ended', 'emptied'].forEach((ev) => lib.addEventListener(ev, updateLibProg));
+  /** 재생 바로 옮기기: 듣던 곡이면 그 자리로 (멈춰 있었으면 이어서 재생), 아니면 그 자리부터 듣기 */
+  function seekLib(id, x) {
+    const t = track(id); if (!t) return;
+    if (libId !== id || !lib.src) { playLib(t, x, 0, null); return; }
+    try { lib.currentTime = x; } catch (_) { /* */ }
+    if (lib.paused && !libLoading) { libStop = null; lib.volume = 0.8; lib.play().catch(() => {}); }
+    updateLibProg();
+  }
   // 멈추기: 불러오는 중이던 것도 취소 (다 불러온 뒤 저절로 재생되지 않게)
   function stopLib() { libGen++; if (libLoading) { libLoading = null; refreshLibButtons(); } if (!lib.paused) lib.pause(); }
   lib.addEventListener('pause', refreshLibButtons);
@@ -332,11 +408,13 @@
         <span class="bgm-dur">${B().fmt(t.durationSec)}</span>
         <span class="bgm-lic" title="${esc(t.licenseQuote || '')}">${esc(t.license)}</span>
         <button class="btn sm ${t.id === sel ? '' : 'primary'}" data-use="${esc(t.id)}">${t.id === sel ? '쓰는 중' : '이 음악 쓰기'}</button>${t.custom ? `<button class="btn sm ghost icon-only ico i-trash-2" data-del="${esc(t.id)}" title="내 음악 목록에서 빼기" aria-label="${esc(t.title)} 빼기"></button>` : ''}
+        ${seekBar.html(t.id, t.durationSec)}
       </div>`).join('') : '<div class="bgm-empty">이 분위기의 음악이 아직 없습니다.</div>';
     $('bgmList').querySelectorAll('[data-play]').forEach((b) => b.addEventListener('click', () => {
       const t = track(b.dataset.play);
       if (libLoading === t.id) { stopLib(); return; } // 불러오는 중에 다시 누르면 취소
       if (!lib.paused && libId === t.id) { lib.pause(); return; }
+      if (libId === t.id && lib.src && lib.currentTime > 0.05 && !lib.ended) { libStop = null; lib.volume = 0.8; lib.play().catch(() => {}); return; } // 멈춘 자리부터 이어서
       playLib(t, 0, 0, null);
     }));
     $('bgmList').querySelectorAll('[data-use]').forEach((b) => b.addEventListener('click', () => use(b.dataset.use)));
@@ -346,6 +424,7 @@
       if (!confirm(`"${t ? t.title : id}"을(를) 내 음악 목록에서 뺄까요?`)) return;
       await api.bgmCustomRemove(id); custom.delete(id); renderLib();
     }));
+    seekBar.bind($('bgmList'), lib, libFallback, seekLib);
     refreshLibButtons();
   }
   function refreshLibButtons() {
@@ -354,6 +433,7 @@
       b.classList.toggle('i-play', !on); b.classList.toggle('i-pause', on); b.classList.toggle('playing', on); b.classList.toggle('loading', load);
       b.title = load ? '불러오는 중…' : '듣기 / 일시정지';
     });
+    updateLibProg();
     const lb = $('btnBgmListen');
     if (lb) { const mine = cur() && libId === cur().id, load = mine && libLoading === libId, on = !load && !lib.paused && mine; lb.classList.toggle('i-play', !on); lb.classList.toggle('i-pause', on); lb.classList.toggle('loading', !!load); lb.textContent = load ? '불러오는 중' : on ? '멈추기' : '구간 듣기'; }
   }
@@ -432,6 +512,6 @@
     render(); drawWave();
   }
 
-  SS.bgmUi = { render, drawWave, openLib, closeLib, sync, listen, mix, lib, setTab, creditText, syncStats };
+  SS.bgmUi = { render, drawWave, openLib, closeLib, sync, listen, mix, lib, setTab, creditText, syncStats, seekLib };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
