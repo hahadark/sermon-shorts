@@ -196,6 +196,41 @@ function initMaterials() {
     writeFileFriendly(target, buf);
     return target;
   });
+  // 홈페이지 묶음: <보낼 폴더>/<YYYY-MM-DD>/bundle.json (+ 나눔지.pdf). 받는 쪽 형식은 교회 홈페이지 작업과 맞춘 것
+  ipcMain.handle('materials:bundle', async (event, { date, json, handout, base }) => {
+    date = String(date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('예배 날짜가 올바르지 않습니다. 날짜 칸을 확인해 주세요.');
+    const settingsMod = require('./settings');
+    let root = base && process.env.SS_TEST_SCRIPT ? String(base) : null;
+    if (!root) {
+      const saved = settingsMod.loadSettings().homepageBundleDir;
+      const guess = saved || (fs.existsSync('F:\\aside') ? 'F:\\aside\\홈페이지보내기' : path.join(require('electron').app.getPath('documents'), '홈페이지보내기'));
+      const w = BrowserWindow.fromWebContents(event.sender);
+      const r = await dialog.showOpenDialog(w, { title: '홈페이지로 보낼 폴더 (날짜 폴더가 이 안에 만들어집니다)', defaultPath: guess, properties: ['openDirectory', 'createDirectory'] });
+      if (r.canceled || !r.filePaths[0]) return null;
+      root = r.filePaths[0];
+      settingsMod.saveSettings({ homepageBundleDir: root });
+    }
+    const dir = path.join(root, date);
+    fs.mkdirSync(dir, { recursive: true });
+    // 이미 있던 묶음은 지우지 않고 합친다 (쇼츠 주소는 모아서, 나머지는 새 값이 있으면 새 값)
+    const file = path.join(dir, 'bundle.json');
+    let old = {};
+    try { old = JSON.parse(fs.readFileSync(file, 'utf8')) || {}; } catch (_) { /* 처음 */ }
+    const fresh = {}; Object.keys(json || {}).forEach((k) => { const v = json[k]; if (v !== '' && v != null && !(Array.isArray(v) && !v.length)) fresh[k] = v; });
+    const out = { ...old, ...fresh, date };
+    out.shorts = Array.from(new Set([].concat(Array.isArray(old.shorts) ? old.shorts : [], Array.isArray(fresh.shorts) ? fresh.shorts : [])));
+    if (out.handout && !fs.existsSync(path.join(dir, out.handout))) delete out.handout;
+    if (out.shorts && !out.shorts.length) delete out.shorts;
+    if (handout && handout.body) {
+      const pdf = await toPdf(String(handout.body), String(handout.css || ''));
+      writeFileFriendly(path.join(dir, '나눔지.pdf'), pdf);
+      out.handout = '나눔지.pdf';
+    }
+    Object.keys(out).forEach((k) => { if (out[k] === '' || out[k] == null) delete out[k]; });
+    writeFileFriendly(file, Buffer.from(JSON.stringify(out, null, 2), 'utf8'));
+    return { dir, file, bundle: out };
+  });
   // 글 파일 저장 (홈페이지 말씀 요약 .md 등)
   ipcMain.handle('materials:saveText', async (event, { text, name, ext, title, file }) => {
     let target = file && process.env.SS_TEST_SCRIPT ? String(file) : null;

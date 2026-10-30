@@ -79,6 +79,7 @@
     const meta=SS.state?.meta||{};
     try {
       const r=await window.api.ytupUpload(outPath,{title:meta.title||'',verse:meta.verse||'',speaker:meta.speaker||SS.appSettings?.defaultSpeaker||'',church:SS.appSettings?.template?.churchName||'',credits:SS.state?.bgm&&SS.bgmCredit?SS.bgmCredit():''});
+      if(SS.state){SS.state.uploads=Array.isArray(SS.state.uploads)?SS.state.uploads:[];SS.state.uploads.push({url:r.url,id:r.id,privacy:r.privacy||st.privacy,title:r.title||meta.title||'',at:Date.now()});}
       const forced=r.privacy&&r.privacy!==st.privacy?" (유튜브가 '"+(names[r.privacy]||r.privacy)+"'로 바꿨습니다)":'';
       SS.toast('유튜브에 올렸습니다: '+r.url+forced,9000);
       if(confirm('유튜브에 올렸습니다'+forced+'.\n유튜브 스튜디오에서 확인할까요?'))window.api.ytupOpenUrl(r.studio);

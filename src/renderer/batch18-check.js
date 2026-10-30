@@ -74,6 +74,22 @@
       check('묵상 질문·기도 없음', !/묵상|질문|기도문|함께 드리는 기도/.test(out.text.split('---')[2]), out.text);
       report.files.md = await window.api.materialsSaveText({ text: out.text, name: out.name, ext: 'md', file: dir + '/' + out.name });
       await shot('4_summary_bar');
+      // 홈페이지 묶음 (공개 쇼츠만·나눔지 PDF·카드 문장)
+      st.results.smallgroup = { data: SS.materials.normalize('smallgroup', { title: '아멘', verse: '마태복음 6:9-13', summary: '요약', icebreaker: '마음 열기', questions: [{ q: '질문 하나', note: '' }], action: '실천', prayer: '기도' }), options: st.options, meta: META, made: Date.now() };
+      SS.state.uploads = [{ url: 'https://youtu.be/AAAAAAAAAAA', privacy: 'public' }, { url: 'https://www.youtube.com/watch?v=BBBBBBBBBBB', privacy: 'unlisted' }, { url: 'https://youtu.be/AAAAAAAAAAA', privacy: 'public' }];
+      const b = SS._materialsTest.bundleOf(META);
+      check('묶음: 날짜·주일', b.date === '2026-10-25' && b.json.service === 'sunday', b.json);
+      check('묶음: 공개 쇼츠만·중복 없이', JSON.stringify(b.json.shorts) === JSON.stringify(['https://www.youtube.com/shorts/AAAAAAAAAAA']), b.json.shorts);
+      check('묶음: 카드 문장 두 줄', b.json.cardLine === '기도의 시작도 끝도\n하나님이십니다.', b.json.cardLine);
+      check('묶음: 나눔지 HTML', b.handout && /질문 하나/.test(b.handout.body) && !/contenteditable/.test(b.handout.body));
+      const res = await window.api.materialsBundle({ ...b, base: dir + '/bundle' });
+      check('묶음 폴더·파일', res && /2026-10-25[\\/]bundle\.json$/.test(res.file) && res.bundle.handout === '나눔지.pdf', res);
+      report.bundle = res.bundle;
+      const again = await window.api.materialsBundle({ date: b.date, json: { ...b.json, shorts: ['https://www.youtube.com/shorts/CCCCCCCCCCC'] }, base: dir + '/bundle' });
+      check('다시 보내면 쇼츠 주소 합치고 나눔지 유지', again.bundle.shorts.length === 2 && again.bundle.handout === '나눔지.pdf' && again.bundle.cardLine === b.json.cardLine, again.bundle);
+      check('홈페이지 묶음 단추', !!document.querySelector('#mnBar [data-act="bundle"]'));
+      const snap2 = SS.project.snapshot(SS.state, 0);
+      check('업로드 기록 프로젝트 저장', snap2.uploads.length === 3 && snap2.uploads[0].privacy === 'public');
       // 옵션 창
       SS._materialsTest.show('make'); await sleep(200);
       document.querySelector('#mnOptOpen, [data-act="options"], #mnOptBtn') && document.querySelector('#mnOptOpen, [data-act="options"], #mnOptBtn').click();

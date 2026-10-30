@@ -32,6 +32,40 @@
     m.meta = m.meta || {};
     return m;
   }
+  /** 유튜브 주소 → 쇼츠 주소 */
+  function shortsUrl(u) { const m = String(u || '').match(/(?:shorts\/|youtu\.be\/|[?&]v=)([\w-]{11})/); return m ? 'https://www.youtube.com/shorts/' + m[1] : ''; }
+  /** 카드에 넣을 핵심 문장 두 줄 (가운데 가까운 띄어쓰기에서 나눔) */
+  function twoLines(t) {
+    t = String(t || '').replace(/\s+/g, ' ').trim(); if (t.length <= 14) return t;
+    const mid = t.length / 2; let best = -1;
+    for (let i = 0; i < t.length; i++) if (t[i] === ' ' && (best < 0 || Math.abs(i - mid) < Math.abs(best - mid))) best = i;
+    return best > 0 ? t.slice(0, best) + '\n' + t.slice(best + 1) : t;
+  }
+  /** 홈페이지 묶음 내용 (시험에서도 씀) */
+  function bundleOf(md) {
+    const m = store(), R = m.results;
+    const date = M().isoDate(md.date);
+    const shorts = Array.from(new Set(((SS.state && SS.state.uploads) || []).filter((u) => u.privacy === 'public').map((u) => shortsUrl(u.url)).filter(Boolean)));
+    const line = (R.summary && R.summary.data.theme) || (R.cardnews && R.cardnews.data.title) || (R.cards && R.cards.data.cards[0] && R.cards.data.cards[0].headline) || '';
+    const json = { date, service: serviceOf(md.date), shorts, cardLine: twoLines(line) };
+    let handout = null;
+    if (R.smallgroup) {
+      const box = document.createElement('div');
+      box.innerHTML = D().page('smallgroup', R.smallgroup.data, md);
+      handout = { body: D().cleanForExport(box.firstElementChild), css: D().DOC_CSS };
+    }
+    return { date, json, handout };
+  }
+  async function sendBundle(md) {
+    const b = bundleOf(md);
+    const has = [b.json.shorts.length ? `공개 쇼츠 ${b.json.shorts.length}개` : '', b.handout ? '나눔지 PDF(소그룹 자료)' : '', b.json.cardLine ? '카드 문장' : ''].filter(Boolean);
+    if (!has.length) { toast('보낼 것이 없습니다. 소그룹 자료나 설교 요약을 먼저 만들어 주세요.', 6000); return; }
+    const msg = `${b.date} 예배 묶음을 만듭니다: ${has.join(', ')}.\n\n홈페이지에 공개되므로 나눔지에 성도 이름·헌금·봉사자 명단·사관 개인 사정·전화번호가 없는지 확인하셨나요?`
+      + (b.json.shorts.length ? '' : '\n\n(공개로 올린 쇼츠가 없어 쇼츠 주소는 넣지 않습니다.)');
+    if (!confirm(msg)) return;
+    const res = await api.materialsBundle(b);
+    if (res) { toast(`홈페이지 묶음을 만들었습니다: ${res.dir}`, 7000); api.materialsOpenPath(res.file); }
+  }
   /** 예배 날짜의 요일 → 홈페이지 예배 종류 (수요일·금요일, 나머지는 주일) */
   function serviceOf(date) {
     const iso = M().isoDate(date), d = new Date(iso + 'T00:00:00');
@@ -319,6 +353,7 @@
       + (current === 'summary' ? '<button class="mn-btn ico i-globe" data-act="homepage" title="교회 홈페이지(말씀 요약)에 올릴 글 파일(.md)로 저장합니다">홈페이지 글 저장</button>' : '');
     bar += '<button class="mn-btn ico i-copy" data-act="copy">글 복사 (카톡용)</button><span class="mn-spacer"></span>'
       + `<span class="mn-note">${esc(r.provider ? 'AI: ' + r.provider + ' · ' : '')}${esc(new Date(r.made).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }))}</span>`
+      + '<button class="mn-btn ico i-globe" data-act="bundle" title="교회 홈페이지로 보낼 묶음(공개 쇼츠 주소·나눔지 PDF·카드 문장)을 만듭니다">홈페이지 묶음 보내기</button>'
       + '<button class="mn-btn soft ico i-refresh-cw" data-act="again">다시 만들기</button>';
     $('mnBar').innerHTML = bar;
     $('mnBar').querySelectorAll('[data-design]').forEach((b) => b.addEventListener('click', () => { store().design = b.dataset.design; if (b.dataset.design === 'scene') grabScene(); renderResults(); }));
@@ -386,6 +421,8 @@
         if (m.design === 'scene' && !sceneUrl) grabScene();
         const p = await api.materialsPptx({ data: r.data, meta: md, design: m.design, sceneData: m.design === 'scene' ? sceneUrl : '', name });
         if (p) { toast('설교 PPT 를 저장했습니다. 파워포인트에서 글을 고칠 수 있습니다.'); api.materialsOpenPath(p); }
+      } else if (what === 'bundle') {
+        await sendBundle(md);
       } else if (what === 'homepage') {
         const out = M().toHomepage(r.data, { ...md, service: serviceOf(md.date) });
         const p = await api.materialsSaveText({ text: out.text, name: out.name, ext: 'md', title: '홈페이지 말씀 요약 글로 저장' });
@@ -420,7 +457,7 @@
   }
   SS.openMaterials = open;
   SS.closeMaterials = close;
-  SS._materialsTest = { generate, act, renderResults, show, store, setSource, grabScene, get busy() { return busy; } };
+  SS._materialsTest = { generate, act, renderResults, show, store, setSource, grabScene, bundleOf, shortsUrl, get busy() { return busy; } };
 
   function init() {
     const b = $('btnMaterials');

@@ -68,6 +68,7 @@ contextBridge.exposeInMainWorld('api', {
   materialsOpenPath: (p) => ipcRenderer.invoke('materials:openPath', p),
   materialsPptx: (o) => ipcRenderer.invoke('materials:pptx', o),
   materialsSaveText: (o) => ipcRenderer.invoke('materials:saveText', o),
+  materialsBundle: (o) => ipcRenderer.invoke('materials:bundle', o),
   materialsRenderTest: (o) => ipcRenderer.invoke('materials:renderTest', o),
   // AI
   aiAnalyze: (lines, opts) => ipcRenderer.invoke('ai:analyze', lines, opts),
