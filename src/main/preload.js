@@ -52,7 +52,11 @@ contextBridge.exposeInMainWorld('api', {
   bgmTrack: (id) => ipcRenderer.invoke('bgm:track', id),
   bgmCustomRemove: (id) => ipcRenderer.invoke('bgm:customRemove', id),
   bgmImportFile: (p) => ipcRenderer.invoke('bgm:importFile', p),
-  bgmImportYoutube: (url) => ipcRenderer.invoke('bgm:importYoutube', url),
+  bgmImportYoutube: (url, key) => ipcRenderer.invoke('bgm:importYoutube', url, key),
+  bgmLibrary: () => ipcRenderer.invoke('bgm:library'),
+  bgmLibUpdate: (id, p) => ipcRenderer.invoke('bgm:libUpdate', id, p),
+  bgmLibReveal: (id) => ipcRenderer.invoke('bgm:libReveal', id),
+  bgmExpandUrl: (url) => ipcRenderer.invoke('bgm:expandUrl', url),
   onBgmProgress: (callback) => {
     const listener = (_event, info) => callback(info);
     ipcRenderer.on('bgm:progress', listener);

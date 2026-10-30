@@ -59,7 +59,8 @@
       const tone = launch.cache + '/batch17_tone.mp3';
       const t1 = await window.api.bgmImportFile(tone);
       check('내 파일 넣기', t1 && /^custom-f-/.test(t1.id) && Math.abs(t1.durationSec - 25) < 0.6 && t1.custom, t1);
-      check('넣은 파일은 캐시에 복사', t1.file && t1.file !== tone && /bgm[\\/]custom/.test(t1.file), t1.file);
+      const libDir = (await window.api.bgmLibrary()).dir;
+      check('넣은 파일은 보관함 폴더에 복사', t1.file && t1.file !== tone && t1.file.startsWith(libDir), { file: t1.file, libDir });
       SS.bgmUi.openLib(); await sleep(200);
       check('음악 고르기 창에 넣기 단추', !!$('bgmAddFile') && !!$('bgmAddYt') && !!$('bgmYtUrl'));
       SS.bgmImport.custom.set(t1.id, t1); SS.bgmUi.closeLib(); SS.useBgm(t1.id); await sleep(200);

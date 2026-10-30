@@ -255,4 +255,25 @@ async function downloadAudio(url, outDir, onProgress) {
     });
   }));
 }
-module.exports = { fetchInfo, fetchAutoSubs, downloadSection, getJsRuntime, downloadAudio };
+/** 재생목록 주소면 곡 목록(최대 max개), 영상 주소면 그 하나. 돌려줌 [{ url, title, id }] */
+async function listPlaylist(url, max = 50) {
+  url = String(url || '').trim();
+  const isList = /[?&]list=/.test(url) && !/[?&]v=|youtu\.be\/|shorts\//.test(url);
+  if (!isList) return [{ url, title: '', id: (url.match(/(?:youtu\.be\/|[?&]v=|shorts\/|live\/)([\w-]{11})/) || [])[1] || '' }];
+  return new Promise((resolve, reject) => {
+    const args = ['--flat-playlist', '-J', '--playlist-end', String(max), ...runtimeArgs(), '--', url];
+    const proc = spawn(tools.ytdlp, args, getSpawnOptions());
+    let out = '', err = '';
+    proc.stdout.on('data', (d) => { out += d; });
+    proc.stderr.on('data', (d) => { err += d; });
+    proc.on('error', reject);
+    proc.on('close', (code) => {
+      if (code !== 0) return reject(ytError(code, err.slice(-4000)));
+      try {
+        const j = JSON.parse(out);
+        resolve((j.entries || []).filter((x) => x && x.id).slice(0, max).map((x) => ({ id: x.id, title: x.title || '', url: 'https://www.youtube.com/watch?v=' + x.id })));
+      } catch (e) { reject(new Error('재생목록을 읽지 못했습니다.')); }
+    });
+  });
+}
+module.exports = { fetchInfo, fetchAutoSubs, downloadSection, getJsRuntime, downloadAudio, listPlaylist };

@@ -270,6 +270,7 @@
         <div class="bgm-own">
           <button class="btn sm ico i-folder-open" id="bgmAddFile" type="button" title="내 컴퓨터의 mp3·m4a·wav 등 음악 파일 넣기">내 파일로 넣기</button>
           <div class="bgm-yt"><input id="bgmYtUrl" type="text" spellcheck="false" placeholder="유튜브 링크 붙여넣기 (https://youtu.be/...)"><button class="btn sm ico i-square-play" id="bgmAddYt" type="button">유튜브에서 넣기</button></div>
+          <button class="btn sm ico i-library-big" id="bgmOpenMgr" type="button" title="받아 둔 음악 모아 보기 · 여러 곡·재생목록 받기">배경음악 관리</button>
           <div class="bgm-own-msg" id="bgmImportMsg">직접 넣은 음악은 저작권을 꼭 확인하세요. 유튜브 음악은 대부분 저작권이 있어 올린 영상에 문제가 생길 수 있습니다.</div>
         </div>
         <div class="bgm-moods" id="bgmMoods"></div>
@@ -281,6 +282,7 @@
       m.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLib(); if (e.key === 'Enter' && e.target.id === 'bgmYtUrl') importYt(); e.stopPropagation(); });
       $('bgmAddFile').addEventListener('click', importFile);
       $('bgmAddYt').addEventListener('click', importYt);
+      $('bgmOpenMgr').addEventListener('click', () => { if (SS.openBgmManager) SS.openBgmManager(); });
     }
     m.classList.remove('hidden'); m.hidden = false;
     if (SS.state) SS.state.dialogOpen = true;
@@ -319,10 +321,10 @@
     const mine = Array.from(custom.values()).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
     const moods = ['전체'].concat(mine.length ? ['내 음악'] : [], C.MOODS);
     if (mood === '내 음악' && !mine.length) mood = '전체';
-    const countOf = (x) => x === '전체' ? C.tracks.length + mine.length : x === '내 음악' ? mine.length : C.tracks.filter((t) => t.mood === x).length;
+    const countOf = (x) => x === '전체' ? C.tracks.length + mine.length : x === '내 음악' ? mine.length : C.tracks.filter((t) => t.mood === x).length + mine.filter((t) => t.mood === x).length;
     $('bgmMoods').innerHTML = moods.map((x) => `<button class="bgm-mood${x === mood ? ' on' : ''}" data-mood="${esc(x)}">${esc(x)}<span>${countOf(x)}</span></button>`).join('');
     $('bgmMoods').querySelectorAll('[data-mood]').forEach((b) => b.addEventListener('click', () => { mood = b.dataset.mood; renderLib(); }));
-    const list = mood === '내 음악' ? mine : (mood === '전체' ? mine : []).concat(C.tracks.filter((t) => mood === '전체' || t.mood === mood));
+    const list = mood === '내 음악' ? mine : (mood === '전체' ? mine : mine.filter((t) => t.mood === mood)).concat(C.tracks.filter((t) => mood === '전체' || t.mood === mood));
     const sel = cur() && cur().id;
     $('bgmList').innerHTML = list.length ? list.map((t) => `<div class="bgm-item${t.id === sel ? ' sel' : ''}" data-id="${esc(t.id)}">
         <button class="btn icon-only bgm-play ico i-play" data-play="${esc(t.id)}" title="듣기 / 일시정지" aria-label="${esc(t.title)} 듣기"></button>
@@ -379,6 +381,12 @@
   }
   function init() {
     loadCustom().then(() => { if (cur()) { render(); drawWave(); } });
+  // 배경음악 관리에서 곡을 받거나 이름·분위기를 바꾸거나 지우면 다시 읽는다
+  window.addEventListener('ss:bgm-library-changed', async () => {
+    custom.clear(); await loadCustom();
+    const m = $('bgmLib'); if (m && !m.hidden) renderLib();
+    render();
+  });
     if (!$('bgmPane')) return;
     $('tabDesign').addEventListener('click', () => setTab('design'));
     $('tabMusic').addEventListener('click', () => setTab('music'));

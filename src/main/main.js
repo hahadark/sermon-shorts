@@ -93,6 +93,7 @@ function registerIpc() {
     screenshot: !!SCREENSHOT,
     testScript: process.env.SS_TEST_SCRIPT || null,
     testUrl: process.env.SS_TEST_URL || null,
+    migrateTest: !!process.env.SS_BGM_MIGRATE,
     testProvider: process.env.SS_TEST_PROVIDER || null,
     waveView: process.env.SS_WAVE_VIEW || null,
     root: tools.root,
