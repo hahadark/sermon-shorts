@@ -108,13 +108,15 @@ function preserveCurrent(d) {
   const metaPath = path.join(d, 'meta.json'), meta = readJson(metaPath, null), cur = path.join(d, 'current.sshorts');
   if (!meta || !fs.existsSync(cur)) return;
   const last = (meta.versions || [])[meta.versions.length - 1];
-  if (last && last.at >= (meta.updatedAt || 0)) return;
   const text = fs.readFileSync(cur, 'utf8');
-  if (last) { try { if (fs.readFileSync(path.join(d, last.file), 'utf8') === text) return; } catch (_) { /* */ } }
+  const hash = crypto.createHash('sha1').update(text).digest('hex').slice(0, 16);
+  // 시각이 아니라 내용으로 비교 (같은 밀리초에 두 번 저장될 수 있음)
+  if (last && last.hash === hash) return;
+  if (last && !last.hash) { try { if (fs.readFileSync(path.join(d, last.file), 'utf8') === text) return; } catch (_) { /* */ } }
   let file = 'v-' + stamp(new Date(meta.updatedAt || Date.now())) + '.sshorts', n = 2;
   while (fs.existsSync(path.join(d, file))) file = 'v-' + stamp(new Date(meta.updatedAt || Date.now())) + '-' + (n++) + '.sshorts';
   writeAtomic(path.join(d, file), text);
-  meta.versions = (meta.versions || []).concat({ file, at: meta.updatedAt || Date.now(), summary: meta.summary || null });
+  meta.versions = (meta.versions || []).concat({ file, at: meta.updatedAt || Date.now(), summary: meta.summary || null, hash });
   while (meta.versions.length > MAX_VERSIONS) { const old = meta.versions.shift(); try { fs.unlinkSync(path.join(d, old.file)); } catch (_) { /* */ } }
   writeAtomic(metaPath, JSON.stringify(meta, null, 1));
 }

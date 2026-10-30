@@ -68,3 +68,15 @@ test('실행 표시: 프로세스가 없는 표시 = 갑자기 꺼짐, 살아 �
   assert.ok(fs.existsSync(path.join(sd, process.ppid + '.json')), '다른 창(살아 있음) 표시는 둠');
   assert.strictEqual(asv.scanSessions(), null);
 });
+
+test('같은 밀리초에 두 번 저장해도 최신 상태를 작업본으로 남김', () => {
+  tmpRoot();
+  const realNow = Date.now; const t0 = realNow(); Date.now = () => t0;
+  try {
+    asv.write({ sourceKey: 's|0', data: snap(3) });
+    asv.write({ sourceKey: 's|0', data: snap(8) });
+  } finally { Date.now = realNow; }
+  const e = asv.list()[0];
+  asv.read(e.key, e.versions[1].file);
+  assert.ok(asv.list()[0].versions.slice(1).some((v) => asv.read(e.key, v.file).data.words.length === 8));
+});
