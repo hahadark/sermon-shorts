@@ -183,6 +183,32 @@ function initMaterials() {
     return { folder: r.filePaths[0], files: out };
   });
   ipcMain.handle('materials:openPath', (_e, p) => shell.showItemInFolder(String(p)));
+  // 설교 PPT (.pptx)
+  ipcMain.handle('materials:pptx', async (event, { data, meta, design, sceneData, name, file }) => {
+    let target = file && process.env.SS_TEST_SCRIPT ? String(file) : null; // 시험에서는 정한 경로로
+    if (!target) {
+      const w = BrowserWindow.fromWebContents(event.sender);
+      const r = await dialog.showSaveDialog(w, { title: '설교 PPT 로 저장', defaultPath: safeName(name) + '.pptx', filters: [{ name: 'PowerPoint', extensions: ['pptx'] }] });
+      if (r.canceled || !r.filePath) return null;
+      target = r.filePath;
+    }
+    const buf = await require('./materials-pptx').buildPptx(data, meta, { design, sceneData });
+    writeFileFriendly(target, buf);
+    return target;
+  });
+  // 글 파일 저장 (홈페이지 말씀 요약 .md 등)
+  ipcMain.handle('materials:saveText', async (event, { text, name, ext, title, file }) => {
+    let target = file && process.env.SS_TEST_SCRIPT ? String(file) : null;
+    if (!target) {
+      const w = BrowserWindow.fromWebContents(event.sender);
+      ext = String(ext || 'md').replace(/[^a-z0-9]/gi, '') || 'md';
+      const r = await dialog.showSaveDialog(w, { title: title || '저장', defaultPath: safeName(String(name || '자료').replace(/\.[a-z0-9]+$/i, '')) + '.' + ext, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
+      if (r.canceled || !r.filePath) return null;
+      target = r.filePath;
+    }
+    writeFileFriendly(target, Buffer.from(String(text || ''), 'utf8'));
+    return target;
+  });
   // 시험용: 대화 상자 없이 정해진 경로로 (캐시 폴더 안만)
   ipcMain.handle('materials:renderTest', async (_e, { kind, body, css, width, height, file }) => {
     const target = require('./fs-guard').check(file);

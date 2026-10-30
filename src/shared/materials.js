@@ -20,6 +20,9 @@
     { id: 'summary', label: '설교 요약', icon: 'i-file-text', desc: '핵심 한 문장 · 대지 요약 · 적용', kind: 'page' },
     { id: 'cards', label: '묵상카드', icon: 'i-images', desc: 'SNS·카톡용 말씀 카드 이미지', kind: 'cards' },
     { id: 'family', label: '가정예배지', icon: 'i-house', desc: '가족이 함께 드리는 예배 순서', kind: 'page' },
+    { id: 'cardnews', label: '카드뉴스', icon: 'i-gallery-horizontal-end', desc: '인스타용 여러 장 · 표지 · 핵심 · 이번 주 실천', kind: 'cards' },
+    { id: 'leader', label: '소그룹 리더 가이드', icon: 'i-user-check', desc: '진행 순서·시간 · 질문 의도·예상 답', kind: 'page' },
+    { id: 'slides', label: '설교 PPT', icon: 'i-presentation', desc: '예배 화면용 16:9 슬라이드 · PPT 저장', kind: 'slides' },
   ];
 
   var OPTIONS = {
@@ -32,8 +35,11 @@
     summary: { label: '설교 요약', values: ['짧게', '보통', '길게'] },
     cardTone: { label: '묵상카드', values: ['말씀 중심', '위로', '도전', '적용', '초청'] },
     cardCount: { label: '카드 장수', values: [1, 2, 3, 4, 5, 6, 7] },
+    newsCount: { label: '카드뉴스 장수', values: [4, 5, 6, 7, 8] },
+    leaderTime: { label: '모임 시간', values: [30, 45, 60, 90] },
+    slideCount: { label: '슬라이드 수', values: [4, 6, 8, 10, 12] },
   };
-  var DEFAULTS = { audience: '장년', smallgroup: '나눔형', qtDays: 5, qtFocus: '혼합형', qtForm: '묵상형', quiz: '혼합형', summary: '보통', cardTone: '말씀 중심', cardCount: 3 };
+  var DEFAULTS = { audience: '장년', smallgroup: '나눔형', qtDays: 5, qtFocus: '혼합형', qtForm: '묵상형', quiz: '혼합형', summary: '보통', cardTone: '말씀 중심', cardCount: 3, newsCount: 6, leaderTime: 60, slideCount: 8 };
 
   function typeOf(id) { for (var i = 0; i < TYPES.length; i++) if (TYPES[i].id === id) return TYPES[i]; return null; }
   function pick(v, list, d) { return list.indexOf(v) >= 0 ? v : d; }
@@ -117,6 +123,24 @@
         return '가정예배지를 만들어 주세요. 부모와 자녀가 15분 안에 함께 드릴 수 있게, 아이도 알아듣는 쉬운 말로.\n'
           + 'JSON: {"title":"제목","verse":"본문 장절","opening":"함께 부를 찬송·찬양 제목 제안(널리 알려진 곡 1~2개)","story":"부모가 읽어 줄 말씀 이야기 5~7문장","questions":["가족이 나눌 질문 2~3개"],"activity":"함께 해 볼 활동이나 실천","prayer":"가족 기도문","blessing":"마치는 축복의 말 한 문장"}';
       }
+      case 'cardnews': {
+        var body = o.newsCount - 2;
+        return '인스타그램 카드뉴스 ' + o.newsCount + '장의 글을 만들어 주세요. 1장은 표지, 가운데 ' + body + '장은 설교의 핵심을 흐름대로 하나씩, 마지막 장은 "이번 주 실천"입니다.\n'
+          + '표지 title 은 공백 포함 18자 이내로 크게 보일 제목, subtitle 은 한 줄(30자 이내). slides 는 정확히 ' + body + '개: heading 은 16자 이내, body 는 2~3문장(90자 이내), highlight 는 꼭 채웁니다: body 안에 글자 그대로 들어 있는 가장 중요한 구절(6~20자, body 에서 복사해 붙인 것처럼 똑같이).\n'
+          + 'action 은 이번 주에 해 볼 구체적인 실천 한 문장(40자 이내), closing 은 마무리 한 문장.\n'
+          + 'JSON: {"title":"","subtitle":"","verse":"본문 장절","slides":[{"heading":"","body":"","highlight":""}],"action":"","closing":""}';
+      }
+      case 'leader': {
+        return '소그룹 리더용 진행 가이드를 만들어 주세요. 모임 시간은 ' + o.leaderTime + '분입니다. 리더가 미리 읽고 모임을 이끌 수 있게, 성도용 나눔지와 달리 질문의 의도와 예상 답(설교의 어느 부분이 근거인지)을 적습니다.\n'
+          + 'flow 는 마음 열기 → 말씀 되새기기 → 나눔 → 적용·기도 순서이고 minutes 합이 ' + o.leaderTime + '분이 되게. 질문은 4~6개.\n'
+          + 'JSON: {"title":"","verse":"본문 장절","goal":"이번 모임의 목표 1~2문장","prepare":"리더가 미리 할 것(설교 다시 듣기, 본문 읽기 등)","flow":[{"part":"단계 이름","minutes":10,"guide":"진행 방법 1~2문장"}],"questions":[{"q":"질문","intent":"질문 의도","expected":"나올 만한 답과 설교 근거","followup":"이어 물을 질문(없으면 빈 글)"}],"tips":["진행 팁(말이 없는 분·말이 긴 분·어려운 질문이 나왔을 때 등) 2~4개"],"prayer":"마무리 기도"}';
+      }
+      case 'slides': {
+        return '설교를 예배당 화면에 띄울 16:9 슬라이드 ' + o.slideCount + '장 분량으로 정리해 주세요. 첫 장은 제목(자동으로 만듦)이니 slides 에는 본론만 ' + (o.slideCount - 2) + '~' + (o.slideCount - 1) + '장을 넣습니다.\n'
+          + '설교의 흐름(대지) 순서대로, 장마다 heading 은 18자 이내, lines 는 화면에 띄울 짧은 문장 1~3개(각 32자 이내, 말하는 그대로가 아니라 핵심만), ref 는 그 장과 관련된 성경 장절(없으면 빈 글).\n'
+          + 'closing 은 마지막 장에 띄울 결단·적용 한 문장(40자 이내).\n'
+          + 'JSON: {"title":"","verse":"본문 장절","slides":[{"heading":"","lines":[""],"ref":""}],"closing":""}';
+      }
     }
     throw new Error('모르는 자료 종류: ' + type);
   }
@@ -172,6 +196,16 @@
       case 'cards': return { cards: arr(o.cards).slice(0, 7).map(function (c) { return { headline: str(c && c.headline, 60), body: str(c && c.body, 160), source: str(c && c.source, 80) }; }).filter(function (c) { return c.headline || c.body; }) };
       case 'family': return { title: str(o.title, 120), verse: str(o.verse, 120), opening: str(o.opening, 200), story: str(o.story, 2000),
         questions: arr(o.questions).slice(0, 5).map(function (q) { return str(q, 300); }).filter(Boolean), activity: str(o.activity, 500), prayer: str(o.prayer, 800), blessing: str(o.blessing, 300) };
+      case 'cardnews': return { title: str(o.title, 60), subtitle: str(o.subtitle, 80), verse: str(o.verse, 80),
+        slides: arr(o.slides).slice(0, 8).map(function (s) { s = s || {}; var b = str(s.body, 240), h = str(s.highlight, 60); return { heading: str(s.heading, 50), body: b, highlight: h && b.indexOf(h) >= 0 ? h : '' }; }).filter(function (s) { return s.heading || s.body; }),
+        action: str(o.action, 120), closing: str(o.closing, 160) };
+      case 'leader': return { title: str(o.title, 120), verse: str(o.verse, 120), goal: str(o.goal, 400), prepare: str(o.prepare, 400),
+        flow: arr(o.flow).slice(0, 8).map(function (f) { f = f || {}; var m = parseInt(f.minutes, 10); return { part: str(f.part, 40), minutes: m > 0 && m < 200 ? m : 0, guide: str(f.guide, 400) }; }).filter(function (f) { return f.part || f.guide; }),
+        questions: arr(o.questions).slice(0, 8).map(function (q) { q = q || {}; return typeof q === 'string' ? { q: str(q, 300), intent: '', expected: '', followup: '' } : { q: str(q.q, 300), intent: str(q.intent, 300), expected: str(q.expected, 500), followup: str(q.followup, 300) }; }).filter(function (q) { return q.q; }),
+        tips: arr(o.tips).slice(0, 6).map(function (t) { return str(t, 300); }).filter(Boolean), prayer: str(o.prayer, 800) };
+      case 'slides': return { title: str(o.title, 80), verse: str(o.verse, 80),
+        slides: arr(o.slides).slice(0, 14).map(function (s) { s = s || {}; return { heading: str(s.heading, 60), lines: arr(s.lines).slice(0, 4).map(function (l) { return str(l, 80); }).filter(Boolean), ref: str(s.ref, 60) }; }).filter(function (s) { return s.heading || s.lines.length; }),
+        closing: str(o.closing, 120) };
     }
     return o;
   }
@@ -191,7 +225,8 @@
     }
     var out = normalize(type, obj);
     var empty = (type === 'cards' && !out.cards.length) || (type === 'quiz' && !out.items.length) || (type === 'qt' && !out.days.length)
-      || (type === 'summary' && !out.points.length && !out.theme) || (type === 'smallgroup' && !out.questions.length) || (type === 'family' && !out.story);
+      || (type === 'summary' && !out.points.length && !out.theme) || (type === 'smallgroup' && !out.questions.length) || (type === 'family' && !out.story)
+      || (type === 'cardnews' && !out.slides.length) || (type === 'leader' && !out.questions.length) || (type === 'slides' && !out.slides.length);
     if (empty) throw Object.assign(new Error('AI 답에 내용이 비어 있습니다. 다시 만들어 주세요.'), { code: 'format' });
     return out;
   }
@@ -241,6 +276,26 @@
         if (d.prayer) L.push('6. 기도: ' + d.prayer);
         if (d.blessing) L.push('7. 축복: ' + d.blessing);
         break;
+      case 'cardnews':
+        head(d.title || '카드뉴스'); if (d.subtitle) L.push(d.subtitle); if (d.verse) L.push(d.verse);
+        d.slides.forEach(function (s, i) { nl(); L.push((i + 1) + '. ' + s.heading); if (s.body) L.push(s.body); });
+        if (d.action) { nl(); L.push('[이번 주 실천] ' + d.action); }
+        if (d.closing) L.push(d.closing);
+        break;
+      case 'leader':
+        head((d.title || '소그룹') + ' · 리더 가이드'); if (d.verse) L.push(d.verse); nl();
+        if (d.goal) L.push('[모임 목표] ' + d.goal);
+        if (d.prepare) L.push('[미리 준비] ' + d.prepare);
+        if (d.flow.length) { nl(); L.push('[진행 순서]'); d.flow.forEach(function (f) { L.push('- ' + f.part + (f.minutes ? ' (' + f.minutes + '분)' : '') + (f.guide ? ': ' + f.guide : '')); }); }
+        d.questions.forEach(function (q, i) { nl(); L.push('Q' + (i + 1) + '. ' + q.q); if (q.intent) L.push('  의도: ' + q.intent); if (q.expected) L.push('  예상 답: ' + q.expected); if (q.followup) L.push('  이어서: ' + q.followup); });
+        if (d.tips.length) { nl(); L.push('[진행 팁]'); d.tips.forEach(function (t) { L.push('- ' + t); }); }
+        if (d.prayer) { nl(); L.push('[마무리 기도] ' + d.prayer); }
+        break;
+      case 'slides':
+        head(d.title || '설교'); if (d.verse) L.push(d.verse);
+        d.slides.forEach(function (s, i) { nl(); L.push((i + 1) + '. ' + s.heading + (s.ref ? ' (' + s.ref + ')' : '')); s.lines.forEach(function (l) { L.push(' · ' + l); }); });
+        if (d.closing) { nl(); L.push(d.closing); }
+        break;
     }
     return L.join('\n').replace(/\n{3,}/g, '\n\n').trim();
   }
@@ -259,5 +314,35 @@
     return out.join('\n');
   }
 
-  return { TYPES: TYPES, OPTIONS: OPTIONS, DEFAULTS: DEFAULTS, typeOf: typeOf, normOptions: normOptions, buildSystem: buildSystem, buildRequest: buildRequest, parse: parse, normalize: normalize, toText: toText, sermonText: sermonText, repairJson: repairJson };
+  /**
+   * 설교 요약 → 홈페이지(Astro sermon-notes) 말씀 요약 글 (.md)
+   * 앞머리: title·date·service·series·passage·preacher·summary·published. 묵상 질문은 넣지 않는다.
+   * meta: { title, verse, speaker, date('2026년 10월 25일' 또는 '2026-10-25'), service, series }
+   */
+  var SERVICES = ['sunday', 'afternoon', 'wednesday', 'friday', 'dawn', 'special'];
+  function isoDate(s) {
+    s = String(s || '');
+    var m = s.match(/(\d{4})\s*[-.년]\s*(\d{1,2})\s*[-.월]\s*(\d{1,2})/);
+    if (!m) { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+    return m[1] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[3]).padStart(2, '0');
+  }
+  function yamlStr(v) { return JSON.stringify(String(v == null ? '' : v).replace(/\s+/g, ' ').trim()); }
+  function toHomepage(d, meta) {
+    meta = meta || {};
+    var date = isoDate(meta.date);
+    var service = SERVICES.indexOf(meta.service) >= 0 ? meta.service : 'sunday';
+    var title = String(meta.title || d.title || '말씀 요약').replace(/\*/g, '').replace(/\s+\/\s+/g, ' ').trim();
+    var fm = ['---', 'title: ' + yamlStr(title), 'date: ' + date, 'service: ' + service];
+    if (meta.series) fm.push('series: ' + yamlStr(meta.series));
+    if (meta.verse || d.verse) fm.push('passage: ' + yamlStr(meta.verse || d.verse));
+    if (meta.speaker) fm.push('preacher: ' + yamlStr(meta.speaker));
+    fm.push('summary: ' + yamlStr(d.theme || (d.points[0] && d.points[0].body) || title));
+    fm.push('published: false', '---', '');
+    var L = [];
+    d.points.forEach(function (p, i) { L.push('### ' + (d.points.length > 1 ? (i + 1) + '. ' : '') + p.heading, '', p.body, ''); });
+    if (d.application) L.push('### 말씀을 정리하며', '', d.application, '');
+    return { name: date + '-' + service + '.md', text: fm.join('\n') + L.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n' };
+  }
+
+  return { TYPES: TYPES, OPTIONS: OPTIONS, DEFAULTS: DEFAULTS, typeOf: typeOf, normOptions: normOptions, buildSystem: buildSystem, buildRequest: buildRequest, parse: parse, normalize: normalize, toText: toText, sermonText: sermonText, repairJson: repairJson, toHomepage: toHomepage, isoDate: isoDate };
 }));

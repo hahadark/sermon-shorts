@@ -147,6 +147,9 @@
 .mn-cards { display: flex; flex-wrap: wrap; gap: 22px; justify-content: center; }
 .mn-cardwrap { width: 324px; height: 405px; overflow: hidden; border-radius: 14px; box-shadow: 0 14px 30px rgba(15,23,42,.18); }
 .mn-cardwrap > .mcard { transform: scale(0.3); transform-origin: top left; }
+.mn-slides { display: flex; flex-wrap: wrap; gap: 22px; justify-content: center; }
+.mn-slidewrap { width: 480px; height: 270px; overflow: hidden; border-radius: 12px; box-shadow: 0 14px 30px rgba(15,23,42,.18); }
+.mn-slidewrap > .mslide { transform: scale(0.25); transform-origin: top left; }
 .mn-empty { text-align: center; padding: 70px 20px; color: #64748b; }
 .mn-empty b { display: block; font-size: 18px; color: #0f172a; margin-bottom: 8px; }
 .mn-ed { outline: none; border-radius: 4px; }

@@ -78,6 +78,46 @@
 .mcard.scene{color:#fff;background:#111 center/cover no-repeat}
 .mcard.scene::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.55) 0%,rgba(0,0,0,.25) 40%,rgba(0,0,0,.78) 100%)}
 .mcard.scene>*{position:relative} .mcard.scene .c-src{background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.35)}
+/* 카드뉴스 */
+.mcard.news .c-head.big{font-size:96px;line-height:1.24;letter-spacing:-3px}
+.mcard.news.cover .c-src{margin:0 0 34px}
+.mcard.news .c-num{font-size:44px;font-weight:900;letter-spacing:-1px;margin-bottom:22px;opacity:.55}
+.mcard.news .c-head{font-size:68px}
+.mcard.news .c-body{font-size:40px;line-height:1.62}
+.mcard.news mark{background:linear-gradient(transparent 52%,rgba(250,204,21,.55) 52%);color:inherit;padding:0 4px;font-weight:800}
+.mcard.news.navy mark,.mcard.news.scene mark{background:linear-gradient(transparent 52%,rgba(96,165,250,.45) 52%)}
+.mcard.news.act .c-src{margin:0 0 34px}
+.mcard.news .c-pg{font-weight:800;letter-spacing:1px}
+/* 리더 가이드 */
+.doc table.flow{width:100%;border-collapse:separate;border-spacing:0 6px}
+.doc table.flow td{vertical-align:top;padding:10px 12px;background:#f5f7fb;font-size:13.5px}
+.doc table.flow td:first-child{border-radius:12px 0 0 12px} .doc table.flow td:last-child{border-radius:0 12px 12px 0}
+.doc table.flow .fl-p{width:120px;font-weight:800;color:#0f172a} .doc table.flow .fl-m{width:56px;font-weight:800;color:#1d4ed8;text-align:center}
+.doc .lq{margin-bottom:14px;padding:14px 16px;border:1px solid #e6ebf2;border-radius:16px;break-inside:avoid}
+.doc .lq .q{margin-bottom:6px}
+.doc .lq dl{display:grid;grid-template-columns:62px 1fr;gap:4px 10px;margin:0 0 0 44px;font-size:13px;color:#334155}
+.doc .lq dt{font-weight:800;color:#1d4ed8}
+.doc .lq dd{margin:0}
+.doc ul.tips{margin:0;padding-left:20px} .doc ul.tips li{margin-bottom:4px}
+/* 설교 PPT 1920x1080 */
+.mslide{width:1920px;height:1080px;position:relative;overflow:hidden;font-family:'Malgun Gothic','Pretendard',sans-serif;word-break:keep-all;padding:90px 110px 120px;display:flex;flex-direction:column;color:#fff;background:#13294b}
+.mslide.navy{background:#13294b;color:#fff} .mslide.navy .s-num,.mslide.navy .s-ref,.mslide.navy .s-sub,.mslide.navy .s-foot{color:#bcd0ee} .mslide.navy .s-rule,.mslide.navy .s-bar{background:#60a5fa}
+.mslide.paper{background:#f7f2e8;color:#2b2620} .mslide.paper .s-num,.mslide.paper .s-ref,.mslide.paper .s-sub,.mslide.paper .s-foot{color:#8a6d3b} .mslide.paper .s-rule,.mslide.paper .s-bar{background:#b7791f}
+.mslide.sky{background:#f4f8ff;color:#0f172a} .mslide.sky .s-num,.mslide.sky .s-ref,.mslide.sky .s-sub,.mslide.sky .s-foot{color:#2563eb} .mslide.sky .s-rule,.mslide.sky .s-bar{background:#2563eb}
+.mslide.scene{background:#111 center/cover no-repeat;color:#fff} .mslide.scene::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,.62)} .mslide.scene>*{position:relative} .mslide.scene .s-rule,.mslide.scene .s-bar{background:#fbbf24} .mslide.scene .s-sub,.mslide.scene .s-foot,.mslide.scene .s-num,.mslide.scene .s-ref{color:#e5e7eb}
+.mslide .s-num{font-size:38px;font-weight:800}
+.mslide .s-head{font-size:76px;font-weight:800;line-height:1.25;margin-top:20px;letter-spacing:-1px}
+.mslide .s-rule{width:300px;height:6px;border-radius:3px;margin:34px 0 40px}
+.mslide .s-lines{margin:0;padding-left:46px;font-size:56px;line-height:1.5}
+.mslide .s-lines li{margin-bottom:20px}
+.mslide .s-ref{position:absolute;right:110px;bottom:150px;font-size:38px;font-weight:800}
+.mslide .s-foot{position:absolute;left:110px;right:110px;bottom:56px;display:flex;justify-content:space-between;font-size:26px;font-weight:700}
+.mslide .s-cov{margin:auto 0;display:flex;gap:44px;align-items:stretch}
+.mslide .s-bar{flex:0 0 14px;border-radius:7px}
+.mslide .s-title{font-size:96px;font-weight:800;line-height:1.22;letter-spacing:-2px}
+.mslide .s-sub{font-size:44px;margin-top:30px}
+.mslide .s-cl{margin:auto;text-align:center;max-width:1500px}
+.mslide .s-close{font-size:80px;font-weight:800;line-height:1.3}
 `;
 
   const DESIGNS = [
@@ -162,6 +202,26 @@
       steps.forEach((s, i) => { h += `<div class="step"><div class="step-n">${i + 1}. ${s[0]}</div><div class="step-b">${s[1]}</div></div>`; });
       return h + '</main>' + foot(m);
     },
+    leader(d, m) {
+      let h = head('소그룹 리더 가이드', d, m) + '<main class="db">';
+      if (d.goal) h += `<section class="sec"><span class="lbl">이번 모임 목표</span><div class="box blue">${ed('goal', d.goal)}</div></section>`;
+      if (d.prepare) h += `<section class="sec"><span class="lbl">미리 준비할 것</span><div class="box">${ed('prepare', d.prepare)}</div></section>`;
+      if (d.flow.length) {
+        const total = d.flow.reduce((a, f) => a + (f.minutes || 0), 0);
+        h += `<section class="sec"><span class="lbl">진행 순서${total ? ' · ' + total + '분' : ''}</span><table class="flow">${d.flow.map((f, i) => `<tr><td class="fl-p">${ed(`flow.${i}.part`, f.part, 'span')}</td><td class="fl-m">${f.minutes ? f.minutes + '분' : ''}</td><td>${ed(`flow.${i}.guide`, f.guide, 'span')}</td></tr>`).join('')}</table></section>`;
+      }
+      h += '<section class="sec"><span class="lbl">질문과 진행 도움말</span>';
+      d.questions.forEach((q, i) => {
+        h += `<div class="lq"><div class="q"><div class="q-n">${i + 1}</div><div style="flex:1">${ed(`questions.${i}.q`, q.q, 'div', 'q-t')}</div></div><dl>`
+          + (q.intent ? `<dt>의도</dt><dd>${ed(`questions.${i}.intent`, q.intent, 'span')}</dd>` : '')
+          + (q.expected ? `<dt>예상 답</dt><dd>${ed(`questions.${i}.expected`, q.expected, 'span')}</dd>` : '')
+          + (q.followup ? `<dt>이어서</dt><dd>${ed(`questions.${i}.followup`, q.followup, 'span')}</dd>` : '') + '</dl></div>';
+      });
+      h += '</section>';
+      if (d.tips.length) h += `<section class="sec"><span class="lbl">진행 팁</span><ul class="tips">${d.tips.map((t, i) => `<li>${ed(`tips.${i}`, t, 'span')}</li>`).join('')}</ul></section>`;
+      if (d.prayer) h += `<section class="sec"><span class="lbl">마무리 기도</span><div class="box">${ed('prayer', d.prayer)}</div></section>`;
+      return h + '</main>' + foot(m);
+    },
   };
 
   /** A4 자료 한 장 (HTML) */
@@ -175,6 +235,40 @@
       + `<div class="c-foot"><span>${esc((m.title || '').replace(/\*/g, '').replace(/\s+\/\s+/g, ' '))}</span><span>${esc(m.date || '')}</span></div></div>`;
   }
 
+  /** 카드뉴스: 표지 · 핵심 카드 · 이번 주 실천 (1080×1350 여러 장) */
+  function newsCards(d, design, m, sceneUrl) {
+    const style = design === 'scene' && sceneUrl ? ` style="background-image:url('${sceneUrl}')"` : '';
+    const total = d.slides.length + 2;
+    const top = `<div class="c-top"><span class="c-cross"></span><span>${esc(m.church || '오늘의 말씀')}</span></div>`;
+    const foot = (n) => `<div class="c-foot"><span>${esc(d.verse || m.verse || '')}</span><span class="c-pg">${n} / ${total}</span></div>`;
+    const mark = (body, hl) => { // 강조 구절은 형광펜 (고치면 글만 남고, 다시 그릴 때 강조 구절이 그대로 있으면 다시 붙는다)
+      const t = esc(body); if (!hl) return t.replace(/\n/g, '<br>');
+      const e = esc(hl); const k = t.indexOf(e); return (k < 0 ? t : t.slice(0, k) + '<mark>' + e + '</mark>' + t.slice(k + e.length)).replace(/\n/g, '<br>');
+    };
+    const out = [];
+    out.push(`<div class="mcard news cover ${esc(design)}"${style}>${top}<div class="c-mid">${(d.verse || m.verse) ? ed('verse', d.verse || m.verse, 'div', 'c-src') : ''}${ed('title', d.title || m.title || '', 'div', 'c-head big')}${d.subtitle ? ed('subtitle', d.subtitle, 'div', 'c-body') : ''}</div>${foot(1)}</div>`);
+    d.slides.forEach((s, i) => {
+      out.push(`<div class="mcard news ${esc(design)}"${style}>${top}<div class="c-mid"><div class="c-num">${String(i + 1).padStart(2, '0')}</div>${ed(`slides.${i}.heading`, s.heading, 'div', 'c-head')}<div class="c-body mn-ed" contenteditable="true" spellcheck="false" data-path="slides.${i}.body">${mark(s.body, s.highlight)}</div></div>${foot(i + 2)}</div>`);
+    });
+    out.push(`<div class="mcard news act ${esc(design)}"${style}>${top}<div class="c-mid"><div class="c-src">이번 주 실천</div>${ed('action', d.action || '', 'div', 'c-head')}${d.closing ? ed('closing', d.closing, 'div', 'c-body') : ''}</div>${foot(total)}</div>`);
+    return out;
+  }
+
+  /** 설교 PPT 미리보기 (1920×1080 여러 장). 실제 PPT 는 main/materials-pptx.js 가 같은 데이터로 만든다 */
+  function slides(d, design, m, sceneUrl) {
+    const style = design === 'scene' && sceneUrl ? ` style="background-image:url('${sceneUrl}')"` : '';
+    const title = (m.title || d.title || '').replace(/\*/g, '').replace(/\s+\/\s+/g, ' ');
+    const foot = `<div class="s-foot"><span>${esc(m.church || '')}</span><span>${esc(title)}</span></div>`;
+    const verse = d.verse || m.verse || '';
+    const out = [];
+    out.push(`<div class="mslide cover ${esc(design)}"${style}><div class="s-cov"><div class="s-bar"></div><div>${ed('title', d.title || title, 'div', 's-title')}<div class="s-sub">${esc([verse, m.speaker, m.date].filter(Boolean).join('  ·  '))}</div></div></div>${foot}</div>`);
+    d.slides.forEach((s, i) => {
+      out.push(`<div class="mslide ${esc(design)}"${style}><div class="s-num">${String(i + 1).padStart(2, '0')}</div>${ed(`slides.${i}.heading`, s.heading, 'div', 's-head')}<div class="s-rule"></div><ul class="s-lines">${s.lines.map((l, k) => `<li>${ed(`slides.${i}.lines.${k}`, l, 'span')}</li>`).join('')}</ul>${s.ref ? ed(`slides.${i}.ref`, s.ref, 'div', 's-ref') : ''}${foot}</div>`);
+    });
+    if (d.closing) out.push(`<div class="mslide close ${esc(design)}"${style}><div class="s-cl">${ed('closing', d.closing, 'div', 's-close')}<div class="s-sub">${esc(verse)}</div></div>${foot}</div>`);
+    return out;
+  }
+
   /** 내보낼 HTML: 고치기 표시(contenteditable·테두리)를 뺀다 */
   function cleanForExport(el) {
     const c = el.cloneNode(true);
@@ -183,5 +277,5 @@
     return c.outerHTML;
   }
 
-  SS.materialsDoc = { DOC_CSS, DESIGNS, page, card, cleanForExport, esc };
+  SS.materialsDoc = { DOC_CSS, DESIGNS, page, card, newsCards, slides, cleanForExport, esc };
 })();

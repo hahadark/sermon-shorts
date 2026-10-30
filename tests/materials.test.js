@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const M = require('../src/shared/materials.js');
 
 test('종류·선택지 기본값 (만나로와 같은 기본: 장년·나눔형·5일·혼합형·묵상형)', () => {
-  assert.deepEqual(M.TYPES.map((t) => t.id), ['smallgroup', 'qt', 'quiz', 'summary', 'cards', 'family']);
+  assert.deepEqual(M.TYPES.map((t) => t.id), ['smallgroup', 'qt', 'quiz', 'summary', 'cards', 'family', 'cardnews', 'leader', 'slides']);
   const o = M.normOptions({ qtDays: 9, audience: '청년', cardCount: 2 });
   assert.equal(o.qtDays, 5); assert.equal(o.audience, '청년'); assert.equal(o.cardCount, 2); assert.equal(o.smallgroup, '나눔형');
 });

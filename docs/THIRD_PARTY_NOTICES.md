@@ -23,6 +23,12 @@ The application code is not granted an open-source license by this document. The
 
 The beta installer is unsigned. This notice is not a claim that all third-party components share the application's license or that public redistribution has been cleared.
 
+## 설교 PPT 만들기
+
+- **PptxGenJS** 4.0.1 - MIT License, Copyright (c) 2015-present Brent Ely. https://github.com/gitbrent/PptxGenJS
+- **JSZip** 3.10 (PptxGenJS 가 씀) - MIT License 로 사용 (MIT OR GPL-3.0-or-later 중 MIT 선택). https://github.com/Stuk/jszip
+- **image-size** (PptxGenJS 가 씀) - MIT License. https://github.com/image-size/image-size
+
 ## 화면 디자인
 
 - **Lucide 아이콘** (`assets/icons/*.svg`, `src/renderer/icons.css` 로 변환) - ISC License, Copyright (c) Lucide Icons and Contributors. 전문: `assets/icons/LICENSE-lucide.txt`. https://lucide.dev

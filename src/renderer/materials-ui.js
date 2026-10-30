@@ -32,6 +32,11 @@
     m.meta = m.meta || {};
     return m;
   }
+  /** 예배 날짜의 요일 → 홈페이지 예배 종류 (수요일·금요일, 나머지는 주일) */
+  function serviceOf(date) {
+    const iso = M().isoDate(date), d = new Date(iso + 'T00:00:00');
+    return { 3: 'wednesday', 5: 'friday' }[d.getDay()] || 'sunday';
+  }
   function meta() {
     const m = store(), st = SS.state, s = SS.appSettings || {};
     const t = st.meta || {};
@@ -217,15 +222,19 @@
       case 'summary': return `${a} · ${o.summary}`;
       case 'cards': return `${o.cardTone} · ${o.cardCount}장 · SNS 이미지`;
       case 'family': return '부모와 자녀가 15분 · 쉬운 말';
+      case 'cardnews': return `${o.newsCount}장 · 표지·핵심·이번 주 실천 · 인스타`;
+      case 'leader': return `${a} · ${o.leaderTime}분 모임 · 질문 의도·예상 답`;
+      case 'slides': return `${o.slideCount}장 · 16:9 · PPT 저장`;
     }
     return '';
   }
   function openOptions() { renderOptions(); $('mnOpt').hidden = false; }
   function renderOptions() {
     const o = store().options, O = M().OPTIONS;
-    const group = (title, keys) => `<div class="mn-optgroup"><h3>${title}</h3>${keys.map((k) => `<div class="mn-optrow">${O[k].values.map((v) => `<button class="mn-opt${o[k] === v ? ' on' : ''}" data-k="${k}" data-v="${esc(v)}">${esc(typeof v === 'number' ? (k === 'cardCount' ? v + '장' : v + '일') : v)}</button>`).join('')}</div>`).join('')}</div>`;
+    const group = (title, keys) => `<div class="mn-optgroup"><h3>${title}</h3>${keys.map((k) => `<div class="mn-optrow">${O[k].values.map((v) => `<button class="mn-opt${o[k] === v ? ' on' : ''}" data-k="${k}" data-v="${esc(v)}">${esc(typeof v === 'number' ? v + ({ cardCount: '장', newsCount: '장', slideCount: '장', leaderTime: '분' }[k] || '일') : v)}</button>`).join('')}</div>`).join('')}</div>`;
     $('mnOptBody').innerHTML = group('공통 설정 · 대상', ['audience']) + group('소그룹 자료', ['smallgroup']) + group('QT 자료', ['qtDays', 'qtFocus', 'qtForm'])
-      + group('성경 퀴즈', ['quiz']) + group('설교 요약', ['summary']) + group('묵상카드', ['cardTone', 'cardCount']);
+      + group('성경 퀴즈', ['quiz']) + group('설교 요약', ['summary']) + group('묵상카드', ['cardTone', 'cardCount'])
+      + group('카드뉴스', ['newsCount']) + group('소그룹 리더 가이드', ['leaderTime']) + group('설교 PPT', ['slideCount']);
     $('mnOptBody').querySelectorAll('.mn-opt').forEach((b) => b.addEventListener('click', () => {
       const k = b.dataset.k, raw = b.dataset.v;
       o[k] = typeof O[k].values[0] === 'number' ? Number(raw) : raw;
@@ -300,11 +309,14 @@
     $('mnTabs').innerHTML = have.map((t) => `<button class="mn-tab ico ${t.icon}${t.id === current ? ' on' : ''}" data-tab="${t.id}">${esc(t.label)}</button>`).join('');
     $('mnTabs').querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { current = b.dataset.tab; renderResults(); }));
     const type = M().typeOf(current), r = m.results[current];
-    const isCards = type.kind === 'cards';
+    const isCards = type.kind === 'cards', isSlides = type.kind === 'slides';
     let bar = '';
-    if (isCards) bar += `<div class="mn-designs">${D().DESIGNS.map((d) => `<button class="mn-design${m.design === d.id ? ' on' : ''}" data-design="${d.id}" title="${esc(d.label)}" style="background:${d.swatch}"></button>`).join('')}</div><span style="width:8px"></span>`
+    if (isSlides) bar += `<div class="mn-designs">${D().DESIGNS.map((d) => `<button class="mn-design${m.design === d.id ? ' on' : ''}" data-design="${d.id}" title="${esc(d.label)}" style="background:${d.swatch}"></button>`).join('')}</div><span style="width:8px"></span>`
+      + '<button class="mn-btn blue ico i-presentation" data-act="pptx">PPT 로 저장</button><button class="mn-btn ico i-image-down" data-act="png">이미지로 저장 (PNG)</button>';
+    else if (isCards) bar += `<div class="mn-designs">${D().DESIGNS.map((d) => `<button class="mn-design${m.design === d.id ? ' on' : ''}" data-design="${d.id}" title="${esc(d.label)}" style="background:${d.swatch}"></button>`).join('')}</div><span style="width:8px"></span>`
       + '<button class="mn-btn blue ico i-image-down" data-act="png">이미지로 저장 (PNG)</button>';
-    else bar += '<button class="mn-btn blue ico i-file-down" data-act="pdf">PDF 로 저장</button><button class="mn-btn ico i-printer" data-act="print">인쇄</button>';
+    else bar += '<button class="mn-btn blue ico i-file-down" data-act="pdf">PDF 로 저장</button><button class="mn-btn ico i-printer" data-act="print">인쇄</button>'
+      + (current === 'summary' ? '<button class="mn-btn ico i-globe" data-act="homepage" title="교회 홈페이지(말씀 요약)에 올릴 글 파일(.md)로 저장합니다">홈페이지 글 저장</button>' : '');
     bar += '<button class="mn-btn ico i-copy" data-act="copy">글 복사 (카톡용)</button><span class="mn-spacer"></span>'
       + `<span class="mn-note">${esc(r.provider ? 'AI: ' + r.provider + ' · ' : '')}${esc(new Date(r.made).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }))}</span>`
       + '<button class="mn-btn soft ico i-refresh-cw" data-act="again">다시 만들기</button>';
@@ -312,9 +324,13 @@
     $('mnBar').querySelectorAll('[data-design]').forEach((b) => b.addEventListener('click', () => { store().design = b.dataset.design; if (b.dataset.design === 'scene') grabScene(); renderResults(); }));
     $('mnBar').querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => act(b.dataset.act)));
     const md = { ...r.meta, ...meta() };
-    if (isCards) {
+    if (isSlides) {
       if (m.design === 'scene' && !sceneUrl) grabScene();
-      $('mnStage').innerHTML = `<div class="mn-cards">${r.data.cards.map((c, i) => `<div class="mn-cardwrap">${D().card(c, i, m.design, md, sceneUrl)}</div>`).join('')}</div>`;
+      $('mnStage').innerHTML = `<div class="mn-slides">${D().slides(r.data, m.design, md, sceneUrl).map((h) => `<div class="mn-slidewrap">${h}</div>`).join('')}</div>`;
+    } else if (isCards) {
+      if (m.design === 'scene' && !sceneUrl) grabScene();
+      const cards = current === 'cardnews' ? D().newsCards(r.data, m.design, md, sceneUrl) : r.data.cards.map((c, i) => D().card(c, i, m.design, md, sceneUrl));
+      $('mnStage').innerHTML = `<div class="mn-cards">${cards.map((h) => `<div class="mn-cardwrap">${h}</div>`).join('')}</div>`;
     } else {
       $('mnStage').innerHTML = `<div class="mn-paperwrap">${D().page(current, r.data, md)}</div>`;
       const doc = $('mnStage').querySelector('.doc'); doc.classList.add('mn-paper');
@@ -363,9 +379,17 @@
         const body = D().cleanForExport($('mnStage').querySelector('.doc'));
         await api.materialsPrint({ body, css: D().DOC_CSS });
       } else if (what === 'png') {
-        const items = Array.from($('mnStage').querySelectorAll('.mcard')).map((el) => ({ body: D().cleanForExport(el), width: 1080, height: 1350 }));
+        const items = Array.from($('mnStage').querySelectorAll('.mcard, .mslide')).map((el) => { const wide = el.classList.contains('mslide'); return { body: D().cleanForExport(el), width: wide ? 1920 : 1080, height: wide ? 1080 : 1350 }; });
         const res = await api.materialsPng({ items, css: D().DOC_CSS, name });
-        if (res) { toast(`카드 ${res.files.length}장을 저장했습니다.`); api.materialsOpenPath(res.files[0]); }
+        if (res) { toast(`${type.kind === 'slides' ? '슬라이드' : '카드'} ${res.files.length}장을 저장했습니다.`); api.materialsOpenPath(res.files[0]); }
+      } else if (what === 'pptx') {
+        if (m.design === 'scene' && !sceneUrl) grabScene();
+        const p = await api.materialsPptx({ data: r.data, meta: md, design: m.design, sceneData: m.design === 'scene' ? sceneUrl : '', name });
+        if (p) { toast('설교 PPT 를 저장했습니다. 파워포인트에서 글을 고칠 수 있습니다.'); api.materialsOpenPath(p); }
+      } else if (what === 'homepage') {
+        const out = M().toHomepage(r.data, { ...md, service: serviceOf(md.date) });
+        const p = await api.materialsSaveText({ text: out.text, name: out.name, ext: 'md', title: '홈페이지 말씀 요약 글로 저장' });
+        if (p) { toast('홈페이지 글(.md)을 저장했습니다. 공개 전 확인용으로 published: false 로 저장됩니다.', 6000); api.materialsOpenPath(p); }
       } else if (what === 'again') {
         if (!confirm(`${type.label}을(를) 다시 만들까요? 지금 고친 내용은 사라집니다.`)) return;
         m.selected = [current]; show('make'); tiles(); generate();

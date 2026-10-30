@@ -66,7 +66,7 @@
       check('배경음악 탭', !$('bgmPane').hidden && $('designPane').hidden && !$('bgmNone').hidden);
       await shot('1_bgm_empty');
       $('btnBgmPick').click(); await sleep(300);
-      check('음악 고르기 창', !$('bgmLib').hidden && document.querySelectorAll('#bgmList .bgm-item').length === SS.bgmCatalog.tracks.length);
+      check('음악 고르기 창', !$('bgmLib').hidden && document.querySelectorAll('#bgmList .bgm-item:not(:has([data-del]))').length === SS.bgmCatalog.tracks.length);
       document.querySelector('#bgmMoods [data-mood="찬송가 연주"]').click(); await sleep(150);
       const hymnRows = document.querySelectorAll('#bgmList .bgm-item').length;
       check('분위기 거르기', hymnRows === SS.bgmCatalog.tracks.filter((t) => t.mood === '찬송가 연주').length, hymnRows);
@@ -157,7 +157,7 @@
       SS.state.meta = { title: '하나님 중심의 기도 / 아멘', verse: '마태복음 6:9-13', speaker: '김택근 사관' };
       await SS.openMaterials();
       await sleep(400);
-      check('스튜디오 열림', !$('mnStudio').hidden && document.querySelectorAll('#mnTiles .mn-tile').length === 6);
+      check('스튜디오 열림', !$('mnStudio').hidden && document.querySelectorAll('#mnTiles .mn-tile').length === SS.materials.TYPES.length && SS.materials.TYPES.length === 9);
       check('기본 선택 5종', document.querySelectorAll('#mnTiles .mn-tile.on').length === 5);
       check('이 영상의 설교 원고', $('mnSermon').value.length > 500 && /자막/.test($('mnSrcInfo').textContent), $('mnSrcInfo').textContent);
       check('제목·본문 채움', $('mnTitle').value === '하나님 중심의 기도 아멘' && $('mnVerse').value === '마태복음 6:9-13', $('mnTitle').value);
