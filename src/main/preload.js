@@ -6,6 +6,15 @@ contextBridge.exposeInMainWorld('api', {
   /** 시작 인자: { open: string|null, screenshot: boolean, root: string } */
   openGuide: () => ipcRenderer.invoke('app:openGuide'),
   getLaunchInfo: () => ipcRenderer.invoke('app:launch'),
+  autosaveWrite: (p) => ipcRenderer.invoke('autosave:write', p),
+  autosaveList: () => ipcRenderer.invoke('autosave:list'),
+  autosaveRead: (key, file) => ipcRenderer.invoke('autosave:read', key, file),
+  autosaveRemove: (key) => ipcRenderer.invoke('autosave:remove', key),
+  autosaveStatus: () => ipcRenderer.invoke('autosave:status'),
+  autosaveOpenDir: () => ipcRenderer.invoke('autosave:openDir'),
+  onAutosaveFlush: (cb) => { const l = () => cb(); ipcRenderer.on('autosave:flush', l); return () => ipcRenderer.removeListener('autosave:flush', l); },
+  autosaveFlushed: () => ipcRenderer.send('autosave:flushed'),
+  testCloseWindow: () => ipcRenderer.send('test:closeWindow'),
   /** 영상 파일 선택 대화상자 → 경로 또는 null */
   openVideoDialog: () => ipcRenderer.invoke('dialog:openVideo'),
   /** { duration, fps, width, height, hasAudio } */

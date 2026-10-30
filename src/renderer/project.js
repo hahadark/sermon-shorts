@@ -14,6 +14,7 @@
     $('inpSpeaker').value = meta.speaker || '';
     $('inpSpeaker').style.display = found ? 'none' : '';
   }
+  SS.readProjectMeta = readMeta;
   SS.saveProjectTo = async function(p) {
     if (SS.flushCaptionEdit) SS.flushCaptionEdit();
     readMeta();

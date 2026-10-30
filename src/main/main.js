@@ -80,6 +80,18 @@ function createWindow() {
     // 안전장치: 10분 안에 끝나지 않으면 종료
     setTimeout(() => { log('스크린샷 시간 초과'); app.exit(2); }, (Number(process.env.SS_TEST_TIMEOUT_MIN) || 10) * 60 * 1000).unref();
   }
+  // 닫기 전에 편집을 한 번 자동 저장한다 (최대 2초 기다림)
+  let flushed = false;
+  mainWindow.on('close', (e) => {
+    if (flushed || (SCREENSHOT && !process.env.SS_TEST_FLUSH) || !mainWindow || mainWindow.webContents.isDestroyed()) return;
+    e.preventDefault(); flushed = true;
+    const win = mainWindow;
+    const done = () => { ipcMain.removeListener('autosave:flushed', onDone); if (!win.isDestroyed()) win.close(); };
+    const onDone = (ev) => { if (ev.sender === win.webContents) { clearTimeout(t); done(); } };
+    const t = setTimeout(done, 2000);
+    ipcMain.on('autosave:flushed', onDone);
+    win.webContents.send('autosave:flush');
+  });
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
@@ -223,6 +235,8 @@ function registerIpc() {
     throw err;
   }
 
+  // 시험용: 창 닫기 단추(X)와 같은 방식으로 닫기 (window.close() 는 'close' 이벤트 없이 닫힌다)
+  ipcMain.on('test:closeWindow', () => { if (SCREENSHOT && mainWindow) mainWindow.close(); });
   ipcMain.handle('test:screenshot', async (_e, customPath) => {
     if (!mainWindow) return;
     try {
@@ -264,6 +278,7 @@ app.whenReady().then(() => {
   initLlm();
   require('./bgm').initBgm();
   require('./materials').initMaterials();
+  require('./autosave').initAutosave();
   registerIpc();
   initUpdater({ getWindow: () => mainWindow, log, disabled: !!SCREENSHOT });
   initYoutubeUpload();

@@ -15,6 +15,7 @@
   const CMDS = {
     save: () => SS.saveProject && SS.saveProject(),
     'save-as': () => SS.saveProjectAs && SS.saveProjectAs(),
+    autosaves: () => SS.openAutosaves && SS.openAutosaves(),
     export: () => click('btnExport'),
     undo: () => SS.undo && SS.undo(),
     redo: () => SS.redo && SS.redo(),

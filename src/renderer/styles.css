@@ -761,3 +761,34 @@ input[type=checkbox], input[type=range] { accent-color: var(--primary); }
 @keyframes bgm-prog-load { 0% { left: -30%; } 100% { left: 100%; } }
 .bgm-item.listening, .bm-row.listening { border-color: #93c5fd; }
 .bgm-prog.loading .bgm-pbar { overflow: hidden; }
+
+/* ---------------- 자동 저장 (autosave.js) ---------------- */
+.asv-status { display: inline-flex; align-items: center; gap: 5px; margin-left: 10px; padding: 3px 9px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: 500 11.5px var(--font); cursor: pointer; white-space: nowrap; }
+.asv-status:hover { background: var(--panel2); color: var(--text-2); }
+.asv-status.err { color: #b91c1c; background: #fef2f2; }
+.asv-modal[hidden] { display: none; }
+.asv-dialog { width: min(760px, 94vw); max-height: 86vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.asv-head { display: flex; gap: 12px; padding: 20px 22px 12px; }
+.asv-head > div { flex: 1; min-width: 0; }
+.asv-head h3 { margin: 0 0 6px; font-size: 18px; }
+.asv-head p { margin: 0; font-size: 12.5px; color: var(--text-2); line-height: 1.6; }
+.asv-modal.crash .asv-head h3 { color: var(--navy, #1e3a8a); }
+.asv-list { overflow: auto; padding: 0 16px 12px; display: flex; flex-direction: column; gap: 8px; min-height: 90px; }
+.asv-item { border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
+.asv-item.first { border-color: #93c5fd; background: var(--primary-soft); }
+.asv-main { display: flex; align-items: center; gap: 8px; padding: 12px 14px; }
+.asv-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.asv-info b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.asv-info span { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.asv-info .asv-src { color: var(--muted); font-size: 11.5px; }
+.asv-miss { color: #b91c1c; font-size: 11.5px; }
+.asv-more { white-space: nowrap; }
+.asv-vers { border-top: 1px dashed var(--border); padding: 6px 14px 10px 14px; display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow: auto; }
+.asv-vers[hidden] { display: none; }
+.asv-ver { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 12px; }
+.asv-vt { flex: 0 0 110px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.asv-vs { flex: 1; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.asv-empty { padding: 30px 20px; text-align: center; color: var(--muted); font-size: 12.5px; line-height: 1.7; }
+.asv-empty b { display: block; color: var(--text-2); font-size: 14px; }
+.asv-foot { display: flex; align-items: center; gap: 8px; padding: 10px 22px 14px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.asv-foot span { flex: 1; }
