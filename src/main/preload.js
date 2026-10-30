@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('api', {
   /** 시작 인자: { open: string|null, screenshot: boolean, root: string } */
   openGuide: () => ipcRenderer.invoke('app:openGuide'),
   getLaunchInfo: () => ipcRenderer.invoke('app:launch'),
+  voiceAnalyze: (p) => ipcRenderer.invoke('voice:analyze', p),
   autosaveWrite: (p) => ipcRenderer.invoke('autosave:write', p),
   autosaveList: () => ipcRenderer.invoke('autosave:list'),
   autosaveRead: (key, file) => ipcRenderer.invoke('autosave:read', key, file),

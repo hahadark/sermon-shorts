@@ -223,10 +223,11 @@
         check('사라진 내 음악: 패널에 안내 문구', lost && !lost.hidden && /찾을 수 없습니다/.test(lost.textContent), lost && lost.textContent);
         const rl = await SS.doExport(dir + '/exp_lost.mp4', [2, 10]);
         check('사라진 음악 내보내기는 한국어 안내로 실패', !rl.success && /찾을 수 없|다시 넣어/.test(rl.error) && !/Error invoking/.test(rl.error), rl.error);
-        const idxPath = root + '/bgm/custom/index.json';
-        let idx = {}; try { idx = await window.api.readJson(idxPath); } catch (_) { idx = {}; }
+        const libDir = (await window.api.bgmLibrary()).dir; // 배경음악 보관함 폴더 (예전 캐시 bgm/custom 에서 옮김)
+        const idxPath = libDir + '/index.json';
+        let idx = {}; try { idx = (await window.api.readJson(idxPath)) || {}; } catch (_) { idx = {}; }
         const fakeId = 'custom-f-nofile000001';
-        idx[fakeId] = { kind: 'file', title: '파일 사라진 곡', artist: '내 파일', file: root + '/bgm/custom/f-nofile000001.mp3', source: 'x', durationSec: 20, addedAt: Date.now() + 1 };
+        idx[fakeId] = { kind: 'file', title: '파일 사라진 곡', artist: '내 파일', file: libDir + '/f-nofile000001.mp3', source: 'x', durationSec: 20, addedAt: Date.now() + 1 };
         await window.api.writeText(idxPath, JSON.stringify(idx, null, 2)); madeIds.push(fakeId);
         SS.state.bgm = null; SS.bgmUi.render();
         SS.bgmImport.custom.set(fakeId, await window.api.bgmTrack(fakeId));

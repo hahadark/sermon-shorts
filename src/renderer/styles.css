@@ -792,3 +792,28 @@ input[type=checkbox], input[type=range] { accent-color: var(--primary); }
 .asv-empty b { display: block; color: var(--text-2); font-size: 14px; }
 .asv-foot { display: flex; align-items: center; gap: 8px; padding: 10px 22px 14px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--muted); line-height: 1.5; }
 .asv-foot span { flex: 1; }
+
+/* ---------------- 목소리 크기 (voice-ui.js) ---------------- */
+.voice-pane { display: flex; flex-direction: column; gap: 10px; }
+.voice-pane[hidden] { display: none; }
+.voice-top { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+.voice-sum { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--primary); font-variant-numeric: tabular-nums; }
+.voice-box { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: var(--panel2); font-size: 12px; color: var(--text-2); line-height: 1.5; }
+.voice-box[hidden] { display: none; }
+.voice-box > span { flex: 1; min-width: 0; }
+.voice-box b { color: var(--text); }
+.voice-err { color: #b91c1c; }
+.voice-busy { display: inline-block; width: 11px; height: 11px; margin-right: 6px; vertical-align: -1px; border: 2px solid var(--primary); border-right-color: transparent; border-radius: 50%; animation: bgm-spin .7s linear infinite; }
+#voiceGain { flex: 1; min-width: 120px; }
+.voice-check { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--text); cursor: pointer; }
+.voice-check input { margin-top: 2px; }
+.voice-check small { display: block; color: var(--muted); font-size: 11.5px; }
+.vm-bar { position: relative; flex: 1; height: 10px; border-radius: 5px; background: var(--panel3, #e2e8f0); overflow: hidden; min-width: 120px; }
+.vm-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #22c55e 0%, #22c55e 70%, #eab308 88%, #ef4444 100%); background-size: 100% 100%; border-radius: 5px; }
+.vm-bar b { position: absolute; top: 0; bottom: 0; width: 2px; left: 0; background: var(--text); }
+.vm-ceil { position: absolute; top: 0; bottom: 0; width: 2px; left: calc(100% * (48 - 1.5) / 48); background: #ef4444; opacity: .8; }
+.vm-lbl { flex: 0 0 52px; text-align: right; font-size: 11.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.vm-limit { font-size: 10.5px; font-weight: 700; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px; opacity: .55; }
+.vm-limit.on { color: #b45309; border-color: #f59e0b; background: #fffbeb; opacity: 1; }
+.voice-note { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.6; }
+#voiceGainLbl { white-space: nowrap; min-width: 62px; text-align: right; font-variant-numeric: tabular-nums; }

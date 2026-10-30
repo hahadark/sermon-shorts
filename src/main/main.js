@@ -279,6 +279,7 @@ app.whenReady().then(() => {
   require('./bgm').initBgm();
   require('./materials').initMaterials();
   require('./autosave').initAutosave();
+  require('./voice').initVoice();
   registerIpc();
   initUpdater({ getWindow: () => mainWindow, log, disabled: !!SCREENSHOT });
   initYoutubeUpload();

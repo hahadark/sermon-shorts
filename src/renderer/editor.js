@@ -21,7 +21,7 @@
 
   function pushHistory() {
     SS.captionEdit.capture(SS.state.words);
-    const st = JSON.parse(JSON.stringify({ words: SS.state.words, overrides: SS.state.overrides, markI: SS.state.markI, markO: SS.state.markO, captionSettings: { maxLineChars: SS.state.settings.maxLineChars, splitLongWords: SS.state.settings.splitLongWords, semanticBreaks: SS.state.settings.semanticBreaks }, bgm: SS.state.bgm || null, activeTheme: SS.state.activeTheme || null }));
+    const st = JSON.parse(JSON.stringify({ words: SS.state.words, overrides: SS.state.overrides, markI: SS.state.markI, markO: SS.state.markO, captionSettings: { maxLineChars: SS.state.settings.maxLineChars, splitLongWords: SS.state.settings.splitLongWords, semanticBreaks: SS.state.settings.semanticBreaks }, bgm: SS.state.bgm || null, voice: SS.state.voice || null, activeTheme: SS.state.activeTheme || null }));
     if (historyIdx >= 0 && JSON.stringify(history[historyIdx]) === JSON.stringify(st)) return;
     history = history.slice(0, historyIdx + 1);
     history.push(st);
@@ -37,6 +37,7 @@
       SS.state.markI = history[historyIdx].markI; SS.state.markO = history[historyIdx].markO;
       if (history[historyIdx].captionSettings) Object.assign(SS.state.settings, history[historyIdx].captionSettings);
       if ('bgm' in history[historyIdx]) { SS.state.bgm = history[historyIdx].bgm ? JSON.parse(JSON.stringify(history[historyIdx].bgm)) : null; if (SS.bgmUi) { SS.bgmUi.render(); SS.bgmUi.drawWave(); } }
+      if ('voice' in history[historyIdx]) { SS.state.voice = history[historyIdx].voice ? JSON.parse(JSON.stringify(history[historyIdx].voice)) : null; if (SS.voiceUi) SS.voiceUi.render(); }
       if ('activeTheme' in history[historyIdx] && history[historyIdx].activeTheme) SS.state.activeTheme = JSON.parse(JSON.stringify(history[historyIdx].activeTheme));
       window.dispatchEvent(new Event('ss:theme-history'));
       SS.syncCaptionUI();
@@ -52,6 +53,7 @@
       SS.state.markI = history[historyIdx].markI; SS.state.markO = history[historyIdx].markO;
       if (history[historyIdx].captionSettings) Object.assign(SS.state.settings, history[historyIdx].captionSettings);
       if ('bgm' in history[historyIdx]) { SS.state.bgm = history[historyIdx].bgm ? JSON.parse(JSON.stringify(history[historyIdx].bgm)) : null; if (SS.bgmUi) { SS.bgmUi.render(); SS.bgmUi.drawWave(); } }
+      if ('voice' in history[historyIdx]) { SS.state.voice = history[historyIdx].voice ? JSON.parse(JSON.stringify(history[historyIdx].voice)) : null; if (SS.voiceUi) SS.voiceUi.render(); }
       if ('activeTheme' in history[historyIdx] && history[historyIdx].activeTheme) SS.state.activeTheme = JSON.parse(JSON.stringify(history[historyIdx].activeTheme));
       window.dispatchEvent(new Event('ss:theme-history'));
       SS.syncCaptionUI();

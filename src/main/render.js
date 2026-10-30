@@ -6,6 +6,7 @@ const { spawn } = require('child_process');
 const { normalizeTheme, exportLayers } = require('../shared/theme');
 const guard = require('./fs-guard');
 const bgmLib = require('../shared/bgm');
+const voiceLib = require('../shared/voice');
 
 /** 내보낸 MP4 옆에 쓰는 SRT 경로 (확장자가 .mp4가 아니어도 영상 파일을 덮지 않는다) */
 function srtPathOf(outPath) { return String(outPath).replace(/\.mp4$/i, '') + '.srt'; }
@@ -61,7 +62,7 @@ function blurBackgroundFilter(blur) {
   return f;
 }
 
-function buildExportArgs({ sourcePath, outPath, segments, lines, crop, fadeMs, tempDir, theme, encoder, bgmFile, bgmPlan }) {
+function buildExportArgs({ sourcePath, outPath, segments, lines, crop, fadeMs, tempDir, theme, encoder, bgmFile, bgmPlan, voice }) {
   if (!segments?.length) throw Error('남은 영상 구간이 없습니다.');
   if (segments.some(s => !Number.isFinite(s.start) || !Number.isFinite(s.end) || s.start < 0 || s.end <= s.start)) throw Error('영상 구간 시각이 올바르지 않습니다.');
   const t = normalizeTheme(theme);
@@ -147,11 +148,15 @@ function buildExportArgs({ sourcePath, outPath, segments, lines, crop, fadeMs, t
   fg += `[basev][1:v]overlay=x=0:y=0:shortest=1[ovl1]; [2:v]${footerFilter}[footer]; [ovl1][footer]overlay=x=0:y=0:shortest=1[ovl2]; `;
   fg += `[ovl2][3:v]overlay=x=0:y=0:shortest=1,format=yuv420p[vout]`;
   // 배경음악: 고른 구간을 자르고 페이드·크기·시작 시각(맞춤)을 적용해 말소리 위에 얹는다
-  let audioOut = '[acat]';
+  // 목소리 크기: (작은 말소리 고르게) → 키우기 → 리미터 (키워도 깨지지 않게). 배경음악은 그 뒤에 얹는다
+  let speech = '[acat]';
+  const vf = voice ? voiceLib.ffmpegFilter(voice, '[acat]', '[avox]') : '';
+  if (vf) { fg += '; ' + vf; speech = '[avox]'; }
+  let audioOut = speech;
   if (bgmFile && bgmPlan && bgmPlan.length > 0) {
     const bgmIn = nextInput++;
     args.push('-i', bgmFile);
-    fg += '; ' + bgmLib.ffmpegFilter(bgmPlan, bgmIn, '[acat]');
+    fg += '; ' + bgmLib.ffmpegFilter(bgmPlan, bgmIn, speech);
     audioOut = '[aout]';
   }
   args.push('-filter_complex', fg, '-map', '[vout]', '-map', audioOut);
@@ -169,6 +174,14 @@ async function runExport(event, params) {
     const track = require('./bgm').trackOf(params.bgm.id);
     params.bgmPlan = bgmLib.plan({ ...params.bgm, duration: track.durationSec || params.bgm.duration }, outDur);
     if (params.bgmPlan) params.bgmFile = await require('./bgm').ensure(params.bgm.id);
+  }
+  // 목소리 자동 맞춤: 잰 값이 지금 편집과 다르면 내보내기 전에 다시 잰다
+  if (params.voice) {
+    params.voice = voiceLib.normalize(params.voice);
+    if (params.voice.mode === 'auto' && !voiceLib.measuredFits(params.voice, voiceLib.segKey(params.segments))) {
+      event.sender.send('progress', { task: 'export', pct: 0, stage: '목소리 크기 재는 중' });
+      try { params.voice.measured = await require('./voice').analyze(params); } catch (e) { return { success: false, error: e.message }; }
+    }
   }
   let { args } = buildExportArgs(params);
   const run = (currentArgs) => new Promise((resolve) => {

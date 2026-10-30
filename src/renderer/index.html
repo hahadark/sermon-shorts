@@ -122,6 +122,7 @@
       <section id="templatePanel" class="design-card" aria-label="디자인과 배경음악">
         <div class="card-head card-tabs" role="tablist">
           <button id="tabDesign" class="card-tab on ico i-palette" type="button" role="tab" aria-selected="true">디자인</button>
+          <button id="tabVoice" class="card-tab ico i-audio-waveform" type="button" role="tab" aria-selected="false" title="설교 목소리 크기 (키워도 깨지지 않게)">목소리</button>
           <button id="tabMusic" class="card-tab ico i-music" type="button" role="tab" aria-selected="false">배경음악</button>
           <button id="btnChurchMore" class="btn sm ghost icon-only ico i-settings card-head-btn" type="button" title="교회 정보 자세히 (설교자 목록·자주 쓰는 말)" aria-label="교회 정보 자세히"></button>
         </div>
@@ -148,6 +149,16 @@
         </div>
         <button id="btnSaveTemplate" class="btn" hidden>템플릿 저장 (미리보기 반영)</button>
       
+        </div>
+        <div id="voicePane" class="card-pane voice-pane" hidden>
+          <div class="voice-top"><b>설교 목소리 크기</b><span id="voiceSum" class="voice-sum"></span></div>
+          <div class="bgm-row"><span class="bgm-k">크기</span><div class="bgm-seg" id="voiceMode" role="group" aria-label="목소리 크기 방식"><button type="button" data-mode="off" title="원본 소리 그대로">원래대로</button><button type="button" data-mode="auto" title="편집한 목소리를 재서 유튜브 기준 크기(-14 LUFS)에 맞춤">자동 맞춤</button><button type="button" data-mode="manual" title="직접 키우거나 줄이기">직접</button></div></div>
+          <div id="voiceAuto" class="voice-box" hidden><span id="voiceAutoMsg"></span><button id="btnVoiceMeasure" class="btn sm ghost ico i-rotate-ccw" type="button" title="목소리 크기 다시 재기">다시 재기</button></div>
+          <div id="voiceManual" class="bgm-row" hidden><span class="bgm-k">키우기</span><input id="voiceGain" type="range" min="-12" max="20" step="0.5" aria-label="목소리 키우기 dB"><span id="voiceGainLbl" class="bgm-vl"></span></div>
+          <label class="voice-check"><input type="checkbox" id="voiceEven"><span>작은 말소리 고르게 <small>큰 소리는 살짝 누르고 작게 말한 부분은 올립니다</small></span></label>
+          <div class="bgm-row voice-meter-row"><span class="bgm-k">미터</span><div class="vm-bar" title="소리 크기 (-48 ~ 0 dB). 빨간 선이 리미터 천장(-1.5 dB)"><i id="vmFill"></i><b id="vmPeak"></b><span class="vm-ceil"></span></div><span id="vmLbl" class="vm-lbl">-∞</span><span id="vmLimit" class="vm-limit" title="리미터가 큰 소리를 누르는 중">리미터</span></div>
+          <div class="bgm-row"><button id="btnVoiceListen" class="btn sm ico i-play" type="button">들어 보기</button></div>
+          <p class="voice-note">맨 끝에 리미터가 있어 크게 키워도 소리가 찢어지지 않습니다(최대 -1.5 dB). 미리보기와 내보낸 영상에 똑같이 적용됩니다. 원본에 이미 깨져 녹음된 소리는 되살리지 못합니다.</p>
         </div>
         <div id="bgmPane" class="card-pane bgm-pane" hidden>
           <div id="bgmNone" class="bgm-none">
@@ -229,6 +240,7 @@
   <script src="batch18-check.js"></script>
   <script src="bgmlib-check.js"></script>
   <script src="autosave-check.js"></script>
+  <script src="voice-check.js"></script>
   <script src="qa-edit-check.js"></script>
   <script src="qa-media-check.js"></script>
   <script src="qa-ui-check.js"></script>
@@ -238,6 +250,8 @@
   <script src="../shared/bgm-catalog.js"></script>
 <script src="../shared/bgm-peaks.js"></script>
   <script src="bgm-ui.js"></script>
+  <script src="../shared/voice.js"></script>
+  <script src="voice-ui.js"></script>
   <script src="bgm-manager.js"></script>
   <script src="autosave.js"></script>
   <script src="../shared/materials.js"></script>

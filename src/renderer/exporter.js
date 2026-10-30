@@ -57,7 +57,7 @@
           }
         } else await image(`line_${i}.png`,['subtitle'],{subtitleText:lines[i].text});
       }
-      const result=await window.api.startExport({sourcePath:st.source.path,outPath,segments,lines,crop:st.crop||{scale:1,x:.5,y:.5},fadeMs:st.settings.fadeMs??10,tempDir,theme,bgm:st.bgm?{...st.bgm}:null});
+      const result=await window.api.startExport({sourcePath:st.source.path,outPath,segments,lines,crop:st.crop||{scale:1,x:.5,y:.5},fadeMs:st.settings.fadeMs??10,tempDir,theme,bgm:st.bgm?{...st.bgm}:null,voice:st.voice?{...st.voice}:null});
       if (!result.success) return result;
       const srtPath=outPath.replace(/\.mp4$/i,'')+'.srt';
       await window.api.writeText(srtPath,SS.edl.toSRT(lines));

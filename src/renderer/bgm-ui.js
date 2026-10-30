@@ -70,11 +70,11 @@
 
   // ---------------- 카드 탭 (디자인 / 배경음악) ----------------
   function setTab(which) {
-    const music = which === 'music';
-    $('designPane').hidden = music; $('bgmPane').hidden = !music;
-    $('tabDesign').classList.toggle('on', !music); $('tabMusic').classList.toggle('on', music);
-    $('tabDesign').setAttribute('aria-selected', String(!music)); $('tabMusic').setAttribute('aria-selected', String(music));
-    $('btnChurchMore').hidden = music;
+    const music = which === 'music', voice = which === 'voice', design = !music && !voice;
+    $('designPane').hidden = !design; $('bgmPane').hidden = !music; if ($('voicePane')) $('voicePane').hidden = !voice;
+    [['tabDesign', design], ['tabVoice', voice], ['tabMusic', music]].forEach(([id, on]) => { const b = $(id); if (b) { b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); } });
+    $('btnChurchMore').hidden = !design;
+    if (voice && SS.voiceUi) SS.voiceUi.render();
     if (music) { render(); drawWave(); }
     if (SS.syncRail) SS.syncRail();
   }
@@ -470,6 +470,8 @@
     if (!$('bgmPane')) return;
     $('tabDesign').addEventListener('click', () => setTab('design'));
     $('tabMusic').addEventListener('click', () => setTab('music'));
+  if ($('tabVoice')) $('tabVoice').addEventListener('click', () => setTab('voice'));
+  SS.showVoiceTab = () => setTab('voice');
     $('btnBgmPick').addEventListener('click', openLib);
     $('btnBgmChange').addEventListener('click', openLib);
     $('btnBgmRemove').addEventListener('click', () => { if (SS.pushUndo) SS.pushUndo(); SS.state.bgm = null; if (SS.pushUndo) SS.pushUndo(); mix.pause(); render(); toast('배경음악을 뺐습니다. (Ctrl+Z 로 되돌리기)'); });

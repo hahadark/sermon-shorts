@@ -38,6 +38,7 @@
       markO: Number.isInteger(data.markO) && data.markO >= 0 && data.markO <= words.length ? data.markO : -1,
       playhead: Math.max(0, number(data.playhead, 0)),
       bgm: data.bgm && typeof data.bgm === 'object' && typeof data.bgm.id === 'string' ? clone(data.bgm) : null,
+    voice: data.voice && typeof data.voice === 'object' && !Array.isArray(data.voice) ? clone(data.voice) : null,
       materials: data.materials && typeof data.materials === 'object' && !Array.isArray(data.materials) ? clone(data.materials) : null,
       uploads: Array.isArray(data.uploads) ? data.uploads.filter((u) => u && typeof u.url === 'string').slice(-50).map((u) => ({ url: String(u.url), id: String(u.id || ''), privacy: String(u.privacy || ''), title: String(u.title || ''), at: number(u.at, 0) })) : []
     };
