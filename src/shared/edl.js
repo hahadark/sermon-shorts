@@ -125,6 +125,21 @@
     return null;
   }
 
+  /**
+   * 영상(<video>)에 실제로 넣을 시크 시각.
+   * Chromium 은 currentTime 을 마이크로초 아래에서 버린다 (3.1415926 → 3.141592).
+   * 자막 시작점으로 옮겨도 그보다 조금 앞에 서면, 앞 자막과 붙어 있을 때 미리보기에 앞 자막이 나온다.
+   * 그래서 버린 뒤에도 t 보다 앞이 되지 않는 가장 가까운 값(2µs 이내)을 돌려준다. 딱 떨어지는 값(2, 1.2)은 그대로.
+   */
+  function mediaSeekTime(t) {
+    if (!isNum(t)) return t;
+    var trunc = function (x) { return Math.trunc(x * 1e6) / 1e6; };
+    if (trunc(t) >= t) return t;
+    var c = Math.ceil(t * 1e6 - 1e-6) / 1e6;
+    for (var n = 0; n < 4 && trunc(c) < t; n++) c += 1e-6;
+    return c;
+  }
+
   /** 출력 시각 → { segIndex, t(원본) }. 범위 밖이면 양끝으로 클램프. 구간 없으면 null. */
   function outToSrc(segs, outT) {
     if (!segs || segs.length === 0 || !isNum(outT)) return null;
@@ -568,6 +583,7 @@
     segmentsDuration: segmentsDuration,
     srcToOut: srcToOut,
     outToSrc: outToSrc,
+    mediaSeekTime: mediaSeekTime,
     cutPoints: cutPoints,
     buildLines: buildLines,
     toSRT: toSRT,
