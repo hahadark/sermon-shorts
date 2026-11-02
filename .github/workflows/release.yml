@@ -163,7 +163,7 @@ jobs:
             echo '- **Mac Apple 칩(M1 이상)**: `*-mac-arm64.dmg` · 압축 해제판 `*-mac-arm64.zip`'
             echo '- **Mac Intel**: `*-mac-intel.dmg` · 압축 해제판 `*-mac-intel.zip`'
             echo
-            echo 'Windows 설치판은 자동 업데이트됩니다. Mac 베타는 새 파일을 내려받아 응용 프로그램의 앱을 교체하세요.'
+            echo 'Windows 설치판과 Mac(v0.3.19 이상, 응용 프로그램 폴더에 둔 앱)은 자동 업데이트됩니다. Mac v0.3.18 이하는 한 번만 새 파일로 응용 프로그램의 앱을 교체하세요.'
             echo '코드 서명이 없는 베타입니다. Windows는 SmartScreen에서 "추가 정보 → 실행"을 누르세요. Mac은 Apple 공증을 받지 않아 처음 실행할 때 보안 경고가 나옵니다. 아래 설치 안내를 확인하세요.'
             echo '파일 확인용 해시는 `SHA256SUMS.txt`에 있습니다. 자세한 내용: [설치 안내](https://github.com/hahadark/sermon-shorts/blob/main/docs/INSTALL.md)'
             if [ -n "$prev" ]; then echo; echo "**전체 변경 내역**: https://github.com/${{ github.repository }}/compare/$prev...$TAG"; fi
