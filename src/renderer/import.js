@@ -71,6 +71,7 @@
       title: req.title || result.title,
       duration: result.duration || req.duration,
       range: { start: req.start, end: req.end },
+      fetch: { kind: 'part', start: req.start, end: req.end },   // 원본이 사라지면 같은 구간을 다시 받는다
     };
     const ev = new CustomEvent('ss:source-loaded', { detail });
     window.dispatchEvent(ev);
@@ -199,6 +200,11 @@
     const btnOk = overlay.querySelector('#yt-ok');
     const btnCancel = overlay.querySelector('#yt-cancel');
     setTimeout(() => inputUrl.focus(), 0);
+    // 최근 작업한 영상: 자동 완성 + 아래 목록 (누르면 주소를 넣고 정보를 불러온다)
+    if (SS.recentYt) {
+      SS.recentYt.datalist(inputUrl);
+      SS.recentYt.mount(inputUrl.parentElement, (u) => { inputUrl.value = u; updateInfo(); }, { max: 10 });
+    }
 
     let videoInfo = null;
     let infoSeq = 0;
@@ -229,6 +235,7 @@
 
     btnOk.addEventListener('click', () => {
       if (!videoInfo) return;
+      if (SS.recentYt) SS.recentYt.add(inputUrl.value.trim(), videoInfo.title);
       openSectionPicker(inputUrl.value.trim(), videoInfo, close);
     });
   }
@@ -400,7 +407,7 @@
     try {
       const result = await api.ytDownload(req.url, req.start, req.end);
       removeListener();
-      const detail = { path: result.path, offset: result.offset || 0, url: req.url, title: req.title, duration: req.duration };
+      const detail = { path: result.path, offset: result.offset || 0, url: req.url, title: req.title, duration: req.duration, fetch: { kind: 'section', start: req.start, end: req.end } };
       window.dispatchEvent(new CustomEvent('ss:source-loaded', { detail }));
       await detail.done;
       ui.close();

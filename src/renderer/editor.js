@@ -560,7 +560,20 @@
   };
 
 
+  /** 설정 [편집]의 기본값을 지금 편집에 (새 자막을 받을 때, 설정 창에서 '지금 편집에도 적용'을 고를 때) */
+  SS.applyEditDefaults = function () {
+    const ed = SS.appSettings && SS.appSettings.editDefaults;
+    if (!ed) return false;
+    const st = SS.state.settings;
+    st.maxLineChars = ed.maxLineChars; st.semanticBreaks = ed.semanticBreaks !== false; st.splitLongWords = ed.splitLongWords !== false;
+    st.padBefore = ed.padBefore; st.padAfter = ed.padAfter; st.fadeMs = ed.fadeMs;
+    $('inpPadB').value = st.padBefore; $('inpPadA').value = st.padAfter; $('inpFade').value = st.fadeMs;
+    if (SS.syncCaptionUI) SS.syncCaptionUI();
+    if (SS.autoTidyEnabled) $('chkAutoTidy').checked = SS.autoTidyEnabled();
+    return true;
+  };
   window.addEventListener('ss:transcript-ready', e => {
+    if (SS.applyEditDefaults) SS.applyEditDefaults();   // 새 자막은 설정의 기본값으로 시작
     SS.state.words = e.detail.words;
     for(let i=0; i<SS.state.words.length; i++) SS.state.words[i].id = i;
     history = []; historyIdx = -1; SS.state.caret = 0; SS.state.selection = null; SS.state.selAnchor = 0;

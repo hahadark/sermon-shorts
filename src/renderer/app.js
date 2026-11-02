@@ -126,6 +126,7 @@
       state.info = info;
       state.source = { path: path, offset: opts.offset || 0, url: opts.url || null, title: opts.title || null,
         duration: info.duration, fps: info.fps, width: info.width, height: info.height };
+      if (opts.fetch) state.source.fetch = opts.fetch;   // 유튜브에서 받은 방법 (원본이 사라지면 다시 받기)
       const ve = $('videoEmpty'); if (ve) ve.style.display = 'none';
       state.peaksReady = false;
 
@@ -168,7 +169,7 @@
     const d = e.detail || {};
     if (!d.path) return;
     if (d.done) return; // 이미 다른 리스너가 처리
-    d.done = openVideo(d.path, { offset: d.offset || 0, url: d.url, title: d.title });
+    d.done = openVideo(d.path, { offset: d.offset || 0, url: d.url, title: d.title, fetch: d.fetch || null });
   });
 
   const bOpen = $('btnOpen'); if (bOpen) bOpen.addEventListener('click', async () => { const p = await api.openVideoDialog(); if (p) openVideo(p).catch(() => {}); });

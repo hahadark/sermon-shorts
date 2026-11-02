@@ -23,8 +23,11 @@
   let lastCmp = '', lastAt = 0, timer = null, saving = null, paused = 1, crashHold = true;
   const stats = { writes: 0, skips: 0, versions: 0 };
 
+  /** 설정 [일반 → 자동 저장] */
+  const asvSet = () => (SS.appSettings && SS.appSettings.autosave) || {};
   function canSave() {
     const st = SS.state;
+    if (asvSet().enabled === false) return false;
     return !!(st && st.source && st.source.path && Array.isArray(st.words) && st.words.length && SS.project && !paused);
   }
   function build() {
@@ -91,12 +94,13 @@
       <div class="asv-head"><div><h3 id="asvTitle">자동 저장본</h3><p id="asvLead"></p></div>
         <button class="btn ghost icon-only ico i-x" data-close title="닫기 (Esc)" aria-label="닫기"></button></div>
       <div class="asv-list" id="asvList"></div>
-      <div class="asv-foot"><span>편집하는 동안 몇 초마다 자동 저장되고, 2분마다 작업본이 하나씩(영상마다 최근 30개) 남습니다.</span><button class="bm-link" id="asvDir" type="button">폴더 열기</button></div>
+      <div class="asv-foot"><span id="asvFootText"></span><button class="bm-link" id="asvDir" type="button">폴더 열기</button><button class="bm-link" id="asvSet" type="button">설정</button></div>
     </div>`;
     document.body.appendChild(m);
     m.addEventListener('click', (e) => { if (e.target === m || e.target.closest('[data-close]')) closeBrowser(); });
     m.addEventListener('keydown', (e) => e.stopPropagation());
     $('asvDir').addEventListener('click', () => api.autosaveOpenDir());
+    $('asvSet').addEventListener('click', () => { closeBrowser(); if (SS.openSettings) SS.openSettings('general'); });
     return m;
   }
   let wasDialog = false, browserMode = 'list';
@@ -111,6 +115,9 @@
     $('asvLead').textContent = opt.crash
       ? `편집기가 지난번(${when(opt.crashedAt)}에 시작한 편집)에 제대로 닫히지 않았습니다. 자동 저장된 작업을 다시 열 수 있습니다.`
       : '저장하지 않고 닫았거나 갑자기 꺼졌을 때, 자동 저장된 작업을 다시 엽니다. 작업본을 펼치면 그보다 앞선 상태로도 돌아갈 수 있습니다.';
+    const a = asvSet();
+    $('asvFootText').textContent = a.enabled === false ? '자동 저장이 꺼져 있습니다 (설정에서 켤 수 있음).'
+      : `편집하는 동안 몇 초마다 자동 저장되고, ${a.everyMin || 2}분마다 작업본이 하나씩(영상마다 최근 ${a.maxVersions || 30}개) 남습니다.`;
     m.hidden = false;
     let entries = opt.entries;
     if (!entries) { $('asvList').innerHTML = '<div class="asv-empty">불러오는 중…</div>'; try { entries = await api.autosaveList(); } catch (e) { entries = []; } }
@@ -132,12 +139,12 @@
       <div class="asv-main">
         <div class="asv-info"><b>${esc(e.title || e.sourceName || '편집')}</b>
           <span>${esc(when(e.updatedAt))} 자동 저장 · ${esc(sumText(e.summary))}</span>
-          <span class="asv-src" title="${esc(e.sourcePath)}">${e.sourceMissing ? '<b class="asv-miss">원본 영상을 찾을 수 없음</b> · ' : ''}${esc(e.sourceName || '')}${e.projectPath ? ' · 프로젝트 ' + esc(e.projectPath.split(/[\\/]/).pop()) : ''}</span></div>
-        <button class="btn ${i === 0 ? 'primary' : ''} sm" data-open="current.sshorts"${e.sourceMissing ? ' disabled title="원본 영상이 없어 열 수 없습니다"' : ''}>${opt.crash && i === 0 ? '불러오기' : '열기'}</button>
+          <span class="asv-src" title="${esc(e.sourcePath)}">${e.sourceMissing ? `<b class="asv-miss">원본 영상이 없음</b> · ${e.sourceUrl ? '열 때 유튜브에서 다시 받습니다 · ' : '열 때 원본 파일을 찾습니다 · '}` : ''}${esc(e.sourceName || '')}${e.projectPath ? ' · 프로젝트 ' + esc(e.projectPath.split(/[\\/]/).pop()) : ''}</span></div>
+        <button class="btn ${i === 0 ? 'primary' : ''} sm" data-open="current.sshorts"${e.sourceMissing ? ` title="${e.sourceUrl ? '원본 영상을 유튜브에서 다시 받아 엽니다' : '원본 영상 파일을 찾아 엽니다'}"` : ''}>${e.sourceMissing ? (e.sourceUrl ? '다시 받아 열기' : '찾아서 열기') : (opt.crash && i === 0 ? '불러오기' : '열기')}</button>
         <button class="btn sm ghost asv-more" data-more aria-expanded="false">작업본 ${e.versions.length - 1}개</button>
         <button class="btn sm ghost icon-only ico i-trash-2" data-del title="이 영상의 자동 저장본 지우기" aria-label="지우기"></button>
       </div>
-      <div class="asv-vers" hidden>${e.versions.slice(1).map((v) => `<div class="asv-ver"><span class="asv-vt">${esc(when(v.at))}:${two(new Date(v.at).getSeconds())}</span><span class="asv-vs">${esc(sumText(v.summary))}</span><button class="btn sm" data-open="${esc(v.file)}"${e.sourceMissing ? ' disabled' : ''}>이 상태로 열기</button></div>`).join('') || '<div class="asv-ver"><span class="asv-vs">아직 남은 작업본이 없습니다.</span></div>'}</div>
+      <div class="asv-vers" hidden>${e.versions.slice(1).map((v) => `<div class="asv-ver"><span class="asv-vt">${esc(when(v.at))}:${two(new Date(v.at).getSeconds())}</span><span class="asv-vs">${esc(sumText(v.summary))}</span><button class="btn sm" data-open="${esc(v.file)}">이 상태로 열기</button></div>`).join('') || '<div class="asv-ver"><span class="asv-vs">아직 남은 작업본이 없습니다.</span></div>'}</div>
     </div>`).join('');
     box.querySelectorAll('.asv-item').forEach((it) => {
       const key = it.dataset.key;
@@ -162,7 +169,8 @@
       SS.projectPath = r.projectPath || null;
       lastCmp = JSON.stringify({ ...build(), playhead: 0 }) + '|' + (SS.projectPath || '');
       closeBrowser();
-      if (SS.toast) SS.toast(file === 'current.sshorts' ? '자동 저장된 작업을 열었습니다' + (r.projectPath ? ' (저장하면 원래 프로젝트 파일에 저장됩니다)' : '') : '과거 작업본을 열었습니다. 지금부터 편집하면 이 상태에서 이어서 자동 저장됩니다', 6000);
+      if (SS.toast && SS.lastSourceRecovery) SS.toast('원본 영상을 ' + (SS.lastSourceRecovery === 'downloaded' ? '유튜브에서 다시 받아' : '찾아') + ' 열었습니다. 편집은 그대로 이어서 할 수 있습니다', 7000);
+      else if (SS.toast) SS.toast(file === 'current.sshorts' ? '자동 저장된 작업을 열었습니다' + (r.projectPath ? ' (저장하면 원래 프로젝트 파일에 저장됩니다)' : '') : '과거 작업본을 열었습니다. 지금부터 편집하면 이 상태에서 이어서 자동 저장됩니다', 6000);
       window.dispatchEvent(new CustomEvent('ss:autosave-opened', { detail: { key, file } }));
     } catch (e) {
       if (SS.toast) SS.toast('열지 못했습니다: ' + cleanErr(e), 8000);
@@ -208,7 +216,13 @@
     e.preventDefault(); e.stopPropagation(); closeBrowser();
   }, true);
 
-  SS.autosave = { saveNow, schedule, stats, openBrowser, closeBrowser, openSaved, checkCrash, get lastAt() { return lastAt; } };
+  /** 설정이 바뀌었을 때 (끄면 상단 표시를 숨기고, 켜면 바로 한 번 저장) */
+  function refreshSettings() {
+    const el = $('asvStatus');
+    if (asvSet().enabled === false) { clearTimeout(timer); if (el) el.hidden = true; }
+    else schedule();
+  }
+  SS.autosave = { saveNow, schedule, stats, refreshSettings, openBrowser, closeBrowser, openSaved, checkCrash, get lastAt() { return lastAt; } };
   SS.openAutosaves = () => openBrowser();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(init, 0)); else setTimeout(init, 0);
 })();

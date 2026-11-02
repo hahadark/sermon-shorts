@@ -37,6 +37,13 @@
   let prefs = loadPrefs();
   let condOpen = true;
   function savePrefs() { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (e) { /* 저장 안 돼도 이번에는 쓴다 */ } }
+  // 설정 창 [AI 대화]에서 기본 조건을 읽고 바꾼다
+  SS.chatPrefs = {
+    get: () => Object.assign({}, prefs),
+    defaults: () => Object.assign({}, DEFAULT_PREFS),
+    tips: () => Object.assign({}, TIPS),
+    set: (next) => { prefs = Object.assign({}, prefs, next || {}); savePrefs(); try { if (video) renderQuick(); } catch (_) { /* 화면이 아직 없음 */ } },
+  };
   const srcToFile = (map, t) => { for (const m of map) if (t >= m.src0 - 0.001 && t <= m.src1 + 0.001) return m.file0 + (t - m.src0); return null; };
 
   // ---------------- 스타일 ----------------
@@ -295,6 +302,11 @@
     inp.addEventListener('keyup', (e) => e.stopPropagation());
     $('chatLoad').addEventListener('click', loadVideo);
     if (keep && lastVideo && lastVideo.url) { inp.value = lastVideo.url; inp.addEventListener('focus', () => inp.select(), { once: true }); }
+    // 최근 작업한 영상 (설정에서 보존 개수를 바꾼다): 누르면 바로 불러온다
+    if (SS.recentYt) {
+      SS.recentYt.datalist(inp);
+      SS.recentYt.mount(box, (url) => { if (busy) return; inp.value = url; loadVideo(); }).then(() => { body.scrollTop = body.scrollHeight; });
+    }
     $('chatQuick').style.display = 'none';
     setCompose(false);
     body.scrollTop = body.scrollHeight;
@@ -479,6 +491,7 @@
       video.edited = resumed ? !!(prev.edited || video.hasPlan) : false;
       if (!resumed) lastRanges = null;
       $('chatBody').querySelectorAll('.chat-start').forEach((x) => x.remove());
+      if (SS.recentYt) SS.recentYt.add(url, video.title);
       if (resumed) {
         addMsg('sys', esc(`「${video.title || '설교 영상'}」 이어서 편집합니다. AI 가 앞의 대화를 기억합니다.`));
         renderQuick(); setCompose(true); $('chatText').focus();
@@ -601,7 +614,8 @@
       const offP = api.onProgress((info) => { if (info.task === 'youtube') { const p = Math.round(info.pct || 0); pg.sub('clips', p + '%'); pg.pct(p); } });
       let res;
       try { res = await fetchClipsImpl(video.url, spans); } finally { offP(); }
-      const detail = { path: res.path, offset: 0, url: video.url, title: video.title, duration: res.duration };
+      const detail = { path: res.path, offset: 0, url: video.url, title: video.title, duration: res.duration,
+        fetch: { kind: 'clips', spans: spans.map((s) => ({ start: s.start, end: s.end })), map: res.map } };   // 원본이 사라지면 같은 구간을 다시 받는다
       window.dispatchEvent(new CustomEvent('ss:source-loaded', { detail }));
       const opened = detail.done ? await detail.done : false;
       if (!opened) throw new Error('영상을 열지 못했습니다');
@@ -625,7 +639,8 @@
     window.dispatchEvent(new CustomEvent('ss:transcript-ready', { detail: { path: lastFetch.path, offset: 0, words: ew } }));
     const st = SS.state;
     st.settings = st.settings || {};
-    st.settings.padBefore = 0.1; st.settings.padAfter = 0.15;
+    const ed = (SS.appSettings && SS.appSettings.editDefaults) || {};   // 설정 [편집]의 컷 여백
+    st.settings.padBefore = Number.isFinite(ed.padBefore) ? ed.padBefore : 0.1; st.settings.padAfter = Number.isFinite(ed.padAfter) ? ed.padAfter : 0.15;
     // 군말(어·음)과 바로 되풀이한 단어 지우기
     if (prefs.filler) st.words = SS.edl.autoClean(st.words, { maxGap: 1e9 });
     // 공백 없애기를 끄고 AI 가 '보통'으로 줄이자고 하면 눈에 띄는 긴 틈만 자른다

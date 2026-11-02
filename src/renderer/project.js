@@ -34,10 +34,13 @@
   SS.saveProject = () => save(false);
   SS.saveProjectAs = () => save(true);
   SS.importProjectState = async function(raw) {
-    const saved = SS.project.normalize(raw);
+    let saved = SS.project.normalize(raw);
     const live = SS.state; // app.js keeps this reference. Never replace it.
     SS.preview.pause();
-    const ok = await SS.openVideo(saved.source.path, { offset:saved.source.offset, url:saved.source.url, title:saved.source.title });
+    // 원본 영상이 사라졌으면 유튜브에서 다시 받거나 직접 찾는다 (source-recover.js)
+    SS.lastSourceRecovery = null;
+    if (SS.ensureSource) saved = SS.project.normalize(await SS.ensureSource(saved));
+    const ok = await SS.openVideo(saved.source.path, { offset:saved.source.offset, url:saved.source.url, title:saved.source.title, fetch:saved.source.fetch || null });
     if (!ok) throw Error('프로젝트 원본 영상을 열 수 없습니다. 파일 위치를 확인해 주세요.');
     const probedSource = live.source; const previousTheme = live.activeTheme;
     Object.assign(live, saved, { source: { ...saved.source, ...probedSource }, trimOpen:false, manualCaret:true });
@@ -65,7 +68,7 @@
     const data = await window.api.readJson(p);
     await SS.importProjectState(data);
     SS.projectPath = p;
-    SS.toast('프로젝트를 열었습니다');
+    SS.toast(SS.lastSourceRecovery ? '원본 영상을 ' + (SS.lastSourceRecovery === 'downloaded' ? '다시 받아' : '찾아') + ' 프로젝트를 열었습니다. 저장(Ctrl+S)하면 새 원본 위치가 프로젝트에 기록됩니다' : '프로젝트를 열었습니다', SS.lastSourceRecovery ? 7000 : undefined);
     return SS.state;
   };
   SS.loadProject = async function() {
@@ -96,6 +99,8 @@
     window.api.getSettings().then(s => {
       SS.appSettings = s;
       SS.refreshSpeakerOptions(s);
+      // 아직 편집이 없으면 설정 [편집]의 기본값으로 시작
+      if (!(SS.state.words && SS.state.words.length) && SS.applyEditDefaults) SS.applyEditDefaults();
     });
     const update = () => { readMeta(); SS.updateTemplatePreview(); };
     $('selSpeaker').addEventListener('change', () => { $('inpSpeaker').style.display=$('selSpeaker').value==='직접 입력'?'':'none';update(); if (SS.syncSpeakerButton) SS.syncSpeakerButton(); });

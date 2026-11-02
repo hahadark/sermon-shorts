@@ -11,8 +11,18 @@
   const api = window.api;
   const KEY = 'ss.autoTidy.v1';
 
-  SS.autoTidyEnabled = () => { try { return localStorage.getItem(KEY) !== '0'; } catch (_) { return true; } };
-  SS.setAutoTidy = (on) => { try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (_) { /* 저장 못 해도 이번엔 적용 */ } };
+  // 설정 [편집 → 음성 인식 뒤 자동 정리]가 기준 (예전 판의 localStorage 값은 설정이 없을 때만)
+  SS.autoTidyEnabled = () => {
+    const ed = SS.appSettings && SS.appSettings.editDefaults;
+    if (ed && typeof ed.autoTidy === 'boolean') return ed.autoTidy;
+    try { return localStorage.getItem(KEY) !== '0'; } catch (_) { return true; }
+  };
+  SS.setAutoTidy = (on) => {
+    try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (_) { /* 저장 못 해도 이번엔 적용 */ }
+    const ed = { ...((SS.appSettings && SS.appSettings.editDefaults) || {}), autoTidy: !!on };
+    if (SS.appSettings) SS.appSettings.editDefaults = ed;
+    if (api && api.saveSettings) api.saveSettings({ editDefaults: ed }).catch(() => {});
+  };
 
   const D = () => SS.disfluency;
   const dur = () => (SS.preview && SS.preview.duration) || (SS.state.source && SS.state.source.duration);
