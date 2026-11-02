@@ -29,7 +29,8 @@
         api.updateInstall();
       });
     } else if (s.state === 'portable') {
-      show(`새 버전 ${s.version} 이 나왔습니다`, '내려받기 페이지', () => api.updateOpenPage());
+      // Mac: 스스로 바꿀 수 없는 까닭(DMG 안에서 실행·앱 관리 권한 등)이 있으면 함께 보인다
+      show(`새 버전 ${s.version} 이 나왔습니다` + (s.reason ? ` · ${s.reason}` : ''), '내려받기 페이지', () => api.updateOpenPage());
     } else {
       bar.classList.add('hidden');
     }
