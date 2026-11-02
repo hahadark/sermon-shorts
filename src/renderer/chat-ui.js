@@ -125,6 +125,7 @@
 .chat-divider::before,.chat-divider::after{content:'';flex:1;border-top:1px dashed var(--border)}
 .chat-divider .cq-btn{font-size:11.5px;padding:2px 8px}
 .chat-body .stale{opacity:.45;cursor:default;pointer-events:none}
+.chat-body .msg.cand.flash{outline:2px solid var(--accent,#2563eb);outline-offset:2px;transition:outline-color .3s}
 .chat-start.compact p{display:none}
 .chat-compose{border-top:1px solid var(--border);padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:#fff}
 .chat-compose textarea{resize:none;height:64px}
@@ -176,7 +177,12 @@
     $('chatFold').addEventListener('click', () => toggleChat());
     try { if (localStorage.getItem('ss.chatCollapsed') === '1') toggleChat(true); } catch (e) { /* */ }
     // 기록 안의 [이 편집 다시 열기] (다시 켜도 동작하도록 위임)
-    $('chatBody').addEventListener('click', (e) => { const b = e.target.closest('[data-reopen]'); if (b) { e.preventDefault(); reopenEdit(b.dataset.reopen); } });
+    $('chatBody').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-reopen]'); if (b) { e.preventDefault(); reopenEdit(b.dataset.reopen); return; }
+      const pk = e.target.closest('[data-pick]'); if (pk) { e.preventDefault(); rePick(pk); return; }
+      const rp = e.target.closest('[data-replay]'); if (rp) { e.preventDefault(); replayEdit(rp); return; }
+      const yt = e.target.closest('[data-yturl]'); if (yt) { e.preventDefault(); api.ytupOpenUrl(yt.dataset.yturl).catch(() => {}); }
+    });
     $('chatSend').addEventListener('click', () => send());
     $('chatExport').addEventListener('click', () => { const b = $('btnExport'); if (b && !b.disabled) b.click(); else SS.toast && SS.toast('먼저 편집을 만들어 주세요'); });
     $('chatText').addEventListener('keydown', (e) => {
@@ -355,10 +361,12 @@
       try { if (html.trim()) localStorage.setItem(LOG_KEY, html); else localStorage.removeItem(LOG_KEY); } catch (e) { /* 저장 공간이 없으면 이번엔 건너뜀 */ }
     }, 500);
   }
-  /** 지난 대화의 버튼은 눌러도 안 되게 ([이 편집 다시 열기]만 남김) */
+  /** 지난 대화의 버튼은 눌러도 안 되게. 다시 할 수 있는 것([이 편집 다시 열기]·[이 구간으로 만들기]·[이 편집 다시 적용]·[유튜브에서 보기])은 살려 둔다 */
+  const REVIVE = (b) => !!(b.dataset.reopen || b.dataset.pick || b.dataset.replay || b.dataset.yturl);
   function archive(root) {
     root.querySelectorAll('button, a, input').forEach((b) => {
-      if (b.closest('.chat-start') || b.dataset.reopen) return;
+      if (b.closest('.chat-start')) return;
+      if (REVIVE(b)) { b.classList.remove('stale'); b.disabled = false; b.removeAttribute('tabindex'); return; }
       b.classList.add('stale'); b.disabled = true; b.setAttribute('tabindex', '-1');
     });
   }
@@ -426,6 +434,7 @@
     const acts = edited
       ? [['gaps-now', '공백 없애기', 'primary'], ['tight', '늘어지지 않게'], ['filler', '군말·반복 빼기'], ['questions', '질문·대답 빼기'], ['notices', '진행 안내 빼기'],
         ['shorter', '더 짧게'], ['longer', '더 길게'], ['ending', '결론으로 끝내기'], ['title', '제목 다시'], ['typos', '자막 오타 고치기'], ['again', `다른 구간 ${n}곳 추천`]]
+        .concat(document.querySelector('#chatBody .msg.cand') ? [['cands', '앞 후보 보기']] : [])
       : [['recommend', `① 구간 ${n}곳 추천받기`, 'primary'], ['make', '바로 만들기']];
     q.innerHTML = `
       <div class="cq-head"><button class="cq-fold" id="cqFold" title="길이·다듬기 조건 열기/접기">${condOpen ? '▾' : '▸'} 편집 조건</button><span class="cq-sum">${esc(cp.conditionsSummary(prefs))}</span></div>
@@ -459,6 +468,7 @@
 
   function actTip(k) {
     if (k === 'gaps-now') return '지금 편집에서 말 사이 조용한 부분을 실제 소리로 찾아 줄입니다 (AI 안 씀, Ctrl+Z 로 되돌리기)';
+    if (k === 'cands') return '앞서 추천받은 후보 카드로 이동합니다. 다른 후보의 [이 구간으로 만들기]를 누르면 그 구간으로 다시 만듭니다.';
     if (k === 'recommend' || k === 'again') return '바로 만들지 않고 후보 3곳을 먼저 보여 줍니다. 마음에 드는 후보를 고르면 그 안에서 만듭니다.';
     if (k === 'make') return '편집 조건대로 결론·적용 중심으로 바로 만듭니다';
     const r = CP().actionRequest(k, prefs);
@@ -468,6 +478,7 @@
   async function doAction(key, arg) {
     if (busy || !video) return;
     if (key === 'gaps-now') return gapsNow();
+    if (key === 'cands') return showPrevCandidates();
     const req = CP().actionRequest(key, prefs, arg);
     if (!req) return;
     // 추천·만들기를 누르면 조건 줄을 접어 대화(후보 카드)가 잘 보이게 한다. 요약 줄은 남는다
@@ -476,11 +487,11 @@
   }
 
   // ---------------- 영상 불러오기 ----------------
-  async function loadVideo() {
-    const url = ($('chatUrl') && $('chatUrl').value || '').trim();
-    if (!url) { SS.toast && SS.toast('유튜브 주소를 넣어 주세요'); return; }
-    if (!/youtu\.?be/.test(url)) { SS.toast && SS.toast('유튜브 주소가 아닌 것 같습니다'); return; }
-    const btn = $('chatLoad'); btn.disabled = true; btn.textContent = '자막 불러오는 중…';
+  async function loadVideo(urlArg) {
+    const url = (typeof urlArg === 'string' && urlArg ? urlArg : ($('chatUrl') && $('chatUrl').value || '')).trim();
+    if (!url) { SS.toast && SS.toast('유튜브 주소를 넣어 주세요'); return false; }
+    if (!/youtu\.?be/.test(url)) { SS.toast && SS.toast('유튜브 주소가 아닌 것 같습니다'); return false; }
+    const btn = $('chatLoad') || document.createElement('button'); btn.disabled = true; btn.textContent = '자막 불러오는 중…';
     const pgL = progressCard({ title: '유튜브 자막 불러오는 중', steps: [{ k: 'load', label: '영상 정보와 자막 받기' }], hints: (s) => [s < 20 ? '보통 5~20초 걸립니다.' : '유튜브 응답이 늦어지고 있어요. 조금만 더 기다려 주세요.', s < 20 ? '' : 'slow'] });
     pgL.step('load');
     try {
@@ -495,7 +506,7 @@
       if (resumed) {
         addMsg('sys', esc(`「${video.title || '설교 영상'}」 이어서 편집합니다. AI 가 앞의 대화를 기억합니다.`));
         renderQuick(); setCompose(true); $('chatText').focus();
-        return;
+        return true;
       }
       addMsg('sys', esc(`「${video.title || '설교 영상'}」 자막 ${video.words.length.toLocaleString()}단어를 불러왔습니다.`));
       addMsg('ai', '어떤 쇼츠를 만들까요? 아래 버튼으로 길이와 다듬기 조건을 고른 뒤 [구간 3곳 추천받기]를 누르거나, 원하는 내용을 말씀해 주세요.\n예: "결론 부분으로", "기도에 대한 부분으로"');
@@ -503,10 +514,89 @@
       setCompose(true);
       if (!status || !status.active) addMsg('sys', '먼저 위의 [AI 연결]을 눌러 AI 를 연결해 주세요.');
       $('chatText').focus();
+      return true;
     } catch (e) {
       btn.disabled = false; btn.textContent = '불러오기';
       SS.toast && SS.toast('불러오기 실패: ' + cleanErr(e), 7000);
+      return false;
     }
+  }
+
+  // ---------------- 지난 작업 다시 하기: 후보 다시 고르기·편집 다시 적용 ----------------
+  /** 후보 카드에 남겨 둘 것 (지난 기록에서 다시 누를 때 쓴다) */
+  function candData(c) { return { no: c.no, from: c.from, to: c.to, title: c.title || '', start: c.start, end: c.end, durationSec: c.durationSec }; }
+  /** 편집 반영 알림 + [이 편집 다시 적용] (AI 없이 같은 구간·자막 교정·제목으로 바로 되돌린다) */
+  function addReplayMsg(doneText, r) {
+    const plan = { url: video && video.url, vtitle: video && video.title, ranges: (r.ranges || []).map((g) => ({ from: g.from, to: g.to })), corrections: r.corrections || [], tighten: r.tighten || '', title: r.title || '', verse: r.verse || '', durationSec: r.durationSec || 0 };
+    const el = addMsg('sys', esc(doneText) + ` <button class="cq-btn act" data-replay="${esc(JSON.stringify(plan))}" title="나중에 다른 구간으로 바꾼 뒤에도, 프로그램을 다시 켠 뒤에도 이 편집으로 바로 되돌립니다 (AI 를 다시 부르지 않음)">이 편집 다시 적용</button>`);
+    return el;
+  }
+  /** 예전 기록(주소를 남기지 않던 판)의 카드: 앞의 '「제목」 … 불러왔습니다' 글과 최근 링크로 주소를 찾는다 */
+  async function urlOfCard(card) {
+    if (card.dataset.url) return card.dataset.url;
+    let title = card.dataset.vtitle || '';
+    for (let el = card.previousElementSibling; el && !title; el = el.previousElementSibling) {
+      const m = /「(.+?)」 (?:자막 [\d,]+단어를 불러왔습니다|이어서 편집합니다)/.exec(el.textContent || '');
+      if (m) title = m[1];
+    }
+    if (!title) return '';
+    if (video && video.title === title) return video.url;
+    try { const rec = (await api.recentList()) || []; const hit = rec.find((r) => r.title === title); return hit ? hit.url : ''; } catch (_) { return ''; }
+  }
+  /** 그 영상이 대화에 불러와져 있게 (다른 영상이면 지금 대화를 위에 남기고 바꾼다) */
+  async function ensureVideo(url, title) {
+    if (video && video.url === url) return true;
+    if (video) {
+      if (!confirm(`「${title || '그 영상'}」을(를) 다시 불러와 이어서 작업할까요?\n지금 대화는 위에 남고, 편집 중인 것은 자동 저장됩니다.`)) return false;
+      await resetChat();
+    }
+    return loadVideo(url);
+  }
+  async function rePick(btn) {
+    if (busy) return;
+    const card = btn.closest('.msg.cand') || btn.closest('.msg');
+    let c = null;
+    try { c = btn.dataset.cand ? JSON.parse(btn.dataset.cand) : null; } catch (_) { c = null; }
+    const url = await urlOfCard(card);
+    if (!url) { SS.toast && SS.toast('예전 기록이라 이 후보의 영상 주소를 알 수 없습니다. 영상을 먼저 불러온 뒤 눌러 주세요.', 7000); return; }
+    if (!(await ensureVideo(url, card.dataset.vtitle))) return;
+    if (c && Number.isInteger(c.from) && Number.isInteger(c.to)) { await doAction('pick', c); return; }
+    // 예전 카드: 번호와 시각만 있다
+    const no = Number(btn.dataset.pick) || 0;
+    const head = (card.querySelector('.cand-head') || card).textContent.replace(/\s+/g, ' ').trim();
+    const t = (card.querySelector('.cand-title') || {}).textContent || '';
+    await send(`${no}번 후보로 만들기${t ? ' ' + t.trim() : ''}`, CP().buildConditions(prefs) + `\n\n앞서 추천한 ${head}${t ? ' ' + t.trim() : ''} 구간 안에서만 골라 쇼츠를 만들어 줘.`);
+  }
+  async function replayEdit(btn) {
+    if (busy) return;
+    let plan = null;
+    try { plan = JSON.parse(btn.dataset.replay); } catch (_) { plan = null; }
+    if (!plan || !plan.url || !Array.isArray(plan.ranges) || !plan.ranges.length) { SS.toast && SS.toast('이 편집 정보를 읽지 못했습니다.'); return; }
+    if (!(await ensureVideo(plan.url, plan.vtitle))) return;
+    const max = Math.max(...plan.ranges.map((g) => g.to));
+    if (!video || !video.words || max >= video.words.length) { addMsg('sys', '유튜브 자막이 그사이 바뀌어 이 편집을 그대로 적용할 수 없습니다. 후보를 다시 고르거나 새로 부탁해 주세요.'); return; }
+    busy = true; setCompose(true);
+    try {
+      const doneText = await applyPlan(plan);
+      applyMeta(plan);
+      video.edited = true;
+      lastRanges = plan.ranges.map((g) => ({ from: g.from, to: g.to }));
+      addReplayMsg('앞의 편집을 다시 적용했습니다. ' + doneText, plan);
+      checkLength();
+    } catch (e) {
+      addMsg('ai err', esc('다시 적용하지 못했습니다: ' + cleanErr(e)));
+    } finally {
+      busy = false; setCompose(true); renderQuick();
+    }
+  }
+  /** 편집한 뒤 [앞 후보 보기]: 마지막 후보 카드들로 이동해 잠깐 표시 */
+  function showPrevCandidates() {
+    const cards = Array.from(document.querySelectorAll('#chatBody .msg.cand'));
+    if (!cards.length) { SS.toast && SS.toast('앞서 추천받은 후보가 없습니다.'); return; }
+    let first = cards[cards.length - 1];
+    while (first.previousElementSibling && first.previousElementSibling.classList.contains('cand')) first = first.previousElementSibling;
+    first.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    cards.slice(cards.indexOf(first)).forEach((c) => { c.classList.add('flash'); setTimeout(() => c.classList.remove('flash'), 1600); });
   }
 
   function cleanErr(e) { return String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''); }
@@ -573,7 +663,7 @@
         } else {
           const firstEdit = !video.edited;
           const doneText = await applyPlan(r);
-          addMsg('sys', esc(doneText));
+          addReplayMsg(doneText, r);
           video.edited = true;
           if (firstEdit) condOpen = false; // 처음 만든 뒤에는 조건 줄을 접어 대화 칸을 넓게
           lastRanges = r.ranges.map((g) => ({ from: g.from, to: g.to }));
@@ -758,11 +848,10 @@
         + (c.summary ? `<div class="cand-sum">${esc(c.summary)}</div>` : '')
         + (c.why ? `<div class="cand-why">${esc(c.why)}</div>` : '')
         + `<details><summary>자막 보기</summary><div class="cand-text">${esc(c.excerpt)}</div></details>`
-        + `<div class="cand-act"><button class="cq-btn act primary" data-pick="${c.no}">이 구간으로 만들기</button>`
-        + (id ? `<button class="cq-btn act" data-yt="${Math.floor(c.start)}" title="웹 브라우저에서 그 시각부터 재생">유튜브에서 보기</button>` : '') + '</div>';
-      el.querySelector('[data-pick]').addEventListener('click', () => doAction('pick', c));
-      const yb = el.querySelector('[data-yt]');
-      if (yb) yb.addEventListener('click', () => { api.ytupOpenUrl(`https://youtu.be/${id}?t=${Math.floor(c.start)}`).catch(() => {}); });
+        + `<div class="cand-act"><button class="cq-btn act primary" data-pick="${c.no}" data-cand="${esc(JSON.stringify(candData(c)))}" title="이 후보 구간으로 쇼츠를 만듭니다 (지난 기록에서도 누를 수 있음)">이 구간으로 만들기</button>`
+        + (id ? `<button class="cq-btn act" data-yt="${Math.floor(c.start)}" data-yturl="${esc(`https://youtu.be/${id}?t=${Math.floor(c.start)}`)}" title="웹 브라우저에서 그 시각부터 재생">유튜브에서 보기</button>` : '') + '</div>';
+      el.dataset.url = (video && video.url) || '';
+      el.dataset.vtitle = (video && video.title) || '';
       body.appendChild(el);
     });
     addMsg('sys', '마음에 드는 후보의 [이 구간으로 만들기]를 누르세요. 길이·다듬기 조건도 함께 적용됩니다.');
