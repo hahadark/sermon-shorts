@@ -23,6 +23,8 @@
     const index = (v, fallback = 0) => clamp(Math.trunc(number(v, fallback)), 0, words.length);
     const source = {};
     for (const key of ['path','offset','url','title','duration','fps','width','height']) if (data.source[key] !== undefined) source[key] = clone(data.source[key]);
+    // 유튜브에서 어떻게 받았는지 (원본이 사라졌을 때 다시 받기용, shared/source-fetch.js)
+    if (data.source.fetch && typeof data.source.fetch === 'object' && !Array.isArray(data.source.fetch)) source.fetch = clone(data.source.fetch);
     const crop = data.crop || {};
     const meta = data.meta || {};
     return {
