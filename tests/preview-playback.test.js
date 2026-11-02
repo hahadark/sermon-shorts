@@ -15,6 +15,7 @@ function makeVideo(opts = {}) {
   Object.defineProperty(v, 'currentTime', {
     get: () => ct,
     set: (x) => {
+      if (opts.usTrunc) x = Math.trunc(x * 1e6) / 1e6;   // Chromium 처럼 마이크로초 아래 버림
       if (opts.noSameSeeked && Math.abs(x - ct) < 1e-6) return;
       if (opts.dropSeeked) { ct = x; return; }
       v.seeking = true; clearTimeout(tm);
@@ -52,6 +53,17 @@ test('seek: 같은 시각이어도 Promise 가 끝난다', async () => {
   const { SS, video } = env({ noSameSeeked: true });
   await SS.preview.seek(0);                 // 현재 0 과 동일
   await SS.preview.seek(2); await SS.preview.seek(2);
+  assert.strictEqual(video.currentTime, 2);
+});
+
+test('seek: 마이크로초 아래를 버리는 영상에서도 목표보다 앞에 서지 않는다', async () => {
+  const { SS, video } = env({ usTrunc: true });
+  for (const t of [3.1415926535, 2.0000004, 7.3333333333, 1.2, 2]) {
+    await SS.preview.seek(t);
+    assert.ok(video.currentTime >= t, `seek(${t}) → ${video.currentTime}`);
+    assert.ok(video.currentTime - t < 2e-6, `seek(${t}) 너무 뒤 → ${video.currentTime}`);
+  }
+  await SS.preview.seek(2);
   assert.strictEqual(video.currentTime, 2);
 });
 

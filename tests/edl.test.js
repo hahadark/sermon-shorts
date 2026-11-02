@@ -515,3 +515,38 @@ test('buildLines: strict split respects cuts, deleted words, line breaks and out
   assert.ok(lines.every(l=>Array.from(l.text.replace(/\s/g,'')).length<=3));assert.ok(lines.every(l=>l.outEnd>=l.outStart&&l.outEnd<=2));
   assert.ok(!edl.toSRT(lines).includes('삭제'));assert.equal(lines.map(l=>l.text).join(''),'가나다라마바사아자차카타');
 });
+
+// Chromium 은 <video>.currentTime 을 마이크로초 아래에서 버린다. 자막 칸을 눌러 그 시작점으로 옮겼는데
+// 앞 자막과 딱 붙어 있으면 미리보기에 앞 자막이 나오던 문제 (커서는 110, 미리보기는 109).
+const chromiumTrunc = (t) => Math.trunc(t * 1e6) / 1e6;
+
+test('mediaSeekTime: 버린 뒤에도 목표보다 앞이 아니고 2µs 안쪽, 딱 떨어지는 값은 그대로', () => {
+  for (let i = 0; i < 5000; i++) {
+    const t = Math.random() * 7200;
+    const s = edl.mediaSeekTime(t);
+    assert.ok(chromiumTrunc(s) >= t, `t=${t} s=${s}`);
+    assert.ok(s - t < 2e-6, `t=${t} s=${s}`);
+  }
+  for (const t of [0, 1, 2, 1.2, 199.2, 3600]) assert.strictEqual(edl.mediaSeekTime(t), t);
+});
+
+test('자막 시작으로 옮긴 영상 위치에서 미리보기 자막이 그 자막과 같다 (붙어 있는 자막 포함)', () => {
+  const texts = '우리가 고난의 한 중앙 에서 희망이 없는 어두움 터널을 지나갈 때 하나님은 여전히 우리와 함께 하십니다.'.split(' ');
+  const words = []; let t = 37.137;
+  for (let k = 0; k < 400; k++) {
+    const d = 0.2 + ((k * 37) % 11) / 30, g = ((k * 13) % 7) / 50;
+    words.push({ id: 'w' + k, text: texts[k % texts.length], start: +t.toFixed(3), end: +(t + d).toFixed(3), del: k % 17 === 5 });
+    t += d + g; if (k % 9 === 8) t += 0.9;
+  }
+  const settings = { maxLineChars: 14 };
+  const segs = edl.buildSegments(words, settings, {}, t + 5);
+  const lines = edl.buildLines(words, segs, settings);
+  const lineAt = (src) => { const o = edl.srcToOut(segs, src); return o == null ? -1 : lines.findIndex((l) => o >= l.outStart && o < l.outEnd); };
+  let rawBad = 0;
+  lines.forEach((L, i) => {
+    const target = edl.outToSrc(segs, L.outStart).t;
+    if (lineAt(chromiumTrunc(target)) !== i) rawBad++;
+    assert.strictEqual(lineAt(chromiumTrunc(edl.mediaSeekTime(target))), i, `${i}번 줄 "${L.text}"`);
+  });
+  assert.ok(rawBad > 0, '이 자료는 고치기 전 방식이면 어긋나는 줄이 있어야 시험이 의미가 있다');
+});
