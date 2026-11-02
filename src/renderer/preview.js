@@ -90,6 +90,8 @@
       const v = this.video;
       t = this.clamp(t);
       if (!isFinite(t)) return Promise.resolve();
+      // 마이크로초 버림으로 목표보다 앞에 서지 않게 (자막 칸을 눌렀는데 앞 자막이 보이던 문제)
+      if (SS.edl && SS.edl.mediaSeekTime) t = Math.min(this.duration || this.video.duration || t, SS.edl.mediaSeekTime(t));
       if (!v.seeking && Math.abs((v.currentTime || 0) - t) < 0.0005) return Promise.resolve();
       return new Promise((resolve) => {
         let timer = 0;
