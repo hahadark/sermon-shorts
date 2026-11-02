@@ -9,10 +9,13 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const MAX_VERSIONS = 30;          // 영상마다 남길 과거 작업본
-const VERSION_EVERY_MS = 2 * 60 * 1000;
-const MAX_KEYS = 40;              // 영상 몇 개까지
-const KEEP_DAYS = 60;
+// 한도는 설정 창 [일반 → 자동 저장]에서 바꾼다 (settings.autosave). 설정을 못 읽으면 아래 기본값
+const DEF = { everyMin: 2, maxVersions: 30, keepDays: 60, maxVideos: 40 };
+function limits() {
+  let a = {};
+  try { a = require('./settings').loadSettings().autosave || {}; } catch (_) { /* 시험 등 설정 없음 */ }
+  return { MAX_VERSIONS: a.maxVersions || DEF.maxVersions, VERSION_EVERY_MS: (a.everyMin || DEF.everyMin) * 60 * 1000, MAX_KEYS: a.maxVideos || DEF.maxVideos, KEEP_DAYS: a.keepDays || DEF.keepDays };
+}
 
 let root = '';
 let crashed = null;               // 지난번 갑자기 꺼진 실행 { pid, startedAt, keys: [] } (여러 개면 합침)
@@ -73,7 +76,7 @@ function list() {
 /** 오래된 것 정리: 60일 지난 영상, 40개 넘는 영상 */
 function prune() {
   try {
-    const all = list(), now = Date.now();
+    const all = list(), now = Date.now(), { MAX_KEYS, KEEP_DAYS } = limits();
     all.forEach((e, i) => { if (i >= MAX_KEYS || now - e.updatedAt > KEEP_DAYS * 864e5) fs.rmSync(keyDir(e.key), { recursive: true, force: true }); });
   } catch (_) { /* */ }
 }
@@ -83,6 +86,7 @@ function write(p) {
   if (!p || typeof p.data !== 'string' || !p.data.length) throw new Error('저장할 내용이 없습니다.');
   const key = keyOf(p.sourceKey || p.sourcePath);
   const d = ensureDir(keyDir(key));
+  const { MAX_VERSIONS, VERSION_EVERY_MS } = limits();
   writeAtomic(path.join(d, 'current.sshorts'), p.data);
   const metaPath = path.join(d, 'meta.json'), meta = readJson(metaPath, {}) || {};
   const now = Date.now();
@@ -107,6 +111,7 @@ function write(p) {
 function preserveCurrent(d) {
   const metaPath = path.join(d, 'meta.json'), meta = readJson(metaPath, null), cur = path.join(d, 'current.sshorts');
   if (!meta || !fs.existsSync(cur)) return;
+  const { MAX_VERSIONS } = limits();
   const last = (meta.versions || [])[meta.versions.length - 1];
   const text = fs.readFileSync(cur, 'utf8');
   const hash = crypto.createHash('sha1').update(text).digest('hex').slice(0, 16);

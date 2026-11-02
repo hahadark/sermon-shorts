@@ -25,6 +25,15 @@ contextBridge.exposeInMainWorld('api', {
   /** ArrayBuffer (Float32 mono PCM) */
   getPcm: (path, start, end, rate) => ipcRenderer.invoke('media:pcm', path, start, end, rate),
   readJson: (path) => ipcRenderer.invoke('fs:readJson', path),
+  fileExists: (p) => ipcRenderer.invoke('fs:exists', p),
+  sourceSubWords: (url) => ipcRenderer.invoke('source:subWords', url),
+  recentList: () => ipcRenderer.invoke('recent:list'),
+  recentAdd: (item) => ipcRenderer.invoke('recent:add', item),
+  recentRemove: (url) => ipcRenderer.invoke('recent:remove', url),
+  recentClear: () => ipcRenderer.invoke('recent:clear'),
+  chooseBgmDir: () => ipcRenderer.invoke('settings:chooseBgmDir'),
+  getBgmDir: () => ipcRenderer.invoke('settings:bgmDir'),
+  openAppPath: (which) => ipcRenderer.invoke('settings:openPath', which),
   // 유튜브
   ytInfo: (url) => ipcRenderer.invoke('yt:info', url),
   ytAutoSubs: (url) => ipcRenderer.invoke('yt:autoSubs', url),

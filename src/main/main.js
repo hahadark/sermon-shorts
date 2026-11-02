@@ -147,6 +147,14 @@ function registerIpc() {
   });
 
   // JSON 파일 읽기 (트랜스크립트·프로젝트용). 고른 파일과 캐시 폴더만
+  // 원본 영상이 아직 있는지 (없으면 다시 받기·직접 찾기를 묻는다)
+  ipcMain.handle('fs:exists', (_e, p) => { try { return !!p && fs.existsSync(String(p)); } catch (_) { return false; } });
+  // 원본 다시 받기: 예전 AI 대화 편집의 위치를 되찾을 때 쓰는 유튜브 자막 단어 (원본 시각)
+  ipcMain.handle('source:subWords', async (_e, url) => {
+    const subs = await youtube.fetchAutoSubs(String(url || ''), { raw: true });
+    if (!subs || !subs.raw) return [];
+    return require('../shared/chat-plan').wordsFromJson3(subs.raw).words.map((w) => ({ text: w.text, start: w.start, end: w.end }));
+  });
   ipcMain.handle('fs:readJson', (_e, p) => {
     const file = guard.check(p);
     try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { return null; }

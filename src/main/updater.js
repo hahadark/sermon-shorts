@@ -16,6 +16,12 @@ const CHECK_EVERY = 6 * 3600 * 1000;
 
 let updater = null;
 let mac = null;     // Mac 업데이트 (updater-mac.js)
+/** 설정 창 [일반 → 자동 업데이트]. 끄면 저절로 확인·받지 않고, [지금 확인]을 눌렀을 때만 한다 */
+function autoOn() { try { return require('./settings').loadSettings().autoUpdate !== false; } catch (_) { return true; } }
+function schedule() {
+  setTimeout(() => { if (autoOn()) check(); }, FIRST_CHECK_DELAY).unref();
+  setInterval(() => { if (autoOn() && status.state !== 'ready' && status.state !== 'downloading') check(); }, CHECK_EVERY).unref();
+}
 let getWindow = () => null;
 let log = () => {};
 // 화면에 보낼 상태: idle | checking | latest | available | downloading | ready | portable | error | off
@@ -61,8 +67,7 @@ function initUpdater(opts = {}) {
   if (process.platform === 'darwin') {
     mac = require('./updater-mac').start({ app, setStatus, getStatus: () => status, log });
     setStatus({ state: 'idle' });
-    setTimeout(check, FIRST_CHECK_DELAY).unref();
-    setInterval(() => { if (status.state !== 'ready' && status.state !== 'downloading') check(); }, CHECK_EVERY).unref();
+    schedule();
     return;
   }
   if (process.platform !== 'win32') return;
@@ -84,8 +89,7 @@ function initUpdater(opts = {}) {
   updater.on('error', (e) => { log('업데이트 오류:', e && e.message); setStatus({ state: 'error', message: e && e.message }); });
 
   setStatus({ state: 'idle' });
-  setTimeout(check, FIRST_CHECK_DELAY).unref();
-  setInterval(() => { if (status.state !== 'ready' && status.state !== 'downloading') check(); }, CHECK_EVERY).unref();
+  schedule();
 }
 
 module.exports = { initUpdater, isInstalled };

@@ -60,7 +60,45 @@ function defaults() {
     ytChannel: '',
     ytPrivacy: 'unlisted',
     ytAutoUpload: false,
+    // ---- 설정 창 [일반] ----
+    recentYoutubeMax: 5,          // 최근 작업한 유튜브 링크 보존 개수 (0 = 보존 안 함)
+    recentYoutube: [],            // [{ url, title, at }] 최근 것이 앞
+    sourceMissing: 'ask',         // 원본 영상이 없을 때: 'ask' 묻기 / 'auto' 유튜브에서 바로 다시 받기
+    autoUpdate: true,             // 새 버전 자동으로 확인·받기
+    autosave: { enabled: true, everyMin: 2, maxVersions: 30, keepDays: 60, maxVideos: 40 },
+    // ---- 설정 창 [편집]: 새 편집을 시작할 때의 기본값 ----
+    editDefaults: { maxLineChars: 14, semanticBreaks: true, splitLongWords: true, padBefore: 0.1, padAfter: 0.15, fadeMs: 10, autoTidy: true },
   };
+}
+
+const num = (v, d, lo, hi) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+/** 설정 창 값 다듬기 (범위 밖·잘못된 값은 기본값으로) */
+function normalizeExtras(out, d) {
+  out.recentYoutubeMax = Math.round(num(out.recentYoutubeMax, d.recentYoutubeMax, 0, 50));
+  const seen = new Set();
+  out.recentYoutube = (Array.isArray(out.recentYoutube) ? out.recentYoutube : [])
+    .filter((r) => r && typeof r.url === 'string' && r.url.trim() && !seen.has(r.url.trim()) && seen.add(r.url.trim()))
+    .map((r) => ({ url: r.url.trim(), title: String(r.title || '').slice(0, 200), at: num(r.at, 0, 0, 1e15) }))
+    .slice(0, out.recentYoutubeMax);
+  out.sourceMissing = out.sourceMissing === 'auto' ? 'auto' : 'ask';
+  out.autoUpdate = out.autoUpdate !== false;
+  const a = { ...d.autosave, ...(out.autosave && typeof out.autosave === 'object' ? out.autosave : {}) };
+  out.autosave = { enabled: a.enabled !== false, everyMin: num(a.everyMin, 2, 1, 60), maxVersions: Math.round(num(a.maxVersions, 30, 1, 200)), keepDays: Math.round(num(a.keepDays, 60, 1, 3650)), maxVideos: Math.round(num(a.maxVideos, 40, 1, 500)) };
+  const e = { ...d.editDefaults, ...(out.editDefaults && typeof out.editDefaults === 'object' ? out.editDefaults : {}) };
+  out.editDefaults = { maxLineChars: Math.round(num(e.maxLineChars, 14, 1, 200)), semanticBreaks: e.semanticBreaks !== false, splitLongWords: e.splitLongWords !== false,
+    padBefore: num(e.padBefore, 0.1, 0, 5), padAfter: num(e.padAfter, 0.15, 0, 5), fadeMs: Math.round(num(e.fadeMs, 10, 0, 1000)), autoTidy: e.autoTidy !== false };
+  return out;
+}
+
+/** 최근 유튜브 링크에 넣기 (같은 주소는 맨 앞으로) */
+function addRecentYoutube(item) {
+  const s = loadSettings();
+  const url = String((item && item.url) || '').trim();
+  if (!url || !s.recentYoutubeMax) return s.recentYoutube || [];
+  const prev = (s.recentYoutube || []).find((r) => r.url === url);
+  const title = String((item && item.title) || (prev && prev.title) || '');
+  const list = [{ url, title, at: Date.now() }].concat((s.recentYoutube || []).filter((r) => r.url !== url));
+  return saveSettings({ recentYoutube: list }).recentYoutube;
 }
 
 function normalize(s) {
@@ -94,7 +132,7 @@ function normalize(s) {
   out.template.defaultSpeaker = out.defaultSpeaker;
   if (!out.template.churchName) out.template.churchName = DEFAULT_CHURCH;
   if (!out.template.logoPath) out.template.logoPath = DEFAULT_LOGO;
-  return out;
+  return normalizeExtras(out, d);
 }
 
 function loadSettings() {
@@ -232,6 +270,26 @@ function initSettings() {
   });
   ipcMain.handle('settings:logoDataUrl', (_e, p) => getLogoDataUrl(p));
   ipcMain.handle('settings:chooseLogo', (e) => chooseLogo(BrowserWindow.fromWebContents(e.sender)));
+  // 최근 작업한 유튜브 링크
+  ipcMain.handle('recent:list', () => loadSettings().recentYoutube || []);
+  ipcMain.handle('recent:add', (_e, item) => addRecentYoutube(item));
+  ipcMain.handle('recent:remove', (_e, url) => saveSettings({ recentYoutube: (loadSettings().recentYoutube || []).filter((r) => r.url !== String(url || '')) }).recentYoutube);
+  ipcMain.handle('recent:clear', () => saveSettings({ recentYoutube: [] }).recentYoutube);
+  // 배경음악 보관함 폴더 바꾸기 (취소하면 null)
+  ipcMain.handle('settings:chooseBgmDir', async (e) => {
+    const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), { title: '배경음악 보관함 폴더 고르기', properties: ['openDirectory', 'createDirectory'] });
+    if (r.canceled || !r.filePaths.length) return null;
+    saveSettings({ bgmLibraryDir: r.filePaths[0] });
+    return r.filePaths[0];
+  });
+  ipcMain.handle('settings:bgmDir', () => { try { return require('./bgm').libraryDir(); } catch (_) { return ''; } });
+  ipcMain.handle('settings:openPath', (_e, which) => {
+    const { shell } = require('electron');
+    const p = which === 'bgm' ? require('./bgm').libraryDir() : which === 'autosave' ? path.join(app.getPath('userData'), 'autosave') : which === 'userData' ? app.getPath('userData') : '';
+    if (!p) return false;
+    fs.mkdirSync(p, { recursive: true });
+    return shell.openPath(p).then((err) => !err);
+  });
 }
 
-module.exports = { initSettings, loadSettings, saveSettings, getGeminiApiKey, getOpenrouterApiKey, getPublicSettings, getLogoDataUrl, DEFAULT_LOGO };
+module.exports = { initSettings, loadSettings, saveSettings, addRecentYoutube, normalizeExtras, defaults, getGeminiApiKey, getOpenrouterApiKey, getPublicSettings, getLogoDataUrl, DEFAULT_LOGO };
