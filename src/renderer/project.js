@@ -33,13 +33,13 @@
   }
   SS.saveProject = () => save(false);
   SS.saveProjectAs = () => save(true);
-  SS.importProjectState = async function(raw) {
+  SS.importProjectState = async function(raw, recoveryOptions) {
     let saved = SS.project.normalize(raw);
     const live = SS.state; // app.js keeps this reference. Never replace it.
     SS.preview.pause();
     // 원본 영상이 사라졌으면 유튜브에서 다시 받거나 직접 찾는다 (source-recover.js)
     SS.lastSourceRecovery = null;
-    if (SS.ensureSource) saved = SS.project.normalize(await SS.ensureSource(saved));
+    if (SS.ensureSource) saved = SS.project.normalize(await SS.ensureSource(saved, recoveryOptions));
     const ok = await SS.openVideo(saved.source.path, { offset:saved.source.offset, url:saved.source.url, title:saved.source.title, fetch:saved.source.fetch || null });
     if (!ok) throw Error('프로젝트 원본 영상을 열 수 없습니다. 파일 위치를 확인해 주세요.');
     const probedSource = live.source; const previousTheme = live.activeTheme;

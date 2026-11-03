@@ -21,13 +21,14 @@
   }
 
   /** 물어보기 → 'download' | 'locate' | null(취소) */
-  function ask(source, plan) {
+  function ask(source, plan, failure) {
     return new Promise((resolve) => {
       const name = String(source.path || '').split(/[\\/]/).pop();
       const can = !plan.error;
       const m = modal(`
-        <div class="modal-header"><h3>원본 영상을 찾을 수 없습니다</h3></div>
+        <div class="modal-header"><h3>${failure ? '원본 영상을 다시 받지 못했습니다' : '원본 영상 연결'}</h3></div>
         <div style="padding:4px 20px 8px;font-size:13px;line-height:1.7;color:var(--text-2)">
+          ${failure ? `<p role="alert" style="margin:0 0 10px;color:#b91c1c">${esc(failure)}</p>` : ''}
           <p style="margin:0 0 6px">이 편집의 원본 영상(<b>${esc(name)}</b>)이 지워졌거나 옮겨졌습니다.</p>
           ${can ? `<p style="margin:0 0 6px">유튜브에서 같은 부분을 다시 받으면 편집(자막·컷·미세 조정)을 그대로 이어서 할 수 있습니다.${plan.needsSubs ? ' 예전 버전에서 만든 편집이라 유튜브 자막과 맞춰 위치를 되찾습니다.' : ''}</p>
             <p style="margin:0;color:var(--muted)">${esc(source.title || source.url || '')}</p>` : `<p style="margin:0">${esc(plan.error)}</p>`}
@@ -103,13 +104,16 @@
     return out;
   }
 
-  SS.ensureSource = async function (saved) {
+  SS.ensureSource = async function (saved, options) {
+    options = options || {};
     const src = (saved && saved.source) || {};
-    if (!src.path || (await api.fileExists(src.path))) return saved;
+    if (src.path && (await api.fileExists(src.path))) return saved;
+    if (!src.path && !src.url) return saved;
     const plan = SF().plan(src);
-    const auto = !plan.error && SS.appSettings && SS.appSettings.sourceMissing === 'auto';
+    let auto = !plan.error && (options.forceDownload || !SS.appSettings || SS.appSettings.sourceMissing !== 'ask');
+    let failure = '';
     for (;;) {
-      const choice = auto ? 'download' : await ask(src, plan);
+      const choice = auto ? 'download' : await ask(src, plan, failure);
       if (!choice) throw cancelled();
       if (choice === 'locate') {
         const p = await api.openVideoDialog();
@@ -123,8 +127,9 @@
         SS.lastSourceRecovery = 'downloaded';
         return out;
       } catch (e) {
-        if (auto) throw e;
-        alert('원본 영상을 다시 받지 못했습니다.\n' + cleanErr(e));
+        // 자동 재시도 무한 반복을 피하고, 같은 창에서 재시도·직접 찾기·취소로 이어간다.
+        auto = false;
+        failure = cleanErr(e);
       } finally { ui.close(); }
     }
   };

@@ -148,7 +148,7 @@
     </div>`).join('');
     box.querySelectorAll('.asv-item').forEach((it) => {
       const key = it.dataset.key;
-      it.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => openSaved(key, b.dataset.open)));
+      it.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => openSaved(key, b.dataset.open, { forceDownload: e.sourceMissing && !!e.sourceUrl })));
       it.querySelector('[data-more]').addEventListener('click', (ev) => { const v = it.querySelector('.asv-vers'); v.hidden = !v.hidden; ev.currentTarget.setAttribute('aria-expanded', String(!v.hidden)); });
       it.querySelector('[data-del]').addEventListener('click', async () => {
         if (!confirm('이 영상의 자동 저장본(작업본 포함)을 모두 지울까요?')) return;
@@ -158,13 +158,13 @@
     });
   }
   /** 자동 저장본 열기: 지금 편집을 먼저 저장해 두고 연다 */
-  async function openSaved(key, file) {
+  async function openSaved(key, file, recoveryOptions) {
     const m = $('asvModal');
     m.querySelectorAll('button').forEach((b) => { b.dataset.wasDisabled = b.disabled ? '1' : ''; b.disabled = true; });
     try {
       if (canSave()) await saveNow({ force: true }); // 지금 상태를 작업본으로 남겨 두고 연다
       const r = await api.autosaveRead(key, file);
-      await quiet(async () => { await SS.importProjectState(r.data); });
+      await quiet(async () => { await SS.importProjectState(r.data, recoveryOptions); });
       releaseCrashHold();
       SS.projectPath = r.projectPath || null;
       lastCmp = JSON.stringify({ ...build(), playhead: 0 }) + '|' + (SS.projectPath || '');

@@ -78,8 +78,8 @@
             </div>
             <div class="settings-row">
               <label>원본 영상이 없을 때 (캐시를 지웠거나 파일을 옮김)</label>
-              <select id="setSourceMissing">${opt('ask', s.sourceMissing, '어떻게 할지 묻기 (다시 받기 / 파일 찾기)')}${opt('auto', s.sourceMissing, '유튜브 영상이면 묻지 않고 바로 다시 받기')}</select>
-              <div class="settings-note">유튜브에서 받은 영상은 같은 부분을 다시 받아 자막·컷을 그대로 이어서 편집할 수 있습니다.</div>
+              <select id="setSourceMissing">${opt('auto', s.sourceMissing, '유튜브 영상이면 자동으로 다시 받기 (기본)')}${opt('ask', s.sourceMissing, '다시 받기 전에 묻기 (다시 받기 / 파일 찾기)')}</select>
+              <div class="settings-note">유튜브에서 받은 영상은 같은 부분을 다시 받아 자막·컷을 그대로 이어서 편집합니다. 다운로드에 실패하거나 유튜브 주소가 없으면 파일을 직접 찾을 수 있습니다.</div>
             </div>
             <div class="settings-row">
               <label>자동 저장</label>
