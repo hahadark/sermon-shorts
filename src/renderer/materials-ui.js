@@ -188,6 +188,7 @@
     root.querySelectorAll('.mn-page').forEach((x) => { x.hidden = x.dataset.page !== p; });
     root.querySelectorAll('.mn-nav [data-page]').forEach((b) => b.classList.toggle('on', b.dataset.page === p));
     if (p === 'results') renderResults();
+    else if (SS.materialsSpeechUi) SS.materialsSpeechUi.dispose();
     $('mnMain').scrollTop = 0;
   }
 
@@ -344,6 +345,7 @@
 
   // ---------------- 3. 만든 자료 ----------------
   function renderResults() {
+    if (SS.materialsSpeechUi) SS.materialsSpeechUi.dispose();
     const m = store();
     const have = M().TYPES.filter((t) => m.results[t.id]);
     if (!have.length) {
@@ -364,6 +366,7 @@
       + '<button class="mn-btn blue ico i-image-down" data-act="png">이미지로 저장 (PNG)</button>';
     else bar += '<button class="mn-btn blue ico i-file-down" data-act="pdf">PDF 로 저장</button><button class="mn-btn ico i-printer" data-act="print">인쇄</button>'
       + (current === 'summary' ? '<button class="mn-btn ico i-globe" data-act="homepage" title="교회 홈페이지(말씀 요약)에 올릴 글 파일(.md)로 저장합니다">홈페이지 글 저장</button>' : '');
+    if (current === 'summary' || current === 'qt') bar += '<button class="mn-btn ico i-volume-2" data-act="listen">음성으로 듣기</button>';
     bar += '<button class="mn-btn ico i-copy" data-act="copy">글 복사 (카톡용)</button><span class="mn-spacer"></span>'
       + `<span class="mn-note">${esc(r.provider ? 'AI: ' + r.provider + ' · ' : '')}${esc(new Date(r.made).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }))}</span>`
       + '<button class="mn-btn ico i-globe" data-act="bundle" title="교회 홈페이지로 보낼 묶음(공개 쇼츠 주소·나눔지 PDF·카드 문장)을 만듭니다">홈페이지 묶음 보내기</button>'
@@ -385,6 +388,7 @@
     }
     $('mnStage').querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => act(b.dataset.act)));
     checkBox(r);
+    if (SS.materialsSpeechUi) SS.materialsSpeechUi.mount(current, r.data, md);
   }
 
   // ---------------- 인스타그램 캡션 (카드뉴스·묵상카드) ----------------
@@ -465,7 +469,9 @@
     const md = { ...r.meta, ...meta() };
     const name = `${type.label} - ${(md.title || '설교').slice(0, 30)}`;
     try {
-      if (what === 'caption') {
+      if (what === 'listen') {
+        await SS.materialsSpeechUi.open();
+      } else if (what === 'caption') {
         await navigator.clipboard.writeText([r.data.caption || '', (r.data.hashtags || []).join(' ')].filter(Boolean).join('\n\n'));
         toast('캡션과 해시태그를 복사했습니다. 인스타그램에 붙여 넣으세요.');
       } else if (what === 'copy') {
@@ -517,6 +523,7 @@
   function close() {
     if (!root || busy && !confirm('자료를 만드는 중입니다. 닫아도 만들기는 계속되고, 다시 열면 결과를 볼 수 있습니다. 닫을까요?')) return;
     root.hidden = true;
+    if (SS.materialsSpeechUi) SS.materialsSpeechUi.dispose();
     if (SS.state) SS.state.dialogOpen = false;
     if (SS.syncRail) SS.syncRail();
   }

@@ -139,6 +139,39 @@ async function check(type, data, options, ctx) {
 }
 
 function initMaterials() {
+  // 임시 음성은 생성한 창에서만 사용·저장 가능. 원고는 외부 서버로 보내지 않음.
+  const speechFiles = new Map();
+  const releaseSpeech = (id) => { const r = speechFiles.get(id); if (r) { try { fs.rmSync(r.path, { force: true }); } catch (_) {} speechFiles.delete(id); } };
+  require('electron').app.once('will-quit', () => { for (const id of speechFiles.keys()) releaseSpeech(id); });
+  ipcMain.handle('materials:speechVoices', () => require('./materials-speech').listVoices());
+  ipcMain.handle('materials:speechMake', async (event, opts) => {
+    for (const [id, r] of speechFiles) if (Date.now() - r.at > 3600000) releaseSpeech(id);
+    const sender = event.sender;
+    const r = await require('./materials-speech').synthesize(opts || {});
+    if (sender.isDestroyed()) { fs.rmSync(r.path, { force: true }); return null; }
+    for (const [id, f] of speechFiles) if (f.owner === sender.id) releaseSpeech(id);
+    const id = require('crypto').randomUUID();
+    speechFiles.set(id, { path: r.path, owner: sender.id, at: Date.now() });
+    sender.once('destroyed', () => releaseSpeech(id));
+    return { id, url: require('url').pathToFileURL(r.path).href, format: 'wav' };
+  });
+  ipcMain.handle('materials:speechRelease', (event, id) => { if (speechFiles.get(id)?.owner === event.sender.id) releaseSpeech(id); });
+  ipcMain.handle('materials:speechSave', async (event, { id, name, file }) => {
+    const r = speechFiles.get(id);
+    if (!r || r.owner !== event.sender.id) throw new Error('음성을 먼저 만들어 주세요.');
+    let target = process.env.SS_TEST_SCRIPT && file ? String(file) : null;
+    if (!target) {
+      const picked = await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), { title: '자료 음성 저장', defaultPath: safeName(name) + '.mp3', filters: [{ name: 'MP3 음성', extensions: ['mp3'] }, { name: 'WAV 음성', extensions: ['wav'] }] });
+      if (picked.canceled || !picked.filePath) return null;
+      target = picked.filePath;
+    }
+    if (/\.wav$/i.test(target)) writeFileFriendly(target, fs.readFileSync(r.path));
+    else if (/\.mp3$/i.test(target)) {
+      const { execFile } = require('child_process');
+      await new Promise((resolve, reject) => execFile(tools.ffmpeg, ['-y', '-v', 'error', '-i', r.path, '-codec:a', 'libmp3lame', '-q:a', '3', target], { timeout: 120000, windowsHide: true }, e => e ? reject(new Error('MP3 저장 실패: ' + e.message)) : resolve()));
+    } else throw new Error('MP3 또는 WAV 확장자로 저장해 주세요.');
+    return target;
+  });
   ipcMain.handle('materials:generate', (_e, type, options, ctx) => generate(String(type), options || {}, ctx || {}));
   ipcMain.handle('materials:check', (_e, type, data, options, ctx) => check(String(type), data || {}, options || {}, ctx || {}));
   // 유튜브 대화에서 불러온 설교 전체 자막 (AI 가 설교 범위를 찾았으면 그 범위)
