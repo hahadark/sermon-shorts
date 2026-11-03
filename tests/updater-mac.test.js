@@ -39,7 +39,7 @@ test('SHA256SUMS.txt 에서 해시 찾기', () => {
   assert.equal(m.sumFor(txt, 'none.zip'), null);
 });
 
-test('앱 묶음 경로와 바꿀 수 있는 자리', () => {
+test('앱 묶음 경로와 바꿀 수 있는 자리', { skip: process.platform === 'win32' ? 'POSIX 경로·bash·권한 검증은 Windows에서 실행할 수 없음' : false }, () => {
   assert.equal(m.bundleOf('/Applications/SermonShorts.app/Contents/MacOS/SermonShorts'), '/Applications/SermonShorts.app');
   assert.equal(m.bundleOf('/usr/local/bin/node'), null);
   const ok = () => {};
@@ -64,7 +64,7 @@ function swapFixture() {
   return { dir, dest, neu, script };
 }
 
-test('바꿔 끼우기: 앱이 끝날 때까지 기다렸다가 새 앱을 넣고 옛 앱은 지운다', async () => {
+test('바꿔 끼우기: 앱이 끝날 때까지 기다렸다가 새 앱을 넣고 옛 앱은 지운다', { skip: process.platform === 'win32' ? 'POSIX 경로·bash·권한 검증은 Windows에서 실행할 수 없음' : false }, async () => {
   const f = swapFixture();
   const app = spawn('sleep', ['30']);
   const sw = spawn('/bin/bash', [f.script, String(app.pid), f.neu, f.dest, '0']);
@@ -80,7 +80,7 @@ test('바꿔 끼우기: 앱이 끝날 때까지 기다렸다가 새 앱을 넣�
   fs.rmSync(f.dir, { recursive: true, force: true });
 });
 
-test('바꿔 끼우기: 새 앱이 없으면 기존 앱을 그대로 둔다', () => {
+test('바꿔 끼우기: 새 앱이 없으면 기존 앱을 그대로 둔다', { skip: process.platform === 'win32' ? 'POSIX 경로·bash·권한 검증은 Windows에서 실행할 수 없음' : false }, () => {
   const f = swapFixture();
   fs.rmSync(f.neu, { recursive: true });
   const r = spawnSync('/bin/bash', [f.script, '999999', f.neu, f.dest, '0'], { encoding: 'utf8' });
@@ -123,7 +123,7 @@ test('확인: GitHub 오류는 error 상태로 (앱은 멈추지 않는다)', as
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('바꿔 끼우기가 막히면(쓰기 권한 없음) 기존 앱을 지키고 last-swap 에 실패를 남긴다', async () => {
+test('바꿔 끼우기가 막히면(쓰기 권한 없음) 기존 앱을 지키고 last-swap 에 실패를 남긴다', { skip: process.platform === 'win32' ? 'POSIX 경로·bash·권한 검증은 Windows에서 실행할 수 없음' : false }, async () => {
   if (process.getuid && process.getuid() === 0) return;   // root 는 권한을 무시하므로 건너뜀
   const f = swapFixture();
   const apps = path.dirname(f.dest);

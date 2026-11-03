@@ -24,7 +24,7 @@
       const launch = await window.api.getLaunchInfo();
       dir = launch.cache + '/batch18'; await window.api.mkdir(dir);
       const shot = (n) => SS.testShot(dir + '/' + n + '.png');
-      SS.openMaterials('make'); await sleep(400);
+      await SS.openMaterials('make'); await sleep(400);
       const tiles = Array.from(document.querySelectorAll('#mnTiles .mn-tile')).map((b) => b.dataset.type);
       check('새 타일 3개', ['cardnews', 'leader', 'slides'].every((t) => tiles.includes(t)), tiles);
       await shot('0_tiles');

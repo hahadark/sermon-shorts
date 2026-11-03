@@ -96,13 +96,15 @@
         preset.value='8';preset.dispatchEvent(new Event('change',{bubbles:true}));check('preset applies limit',input.value,'8');
         SS.syncCaptionUI();await SS.updateTemplatePreview();report.captions=SS.getLines().map(l=>l.text);
       }
+      live.materials={source:'manual',sermon:'저장할 원고',meta:{title:'자료 저장'},results:{summary:{data:{title:'자료 요약',theme:'은혜'}}},cardVisuals:{cards:{0:{design:'sage',photo:'data:image/jpeg;base64,YQ=='}}}};
       const original=SS.project.snapshot(live,SS.preview.currentTime);const savedPath=dir+'/saved.sshorts';
       await SS.saveProjectTo(savedPath);const disk=await window.api.readJson(savedPath);
       check('saved format version',disk.version,1);check('transient promise absent',Object.hasOwn(disk,'peaksPromise'),false);
-      live.words=[];live.overrides={};live.caret=0;live.meta.title='변경됨';live.activeTheme=null;
+      live.words=[];live.materials=null;live.overrides={};live.caret=0;live.meta.title='변경됨';live.activeTheme=null;
       await SS.openProjectFrom(savedPath);
       check('stable shared state reference',SS.state===live,true);
       check('words and deletion restored',live.words,original.words);
+      check('materials and per-card photo/style restored',live.materials,original.materials);
       check('trim restored',live.overrides,original.overrides);
       if(captionMode){check('saved caption limit restored',live.settings.maxLineChars,8);check('saved input restored',document.getElementById('inpMaxLineChars').value,'8');check('saved strict preference restored',document.getElementById('chkSplitLongWords').checked,true);}
       check('caret restored',live.caret,original.caret);check('theme restored',live.activeTheme.video,original.activeTheme.video);
@@ -119,7 +121,13 @@
       const exported=await SS.doExport(dir+'/output.mp4');check('MP4 export success',exported.success,true);
       check('edited duration',Math.abs(exported.duration-3.6)<.001,true);
       const safeState=SS.project.snapshot(live,SS.preview.currentTime);let rejected=false;
-      try{await SS.importProjectState({...disk,source:{...disk.source,path:dir+'/nonexistent-source.mp4'}});}catch(_){rejected=true;}
+      SS.appSettings.sourceMissing='ask';
+      let finished=false;
+      const missing=SS.importProjectState({...disk,source:{...disk.source,path:dir+'/nonexistent-source.mp4'}}).then(()=>{finished=true;return false;},()=>{finished=true;return true;});
+      for(let i=0;i<50&&!finished&&!document.querySelector('.src-recover [data-a="cancel"]');i++)await new Promise(r=>setTimeout(r,100));
+      const cancel=document.querySelector('.src-recover [data-a="cancel"]');
+      check('missing source recovery offers cancel',!!cancel,true);
+      cancel.click();rejected=await missing;
       check('missing source rejected',rejected,true);
       check('failed import preserves edit state',SS.project.snapshot(live,SS.preview.currentTime),safeState);
       report.export=exported;report.segments=SS.getSegments();report.success=true;

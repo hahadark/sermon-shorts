@@ -20,7 +20,7 @@
       dir = launch.cache + '/' + mode.replace('-', '_'); await window.api.mkdir(dir);
       await window.api.saveSettings({ sysCheckSeen: true });
       const shot = (n) => SS.testShot(dir + '/' + n + '.png');
-      SS.openMaterials('make'); await sleep(400);
+      await SS.openMaterials('make'); await sleep(400);
       const st = SS._materialsTest.store();
 
       if (mode === 'bench1') {
