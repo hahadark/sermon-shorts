@@ -181,6 +181,21 @@ function initMaterials() {
     if (!src || !src.words.length) return null;
     return { url: src.url, title: src.title, text: M.sermonText(src.words), whole: src.whole, minutes: Math.round((src.words[src.words.length - 1].end - src.words[0].start) / 60) };
   });
+  ipcMain.handle('materials:pickPhoto', async (event, testFile) => {
+    let file = process.env.SS_TEST_SCRIPT && testFile ? require('./fs-guard').check(testFile) : null;
+    if (!file) {
+      const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), { title: '카드 배경 사진 (사용 권한이 있는 내 사진)', properties: ['openFile'], filters: [{ name: '사진', extensions: ['jpg', 'jpeg', 'png', 'webp'] }] });
+      if (r.canceled || !r.filePaths[0]) return null;
+      file = r.filePaths[0];
+    }
+    if (fs.statSync(file).size > 15 * 1024 * 1024) throw new Error('사진은 15MB 이하로 골라 주세요.');
+    let image = require('electron').nativeImage.createFromPath(file);
+    if (image.isEmpty()) throw new Error('사진을 읽지 못했습니다. JPG·PNG·WebP 파일을 골라 주세요.');
+    const { width, height } = image.getSize();
+    const scale = Math.min(1, 1600 / Math.max(width, height));
+    if (scale < 1) image = image.resize({ width: Math.round(width * scale), height: Math.round(height * scale), quality: 'best' });
+    return 'data:image/jpeg;base64,' + image.toJPEG(86).toString('base64');
+  });
   ipcMain.handle('materials:readFile', async (event) => {
     const w = BrowserWindow.fromWebContents(event.sender);
     const r = await dialog.showOpenDialog(w, { title: '설교 원고 불러오기', properties: ['openFile'], filters: [{ name: '설교 원고 (한글·워드·글)', extensions: ['hwp', 'hwpx', 'docx', 'txt', 'md', 'srt'] }] });

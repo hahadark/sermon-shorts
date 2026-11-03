@@ -78,6 +78,9 @@
 .mcard.scene{color:#fff;background:#111 center/cover no-repeat}
 .mcard.scene::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.55) 0%,rgba(0,0,0,.25) 40%,rgba(0,0,0,.78) 100%)}
 .mcard.scene>*{position:relative} .mcard.scene .c-src{background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.35)}
+.mcard.sage{color:#143c2d;background:linear-gradient(150deg,#eff6ee,#c9ddc3)}
+.mcard.sage .c-top{color:#32614a}.mcard.sage .c-body{color:#234b38}.mcard.sage .c-src{background:#d9e8d4;color:#234b38}.mcard.sage::before{content:'';position:absolute;width:650px;height:650px;border:2px solid #7b9c7b;border-radius:50%;right:-340px;bottom:-250px;opacity:.4}
+.mcard.editorial{background:#fff9ed;color:#161e2e;padding-top:100px;border-top:20px solid #c2410c}.mcard.editorial .c-top{border-bottom:3px solid #161e2e;padding-bottom:30px;color:#9a3412}.mcard.editorial .c-head{font-weight:900}.mcard.editorial .c-src{background:#ffedd5;color:#9a3412;border-radius:6px}.mcard.editorial .c-foot{border-top:2px solid #cbd5e1;padding-top:24px}
 /* 카드뉴스 */
 .mcard.news .c-head.big{font-size:96px;line-height:1.24;letter-spacing:-3px}
 .mcard.news.cover .c-src{margin:0 0 34px}
@@ -126,6 +129,11 @@
     { id: 'sky', label: '하늘', swatch: 'linear-gradient(170deg,#e4efff,#ffffff)' },
     { id: 'scene', label: '영상 장면', swatch: 'linear-gradient(180deg,#555,#111)' },
   ];
+
+  const CARD_DESIGNS = DESIGNS.concat([
+    { id: 'sage', label: '잔잔한 초록', swatch: 'linear-gradient(150deg,#eff6ee,#c9ddc3)' },
+    { id: 'editorial', label: '잡지', swatch: 'linear-gradient(180deg,#c2410c 12%,#fff9ed 12%)' },
+  ]);
 
   /** 고칠 수 있는 칸 (화면에서만 contenteditable; 내보낼 때는 지운다) */
   function ed(path, text, tag, cls) {
@@ -277,5 +285,5 @@
     return c.outerHTML;
   }
 
-  SS.materialsDoc = { DOC_CSS, DESIGNS, page, card, newsCards, slides, cleanForExport, esc };
+  SS.materialsDoc = { DOC_CSS, DESIGNS, CARD_DESIGNS, page, card, newsCards, slides, cleanForExport, esc };
 })();

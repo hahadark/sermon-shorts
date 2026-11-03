@@ -28,7 +28,7 @@
     m.options = M().normOptions(m.options);
     m.selected = Array.isArray(m.selected) ? m.selected.filter((t) => M().typeOf(t)) : ['smallgroup', 'qt', 'quiz', 'summary', 'cards'];
     m.results = m.results && typeof m.results === 'object' ? m.results : {};
-    m.design = D().DESIGNS.some((x) => x.id === m.design) ? m.design : 'navy';
+    m.design = D().CARD_DESIGNS.some((x) => x.id === m.design) ? m.design : 'navy';
     m.meta = m.meta || {};
     return m;
   }
@@ -359,11 +359,12 @@
     $('mnTabs').querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { current = b.dataset.tab; renderResults(); }));
     const type = M().typeOf(current), r = m.results[current];
     const isCards = type.kind === 'cards', isSlides = type.kind === 'slides';
+    if (isSlides && !D().DESIGNS.some(d => d.id === m.design)) m.design = 'navy';
     let bar = '';
     if (isSlides) bar += `<div class="mn-designs">${D().DESIGNS.map((d) => `<button class="mn-design${m.design === d.id ? ' on' : ''}" data-design="${d.id}" title="${esc(d.label)}" style="background:${d.swatch}"></button>`).join('')}</div><span style="width:8px"></span>`
       + '<button class="mn-btn blue ico i-presentation" data-act="pptx">PPT 로 저장</button><button class="mn-btn ico i-image-down" data-act="png">이미지로 저장 (PNG)</button>';
-    else if (isCards) bar += `<div class="mn-designs">${D().DESIGNS.map((d) => `<button class="mn-design${m.design === d.id ? ' on' : ''}" data-design="${d.id}" title="${esc(d.label)}" style="background:${d.swatch}"></button>`).join('')}</div><span style="width:8px"></span>`
-      + '<button class="mn-btn blue ico i-image-down" data-act="png">이미지로 저장 (PNG)</button>';
+    else if (isCards) bar += `<div class="mn-designs">${D().CARD_DESIGNS.map((d) => `<button class="mn-design${m.design === d.id ? ' on' : ''}" data-design="${d.id}" title="${esc(d.label)}" style="background:${d.swatch}"></button>`).join('')}</div><span style="width:8px"></span>`
+      + '<button class="mn-btn blue ico i-image-down" data-act="png">전체 이미지 저장 (PNG)</button><button class="mn-btn ico i-refresh-cw" data-act="shuffle">디자인 다시 섞기</button>';
     else bar += '<button class="mn-btn blue ico i-file-down" data-act="pdf">PDF 로 저장</button><button class="mn-btn ico i-printer" data-act="print">인쇄</button>'
       + (current === 'summary' ? '<button class="mn-btn ico i-globe" data-act="homepage" title="교회 홈페이지(말씀 요약)에 올릴 글 파일(.md)로 저장합니다">홈페이지 글 저장</button>' : '');
     if (current === 'summary' || current === 'qt') bar += '<button class="mn-btn ico i-volume-2" data-act="listen">음성으로 듣기</button>';
@@ -372,7 +373,7 @@
       + '<button class="mn-btn ico i-globe" data-act="bundle" title="교회 홈페이지로 보낼 묶음(공개 쇼츠 주소·나눔지 PDF·카드 문장)을 만듭니다">홈페이지 묶음 보내기</button>'
       + '<button class="mn-btn soft ico i-refresh-cw" data-act="again">다시 만들기</button>';
     $('mnBar').innerHTML = bar;
-    $('mnBar').querySelectorAll('[data-design]').forEach((b) => b.addEventListener('click', () => { store().design = b.dataset.design; if (b.dataset.design === 'scene') grabScene(); renderResults(); }));
+    $('mnBar').querySelectorAll('[data-design]').forEach((b) => b.addEventListener('click', () => { store().design = b.dataset.design; if (isCards && m.cardVisuals) delete m.cardVisuals[current]; if (b.dataset.design === 'scene') grabScene(); renderResults(); }));
     $('mnBar').querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => act(b.dataset.act)));
     const md = { ...r.meta, ...meta() };
     if (isSlides) {
@@ -387,6 +388,10 @@
       const doc = $('mnStage').querySelector('.doc'); doc.classList.add('mn-paper');
     }
     $('mnStage').querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => act(b.dataset.act)));
+    if (isCards && SS.cardVisuals) {
+      SS.cardVisuals.mount($('mnStage'), current, store, renderResults, () => { grabScene(); return sceneUrl; });
+      const n = document.createElement('p'); n.className = 'mn-note'; n.textContent = '사진은 사용 권한이 있는 것만 골라 주세요. 디자인 다시 섞기는 글 순서를 바꾸지 않습니다. 카드 테두리에 초점을 둔 뒤 ← → 로 이동합니다.'; $('mnStage').prepend(n);
+    }
     checkBox(r);
     if (SS.materialsSpeechUi) SS.materialsSpeechUi.mount(current, r.data, md);
   }
@@ -469,7 +474,9 @@
     const md = { ...r.meta, ...meta() };
     const name = `${type.label} - ${(md.title || '설교').slice(0, 30)}`;
     try {
-      if (what === 'listen') {
+      if (what === 'shuffle') {
+        SS.cardVisuals.shuffle();
+      } else if (what === 'listen') {
         await SS.materialsSpeechUi.open();
       } else if (what === 'caption') {
         await navigator.clipboard.writeText([r.data.caption || '', (r.data.hashtags || []).join(' ')].filter(Boolean).join('\n\n'));
