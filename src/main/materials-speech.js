@@ -100,7 +100,7 @@ const backend = {
   async synthMac(text, voice, rate, outPath) {
     const txt = tmpName('.txt'), aiff = tmpName('.aiff');
     try {
-      fs.writeFileSync(txt, text, 'utf8');
+      fs.writeFileSync(txt, text.replace(/\[\[/g, '[ ['), 'utf8');
       await run('say', ['-v', voice, '-r', String(175 + rate * 15), '-o', aiff, '-f', txt]);
       await run(getTools().ffmpeg, ['-y', '-v', 'error', '-i', aiff, '-ar', '44100', '-ac', '1', '-c:a', 'pcm_s16le', outPath]);
     } finally { rmQuiet(txt, aiff); }

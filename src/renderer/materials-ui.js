@@ -107,6 +107,7 @@
         <div class="mn-sec">설교에서 함께 쓰기</div>
         <nav class="mn-nav">
           <button data-go="shorts" class="ico i-clapperboard">쇼츠 편집기</button>
+          <button id="mnSample" class="ico i-book-open">샘플 설교 체험</button>
         </nav>
         <div class="mn-side-foot">
           <div class="mn-side-note">만든 자료는 이 프로젝트를 저장할 때 함께 저장됩니다. 인쇄·PDF·이미지로 나눠 주세요.</div>
@@ -168,6 +169,7 @@
     root.querySelectorAll('.mn-nav [data-page]').forEach((b) => b.addEventListener('click', () => show(b.dataset.page)));
     root.querySelector('[data-go="shorts"]').addEventListener('click', close);
     $('mnClose').addEventListener('click', close);
+    $('mnSample').addEventListener('click', () => SS.materialsSampleUi.load());
     root.querySelectorAll('[data-src]').forEach((b) => b.addEventListener('click', () => setSource(b.dataset.src, true)));
     $('mnSermon').addEventListener('input', () => { store().sermon = $('mnSermon').value; count(); });
     for (const [id, key] of [['mnTitle', 'title'], ['mnVerse', 'verse'], ['mnSpeaker', 'speaker'], ['mnDate', 'date']]) $(id).addEventListener('input', () => { store().meta[key] = $(id).value; });
@@ -225,7 +227,7 @@
       m.source = 'manual'; m.sourceNote = '';
     }
     m.source = kind === 'file' && !m.fileName ? m.source : kind;
-    info.textContent = kind === 'file' ? (m.fileName ? `불러온 파일: ${m.fileName}` : '.txt · Word(.docx) · 자막(.srt) 파일을 불러옵니다')
+    info.textContent = kind === 'file' ? (m.fileName ? `불러온 파일: ${m.fileName}` : '한글(.hwp·.hwpx) · Word(.docx) · PDF · 글(.txt·.md) · 자막(.srt)을 불러옵니다. 스캔 PDF는 글자 인식이 필요합니다')
       : kind === 'manual' ? '설교 원고를 아래에 붙여 넣거나 직접 쓰세요.' : (m.sourceNote || '');
     $('mnSermon').value = m.sermon || '';
     count();
@@ -253,7 +255,8 @@
     }));
     $('mnGo').textContent = `선택한 자료 만들기 (${m.selected.length})`;
     $('mnVerify').checked = m.verify !== false;
-    $('mnGo').disabled = busy || !m.selected.length;
+    $('mnGo').disabled = busy || !m.selected.length || !!m.demoMode;
+    if (m.demoMode) $('mnGoNote').textContent = '샘플은 미리 만든 예시로 체험합니다. AI로 새 자료를 만들려면 원래 자료로 돌아가세요.';
   }
   function optSummary(id) {
     const o = store().options;
@@ -297,6 +300,7 @@
   }
 
   async function generate() {
+    if (store().demoMode) { toast('샘플 체험에서는 AI를 사용하지 않습니다. 원래 자료로 돌아간 뒤 만들어 주세요.', 6000); return; }
     if (busy) return;
     const m = store();
     const err = $('mnErr'); err.hidden = true;
@@ -373,7 +377,7 @@
       + '<button class="mn-btn ico i-globe" data-act="bundle" title="교회 홈페이지로 보낼 묶음(공개 쇼츠 주소·나눔지 PDF·카드 문장)을 만듭니다">홈페이지 묶음 보내기</button>'
       + '<button class="mn-btn soft ico i-refresh-cw" data-act="again">다시 만들기</button>';
     $('mnBar').innerHTML = bar;
-    $('mnBar').querySelectorAll('[data-design]').forEach((b) => b.addEventListener('click', () => { store().design = b.dataset.design; if (isCards && m.cardVisuals) delete m.cardVisuals[current]; if (b.dataset.design === 'scene') grabScene(); renderResults(); }));
+    $('mnBar').querySelectorAll('[data-design]').forEach((b) => b.addEventListener('click', () => { store().design = b.dataset.design; if (isCards && SS.cardVisuals) SS.cardVisuals.applyGlobal(b.dataset.design); if (b.dataset.design === 'scene') grabScene(); renderResults(); }));
     $('mnBar').querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => act(b.dataset.act)));
     const md = { ...r.meta, ...meta() };
     if (isSlides) {
@@ -408,6 +412,7 @@
     let box = $('mnCheck');
     if (!box) { box = document.createElement('div'); box.id = 'mnCheck'; box.className = 'mn-check'; $('mnStage').before(box); }
     const ck = r.check;
+    if (store().demoMode) { box.className = 'mn-check none'; box.textContent = '체험용으로 미리 만든 예시입니다. 샘플 체험에서는 AI를 호출하지 않습니다.'; if (CSS.highlights) CSS.highlights.delete('mn-flag'); return; }
     if (CSS.highlights) CSS.highlights.delete('mn-flag');
     if (!ck) { box.className = 'mn-check none'; box.innerHTML = '<span class="ico xs i-shield-check"></span><span>설교와 대조하지 않은 자료입니다.</span><button class="mn-btn sm" data-check>설교와 대조하기</button>'; }
     else if (ck.error) { box.className = 'mn-check err'; box.innerHTML = `<span>설교와 대조하지 못했습니다: ${esc(ck.error)}</span><button class="mn-btn sm" data-check>다시 대조</button>`; }
@@ -435,6 +440,7 @@
   }
   function goFlag(q) { const r = rangesOf(q)[0]; if (!r) return; const el = r.startContainer.parentElement; el.scrollIntoView({ block: 'center', behavior: 'smooth' }); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
   async function recheck() {
+    if (store().demoMode) { toast('샘플 체험에서는 AI 대조를 하지 않습니다.'); return; }
     const m = store(), r = m.results[current]; if (!r) return;
     const box = $('mnCheck'); box.className = 'mn-check none'; box.innerHTML = '<span class="mn-spin"></span><span>설교와 대조하는 중… (30초쯤)</span>';
     try { r.check = await api.materialsCheck(current, r.data, r.options || m.options, { ...r.meta, ...meta(), sermon: m.sermon }); } catch (e) { r.check = { error: cleanErr(e) }; }
@@ -460,6 +466,7 @@
     const el = e.target.closest && e.target.closest('[data-path]');
     if (!el || page !== 'results') return;
     const r = store().results[current]; if (!r) return;
+    if (SS.materialsSpeechUi) SS.materialsSpeechUi.invalidate();
     const keys = el.dataset.path.split('.');
     let o = r.data;
     for (let i = 0; i < keys.length - 1; i++) { o = o[/^\d+$/.test(keys[i]) ? +keys[i] : keys[i]]; if (o == null) return; }
@@ -506,6 +513,7 @@
         const p = await api.materialsSaveText({ text: out.text, name: out.name, ext: 'md', title: '홈페이지 말씀 요약 글로 저장' });
         if (p) { toast('홈페이지 글(.md)을 저장했습니다. 공개 전 확인용으로 published: false 로 저장됩니다.', 6000); api.materialsOpenPath(p); }
       } else if (what === 'again') {
+        if (m.demoMode) { toast('샘플 체험에서는 AI를 사용하지 않습니다. 원래 자료로 돌아가세요.'); return; }
         if (!confirm(`${type.label}을(를) 다시 만들까요? 지금 고친 내용은 사라집니다.`)) return;
         m.selected = [current]; show('make'); tiles(); generate();
       }
@@ -526,6 +534,7 @@
     await setSource(m.source || 'video', false);
     tiles(); counts(); aiChip();
     show(where || (Object.keys(m.results).length && page === 'results' ? 'results' : 'make'));
+    if (SS.materialsSampleUi) SS.materialsSampleUi.sync();
   }
   function close() {
     if (!root || busy && !confirm('자료를 만드는 중입니다. 닫아도 만들기는 계속되고, 다시 열면 결과를 볼 수 있습니다. 닫을까요?')) return;

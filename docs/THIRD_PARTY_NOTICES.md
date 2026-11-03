@@ -33,3 +33,11 @@ The beta installer is unsigned. This notice is not a claim that all third-party 
 
 - **Lucide 아이콘** (`assets/icons/*.svg`, `src/renderer/icons.css` 로 변환) - ISC License, Copyright (c) Lucide Icons and Contributors. 전문: `assets/icons/LICENSE-lucide.txt`. https://lucide.dev
 - **Pretendard** (`assets/fonts/PretendardVariable.woff2`) - 화면 글꼴. SIL Open Font License 1.1, Copyright (c) 2021 Kil Hyung-jin. 전문: `assets/fonts/OFL-Pretendard.txt`. https://github.com/orioncactus/pretendard
+
+## 설교 원고 PDF 읽기
+
+- **PDF.js (pdfjs-dist)** 6.5.438 - Apache License 2.0, Copyright Mozilla and contributors. PDF 설교 원고의 글자를 기기 안에서만 읽는 데 씀(OCR 없음, 외부 전송 없음). 한글 CMap(cmaps)과 표준 글꼴 데이터를 함께 포함하며 별도 한글 글꼴은 넣지 않음. 전문: node_modules/pdfjs-dist/LICENSE. https://github.com/mozilla/pdf.js
+
+- **PDF.js 부속 CMap** - Adobe BSD-style License. 전문: node_modules/pdfjs-dist/cmaps/LICENSE. 글자 매핑용 데이터이며 화면 글꼴이 아님.
+- **PDF.js 부속 Foxit 표준 글꼴 데이터** - BSD 3-Clause, Copyright 2014 PDFium Authors. 전문: node_modules/pdfjs-dist/standard_fonts/LICENSE_FOXIT. PDF 읽기의 기호 매핑용이며 편집기 글꼴 선택에 추가하지 않음. LiberationSans TTF는 설치 파일 구성에서 제외하고 시스템 글꼴 사용을 켬.
+- **@napi-rs/canvas** (PDF.js의 선택 의존성) - MIT License. 전문: node_modules/@napi-rs/canvas/LICENSE. 플랫폼별 네이티브 구성 요소와 그 부속 라이선스는 패키지에 포함된 것을 유지함.

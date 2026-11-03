@@ -7,7 +7,7 @@
   function analyze(input){
     const words=(Array.isArray(input)?input:[]).filter(w=>w&&num(w.start)&&num(w.end)&&w.start>=0&&w.end>w.start&&String(w.text||'').trim()).map(w=>({text:String(w.text),start:w.start,end:w.end})).sort((a,b)=>a.start-b.start||a.end-b.end);
     if(!words.length)return null;
-    const start=words[0].start,end=Math.max(...words.map(w=>w.end)),duration=end-start;
+    const start=words[0].start,end=words.reduce((max,w)=>Math.max(max,w.end),start),duration=end-start;
     const totalChars=words.reduce((n,w)=>n+chars(w.text),0),bins=[],pauses=[],fillers=[],repeats=[];
     for(let t=start;t<end;t+=60)bins.push({start:t,end:Math.min(t+60,end),chars:0,cpm:0});
     let coveredEnd=words[0].end,covered=words[0].end-start;

@@ -141,6 +141,7 @@ async function check(type, data, options, ctx) {
 function initMaterials() {
   // 임시 음성은 생성한 창에서만 사용·저장 가능. 원고는 외부 서버로 보내지 않음.
   const speechFiles = new Map();
+  const speechOwners = new WeakSet();
   const releaseSpeech = (id) => { const r = speechFiles.get(id); if (r) { try { fs.rmSync(r.path, { force: true }); } catch (_) {} speechFiles.delete(id); } };
   require('electron').app.once('will-quit', () => { for (const id of speechFiles.keys()) releaseSpeech(id); });
   ipcMain.handle('materials:speechVoices', () => require('./materials-speech').listVoices());
@@ -152,7 +153,11 @@ function initMaterials() {
     for (const [id, f] of speechFiles) if (f.owner === sender.id) releaseSpeech(id);
     const id = require('crypto').randomUUID();
     speechFiles.set(id, { path: r.path, owner: sender.id, at: Date.now() });
-    sender.once('destroyed', () => releaseSpeech(id));
+    if (!speechOwners.has(sender)) {
+      speechOwners.add(sender);
+      const owner = sender.id;
+      sender.once('destroyed', () => { for (const [key, f] of speechFiles) if (f.owner === owner) releaseSpeech(key); });
+    }
     return { id, url: require('url').pathToFileURL(r.path).href, format: 'wav' };
   });
   ipcMain.handle('materials:speechRelease', (event, id) => { if (speechFiles.get(id)?.owner === event.sender.id) releaseSpeech(id); });
@@ -168,7 +173,11 @@ function initMaterials() {
     if (/\.wav$/i.test(target)) writeFileFriendly(target, fs.readFileSync(r.path));
     else if (/\.mp3$/i.test(target)) {
       const { execFile } = require('child_process');
-      await new Promise((resolve, reject) => execFile(tools.ffmpeg, ['-y', '-v', 'error', '-i', r.path, '-codec:a', 'libmp3lame', '-q:a', '3', target], { timeout: 120000, windowsHide: true }, e => e ? reject(new Error('MP3 저장 실패: ' + e.message)) : resolve()));
+      const temp = target + '.' + require('crypto').randomUUID() + '.tmp.mp3';
+      try {
+        await new Promise((resolve, reject) => execFile(tools.ffmpeg, ['-y', '-v', 'error', '-i', r.path, '-codec:a', 'libmp3lame', '-q:a', '3', temp], { timeout: 120000, windowsHide: true }, e => e ? reject(new Error('MP3 저장 실패: ' + e.message)) : resolve()));
+        fs.renameSync(temp, target);
+      } finally { try { fs.rmSync(temp, { force: true }); } catch (_) {} }
     } else throw new Error('MP3 또는 WAV 확장자로 저장해 주세요.');
     return target;
   });
@@ -196,15 +205,19 @@ function initMaterials() {
     if (scale < 1) image = image.resize({ width: Math.round(width * scale), height: Math.round(height * scale), quality: 'best' });
     return 'data:image/jpeg;base64,' + image.toJPEG(86).toString('base64');
   });
-  ipcMain.handle('materials:readFile', async (event) => {
+  ipcMain.handle('materials:readFile', async (event, testFile) => {
     const w = BrowserWindow.fromWebContents(event.sender);
-    const r = await dialog.showOpenDialog(w, { title: '설교 원고 불러오기', properties: ['openFile'], filters: [{ name: '설교 원고 (한글·워드·글)', extensions: ['hwp', 'hwpx', 'docx', 'txt', 'md', 'srt'] }] });
-    if (r.canceled || !r.filePaths[0]) return null;
-    const f = r.filePaths[0];
+    let f = process.env.SS_TEST_SCRIPT && testFile ? require('./fs-guard').check(testFile) : null;
+    if (!f) {
+      const r = await dialog.showOpenDialog(w, { title: '설교 원고 불러오기', properties: ['openFile'], filters: [{ name: '설교 원고 (한글·워드·PDF·글)', extensions: ['hwp', 'hwpx', 'docx', 'pdf', 'txt', 'md', 'srt'] }] });
+      if (r.canceled || !r.filePaths[0]) return null;
+      f = r.filePaths[0];
+    }
     const buf = fs.readFileSync(f);
     if (buf.length > 20 * 1024 * 1024) throw new Error('파일이 너무 큽니다 (20MB 이하).');
     let text;
-    if (/\.docx$/i.test(f)) text = docxText(buf);
+    if (/\.pdf$/i.test(f)) text = await require('./materials-pdf').pdfText(buf);
+    else if (/\.docx$/i.test(f)) text = docxText(buf);
     else if (/\.hwpx$/i.test(f)) text = await require('./hwp').hwpxText(buf);
     else if (/\.hwp$/i.test(f)) text = require('./hwp').hwpText(buf);
     else {

@@ -55,7 +55,8 @@
       "package.json",
       "LICENSE",
       "docs/FFMPEG-GPLv3.txt",
-      "docs/YTDLP-LICENSE.txt"
+      "docs/YTDLP-LICENSE.txt",
+      "!node_modules/pdfjs-dist/standard_fonts/LiberationSans-*.ttf"
     ],
     "win": {
       "target": [
@@ -135,6 +136,7 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.11",
+    "pdfjs-dist": "6.5.438",
     "pptxgenjs": "^4.0.1"
   }
 }

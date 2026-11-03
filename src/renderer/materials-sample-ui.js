@@ -1,0 +1,5 @@
+(function(){'use strict';const SS=window.SS;function sync(){const root=document.getElementById('mnStudio');if(!root)return;let banner=document.getElementById('mnSampleBanner');if(!banner){banner=document.createElement('div');banner.id='mnSampleBanner';banner.className='mn-sample-banner';root.querySelector('#mnMain').prepend(banner);}banner.hidden=!SS.state.materials?.demoMode;if(!banner.hidden){banner.innerHTML='<div><b>샘플 체험 중 · AI 사용·요금 없음</b><p>실제 설교가 아닌 체험용 예시입니다. 기존 자료는 보관되어 있습니다. 샘플에서 고친 내용은 돌아갈 때 사라집니다. 영상 점검에는 실제 자막이 필요합니다.</p></div><button class="mn-btn" data-sample-restore>원래 자료로 돌아가기</button>';banner.querySelector('button').onclick=restore;}}
+  async function load(){if(SS._materialsTest.busy){SS.toast('자료 만들기가 끝난 뒤 샘플을 열어 주세요.');return;}SS.state.materials=SS.materialsSample.enter(SS.state.materials,SS.materials);await SS.openMaterials('results');sync();}
+  async function restore(){SS.state.materials=SS.materialsSample.leave(SS.state.materials);await SS.openMaterials(Object.keys(SS.state.materials.results||{}).length?'results':'make');sync();}
+  SS.materialsSampleUi={sync,load,restore};
+})();

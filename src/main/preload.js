@@ -90,7 +90,7 @@ contextBridge.exposeInMainWorld('api', {
   materialsSpeechMake: (o) => ipcRenderer.invoke('materials:speechMake', o),
   materialsSpeechRelease: (id) => ipcRenderer.invoke('materials:speechRelease', id),
   materialsSpeechSave: (o) => ipcRenderer.invoke('materials:speechSave', o),
-  materialsReadFile: () => ipcRenderer.invoke('materials:readFile'),
+  materialsReadFile: (testFile) => ipcRenderer.invoke('materials:readFile', testFile),
   materialsPickPhoto: (testFile) => ipcRenderer.invoke('materials:pickPhoto', testFile),
   materialsPdf: (o) => ipcRenderer.invoke('materials:pdf', o),
   materialsPng: (o) => ipcRenderer.invoke('materials:png', o),
