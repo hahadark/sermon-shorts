@@ -117,7 +117,8 @@
       case 'cards': {
         return '묵상카드 ' + o.cardCount + '장의 글을 만들어 주세요. 분위기: ' + o.cardTone + '. 카드마다 설교의 서로 다른 핵심을 담습니다.\n'
           + 'headline 은 크게 보일 한 문장(공백 포함 24자 이내), body 는 풀어 쓴 1~2문장(60자 이내), source 는 근거(성경 장절 또는 "설교: 제목").\n'
-          + 'JSON: {"cards":[{"headline":"","body":"","source":""}]}';
+          + '인스타그램 본문 caption 은 2~4문장(200자 이내, 설교 내용으로), hashtags 는 5~8개(# 로 시작, 띄어쓰기 없이, 예: #주일설교 #말씀묵상 #본문장절 같은 것. 설교자·성도 등 사람 이름은 넣지 않음).\n'
+          + 'JSON: {"cards":[{"headline":"","body":"","source":""}],"caption":"","hashtags":["#"]}';
       }
       case 'family': {
         return '가정예배지를 만들어 주세요. 부모와 자녀가 15분 안에 함께 드릴 수 있게, 아이도 알아듣는 쉬운 말로.\n'
@@ -128,7 +129,8 @@
         return '인스타그램 카드뉴스 ' + o.newsCount + '장의 글을 만들어 주세요. 1장은 표지, 가운데 ' + body + '장은 설교의 핵심을 흐름대로 하나씩, 마지막 장은 "이번 주 실천"입니다.\n'
           + '표지 title 은 공백 포함 18자 이내로 크게 보일 제목, subtitle 은 한 줄(30자 이내). slides 는 정확히 ' + body + '개: heading 은 16자 이내, body 는 2~3문장(90자 이내), highlight 는 꼭 채웁니다: body 안에 글자 그대로 들어 있는 가장 중요한 구절(6~20자, body 에서 복사해 붙인 것처럼 똑같이).\n'
           + 'action 은 이번 주에 해 볼 구체적인 실천 한 문장(40자 이내), closing 은 마무리 한 문장.\n'
-          + 'JSON: {"title":"","subtitle":"","verse":"본문 장절","slides":[{"heading":"","body":"","highlight":""}],"action":"","closing":""}';
+          + '인스타그램 본문 caption 은 2~4문장(200자 이내, 설교 내용으로), hashtags 는 5~8개(# 로 시작, 띄어쓰기 없이, 예: #주일설교 #말씀묵상 #본문장절 같은 것. 설교자·성도 등 사람 이름은 넣지 않음).\n'
+          + 'JSON: {"title":"","subtitle":"","verse":"본문 장절","slides":[{"heading":"","body":"","highlight":""}],"action":"","closing":"","caption":"","hashtags":["#"]}';
       }
       case 'leader': {
         return '소그룹 리더용 진행 가이드를 만들어 주세요. 모임 시간은 ' + o.leaderTime + '분입니다. 리더가 미리 읽고 모임을 이끌 수 있게, 성도용 나눔지와 달리 질문의 의도와 예상 답(설교의 어느 부분이 근거인지)을 적습니다.\n'
@@ -168,6 +170,13 @@
 
   function str(v, max) { var s = v == null ? '' : String(v).replace(/\r/g, '').trim(); return max ? s.slice(0, max) : s; }
   function arr(v) { return Array.isArray(v) ? v : []; }
+  /** 해시태그: '#' 붙이고 띄어쓰기·기호 빼고 겹친 것 빼고 최대 10개 (글 하나로 와도) */
+  function tags(v) {
+    var list = Array.isArray(v) ? v : String(v || '').split(/[\s,]+/);
+    var out = [];
+    list.forEach(function (t) { t = String(t || '').replace(/[\s#,.'"!?()\[\]{}]+/g, ''); if (t && t.length <= 30 && out.indexOf('#' + t) < 0) out.push('#' + t); });
+    return out.slice(0, 10);
+  }
 
   /** 종류별 모양 맞추기 (빠진 칸은 빈 글) */
   function normalize(type, o) {
@@ -193,12 +202,12 @@
           var ox = String(it.answer || '').toUpperCase().indexOf('X') >= 0 ? 'X' : 'O';
           return { type: 'ox', q: str(it.q, 300), answer: ox, explain: str(it.explain, 400) };
         }).filter(function (it) { return it.q; }) };
-      case 'cards': return { cards: arr(o.cards).slice(0, 7).map(function (c) { return { headline: str(c && c.headline, 60), body: str(c && c.body, 160), source: str(c && c.source, 80) }; }).filter(function (c) { return c.headline || c.body; }) };
+      case 'cards': return { cards: arr(o.cards).slice(0, 7).map(function (c) { return { headline: str(c && c.headline, 60), body: str(c && c.body, 160), source: str(c && c.source, 80) }; }).filter(function (c) { return c.headline || c.body; }), caption: str(o.caption, 600), hashtags: tags(o.hashtags) };
       case 'family': return { title: str(o.title, 120), verse: str(o.verse, 120), opening: str(o.opening, 200), story: str(o.story, 2000),
         questions: arr(o.questions).slice(0, 5).map(function (q) { return str(q, 300); }).filter(Boolean), activity: str(o.activity, 500), prayer: str(o.prayer, 800), blessing: str(o.blessing, 300) };
       case 'cardnews': return { title: str(o.title, 60), subtitle: str(o.subtitle, 80), verse: str(o.verse, 80),
         slides: arr(o.slides).slice(0, 8).map(function (s) { s = s || {}; var b = str(s.body, 240), h = str(s.highlight, 60); return { heading: str(s.heading, 50), body: b, highlight: h && b.indexOf(h) >= 0 ? h : '' }; }).filter(function (s) { return s.heading || s.body; }),
-        action: str(o.action, 120), closing: str(o.closing, 160) };
+        action: str(o.action, 120), closing: str(o.closing, 160), caption: str(o.caption, 600), hashtags: tags(o.hashtags) };
       case 'leader': return { title: str(o.title, 120), verse: str(o.verse, 120), goal: str(o.goal, 400), prepare: str(o.prepare, 400),
         flow: arr(o.flow).slice(0, 8).map(function (f) { f = f || {}; var m = parseInt(f.minutes, 10); return { part: str(f.part, 40), minutes: m > 0 && m < 200 ? m : 0, guide: str(f.guide, 400) }; }).filter(function (f) { return f.part || f.guide; }),
         questions: arr(o.questions).slice(0, 8).map(function (q) { q = q || {}; return typeof q === 'string' ? { q: str(q, 300), intent: '', expected: '', followup: '' } : { q: str(q.q, 300), intent: str(q.intent, 300), expected: str(q.expected, 500), followup: str(q.followup, 300) }; }).filter(function (q) { return q.q; }),
@@ -237,6 +246,7 @@
     var L = [];
     var head = function (t) { L.push('■ ' + t); };
     var nl = function () { L.push(''); };
+    var capText = function () { if (d.caption || (d.hashtags && d.hashtags.length)) { nl(); L.push('[인스타 캡션]'); if (d.caption) L.push(d.caption); if (d.hashtags && d.hashtags.length) L.push(d.hashtags.join(' ')); } };
     if (meta.church) L.push(meta.church);
     switch (type) {
       case 'summary':
@@ -265,6 +275,7 @@
         break;
       case 'cards':
         d.cards.forEach(function (c, i) { if (i) nl(); L.push(c.headline); if (c.body) L.push(c.body); if (c.source) L.push('- ' + c.source); });
+        capText();
         break;
       case 'family':
         head(d.title || '가정예배'); if (d.verse) L.push(d.verse); nl();
@@ -281,6 +292,7 @@
         d.slides.forEach(function (s, i) { nl(); L.push((i + 1) + '. ' + s.heading); if (s.body) L.push(s.body); });
         if (d.action) { nl(); L.push('[이번 주 실천] ' + d.action); }
         if (d.closing) L.push(d.closing);
+        capText();
         break;
       case 'leader':
         head((d.title || '소그룹') + ' · 리더 가이드'); if (d.verse) L.push(d.verse); nl();
@@ -344,5 +356,29 @@
     return { name: date + '-' + service + '.md', text: fm.join('\n') + L.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n' };
   }
 
-  return { TYPES: TYPES, OPTIONS: OPTIONS, DEFAULTS: DEFAULTS, typeOf: typeOf, normOptions: normOptions, buildSystem: buildSystem, buildRequest: buildRequest, parse: parse, normalize: normalize, toText: toText, sermonText: sermonText, repairJson: repairJson, toHomepage: toHomepage, isoDate: isoDate };
+  /** 충실도 검사: 만든 자료를 설교와 대조해 설교에 없거나 어긋난 곳을 찾는다 (설교의 신학을 평가하지 않음) */
+  function buildCheckRequest(type, data) {
+    var t = typeOf(type);
+    return '아래는 위 [설교]로 만든 "' + (t ? t.label : type) + '" 자료입니다. 자료를 설교와 한 문장씩 대조해 주세요.\n'
+      + '찾을 것: (1) 설교에 없는 예화·통계·인물·인용·원어 풀이를 지어낸 곳 (2) 설교의 뜻과 반대이거나 과장한 곳 (3) 성경 장절이 설교·본문과 맞지 않는 곳 (4) 성경 본문 문장을 길게 옮겨 적은 곳.\n'
+      + '찾지 않을 것: 맞춤법, 문체, 설교의 신학적 옳고 그름, 설교를 쉬운 말로 바꾼 것, 설교 흐름에서 자연스럽게 나온 적용·질문·기도.\n'
+      + 'quote 는 자료 속 문장을 글자 그대로(40자 이내 부분) 복사합니다. 문제가 없으면 issues 를 빈 배열로.\n'
+      + 'JSON: {"issues":[{"quote":"자료 속 그대로","problem":"무엇이 설교와 다른지 한 문장","fix":"고칠 방향이나 바꿀 문장"}]}\n\n'
+      + '[자료]\n' + toText(type, data).slice(0, 12000);
+  }
+  function parseCheck(text, data, type) {
+    var s = String(text || '').trim();
+    var fence = s.match(/```(?:json)?\s*([\s\S]*?)```/); if (fence) s = fence[1].trim();
+    var a = s.indexOf('{'), b = s.lastIndexOf('}');
+    var o; try { o = JSON.parse(repairJson(s.slice(a, b + 1))); } catch (e) { throw Object.assign(new Error('검사 결과를 읽지 못했습니다.'), { code: 'format' }); }
+    var whole = data ? toText(type, data).replace(/\s+/g, ' ') : '';
+    var issues = arr(o && o.issues).slice(0, 12).map(function (it) {
+      it = it || {};
+      var q = str(it.quote, 120);
+      return { quote: q, problem: str(it.problem, 300), fix: str(it.fix, 300), found: !!(q && whole.indexOf(q.replace(/\s+/g, ' ')) >= 0) };
+    }).filter(function (it) { return it.problem; });
+    return { ok: !issues.length, issues: issues, at: new Date().toISOString() };
+  }
+
+  return { TYPES: TYPES, OPTIONS: OPTIONS, buildCheckRequest: buildCheckRequest, parseCheck: parseCheck, tags: tags, DEFAULTS: DEFAULTS, typeOf: typeOf, normOptions: normOptions, buildSystem: buildSystem, buildRequest: buildRequest, parse: parse, normalize: normalize, toText: toText, sermonText: sermonText, repairJson: repairJson, toHomepage: toHomepage, isoDate: isoDate };
 }));

@@ -159,3 +159,31 @@
 .mn-toast[hidden] { display: none; }
 .mn-err { margin-top: 12px; padding: 12px 16px; border-radius: 14px; background: #fef2f2; color: #b91c1c; font-size: 14px; }
 .mn-err[hidden] { display: none; }
+
+/* ---------------- 벤치마킹 1차: 설교와 대조·인스타 캡션 ---------------- */
+.mn-verify { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2, #334155); cursor: pointer; margin-left: 10px; white-space: nowrap; }
+.mn-tile .mn-state.warn { color: #b45309; }
+.mn-btn.sm { height: 30px; padding: 0 12px; font-size: 12.5px; border-radius: 10px; }
+.mn-btn.ghost { background: transparent; }
+.mn-check { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; border: 1px solid var(--line, #e2e8f0); background: #f8fafc; font-size: 12.5px; color: #334155; }
+.mn-check > span:not(.ico):not(.mn-spin) { flex: 1; min-width: 0; }
+.mn-check.ok { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+.mn-check.err { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.mn-check.warn { display: block; background: #fffbeb; border-color: #fcd34d; color: #78350f; }
+.mn-check-head { display: flex; align-items: center; gap: 8px; }
+.mn-check-head > span:not(.ico) { flex: 1; color: #92400e; font-size: 12px; }
+.mn-check ol { margin: 8px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.mn-check li { line-height: 1.55; }
+.mn-check li.found { cursor: pointer; }
+.mn-check li.found:hover q { text-decoration: underline; }
+.mn-check q { display: block; font-weight: 700; color: #451a03; }
+.mn-check q::before { content: '"'; } .mn-check q::after { content: '"'; }
+.mn-check li span { display: block; }
+.mn-check li em { display: block; font-style: normal; color: #a16207; }
+::highlight(mn-flag) { background-color: rgba(250, 204, 21, .45); text-decoration: underline wavy #d97706; }
+.mn-caption { margin: 16px auto 0; max-width: 760px; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line, #e2e8f0); background: #fff; }
+.mn-cap-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.mn-cap-head span { flex: 1; font-size: 11.5px; color: #64748b; }
+.mn-cap-text { font-size: 13.5px; line-height: 1.7; color: #0f172a; white-space: pre-wrap; padding: 6px 8px; border-radius: 8px; min-height: 2.4em; }
+.mn-cap-tags { margin-top: 6px; font-size: 13px; color: #2563eb; padding: 6px 8px; border-radius: 8px; }
+.mn-cap-text:empty::before { content: '캡션을 적어 주세요'; color: #94a3b8; }

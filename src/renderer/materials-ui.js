@@ -139,7 +139,8 @@
             <div class="mn-tiles" id="mnTiles"></div>
             <div class="mn-go">
               <button id="mnGo" class="mn-btn blue ico i-wand-sparkles">선택한 자료 만들기</button>
-              <div class="mn-note" id="mnGoNote">AI 가 설교에 있는 내용만으로 만듭니다. 만든 뒤 글자를 눌러 바로 고칠 수 있어요.</div>
+              <label class="mn-verify" title="만든 자료를 설교와 한 번 더 대조해 설교에 없는 내용·어긋난 곳을 표시합니다 (AI 를 한 번 더 씁니다)"><input type="checkbox" id="mnVerify"> 만든 뒤 설교와 대조</label>
+          <div class="mn-note" id="mnGoNote">AI 가 설교에 있는 내용만으로 만듭니다. 만든 뒤 글자를 눌러 바로 고칠 수 있어요.</div>
             </div>
             <div id="mnErr" class="mn-err" hidden></div>
           </div>
@@ -172,6 +173,7 @@
     root.querySelectorAll('[data-close-opt]').forEach((b) => b.addEventListener('click', () => { $('mnOpt').hidden = true; tiles(); }));
     $('mnOptReset').addEventListener('click', () => { store().options = M().normOptions({}); renderOptions(); });
     $('mnGo').addEventListener('click', generate);
+  $('mnVerify').addEventListener('change', () => { store().verify = $('mnVerify').checked; });
     root.addEventListener('keydown', (e) => {
       e.stopPropagation(); // 편집기 단축키가 먹지 않게
       if (e.key === 'Escape') { if (!$('mnOpt').hidden) $('mnOpt').hidden = true; else close(); }
@@ -232,7 +234,10 @@
     status = status || {};
     $('mnTiles').innerHTML = M().TYPES.map((t) => {
       const on = m.selected.includes(t.id), st = status[t.id];
+      const ck = m.results[t.id] && m.results[t.id].check;
       const state = st === 'busy' ? '<span class="mn-state busy"><span class="mn-spin"></span>만드는 중</span>'
+        : st === 'checking' ? '<span class="mn-state busy"><span class="mn-spin"></span>설교와 대조 중</span>'
+        : (st === 'done' || (!st && m.results[t.id])) && ck && !ck.error && !ck.ok ? `<span class="mn-state warn">확인할 곳 ${ck.issues.length}</span>`
         : st === 'done' ? '<span class="mn-state done">완성</span>' : st && st.err ? '<span class="mn-state err">실패</span>'
           : m.results[t.id] ? '<span class="mn-state done">만든 자료 있음</span>' : '';
       return `<button class="mn-tile${on ? ' on' : ''}" data-type="${t.id}" aria-pressed="${on}"><span class="mn-ic ico ${t.icon}"></span><span><b>${esc(t.label)}</b><small>${esc(optSummary(t.id))}</small></span><span class="mn-check"></span>${state}</button>`;
@@ -244,6 +249,7 @@
       tiles();
     }));
     $('mnGo').textContent = `선택한 자료 만들기 (${m.selected.length})`;
+    $('mnVerify').checked = m.verify !== false;
     $('mnGo').disabled = busy || !m.selected.length;
   }
   function optSummary(id) {
@@ -309,6 +315,10 @@
         try {
           const r = await api.materialsGenerate(type, m.options, ctx);
           m.results[type] = { data: r.data, options: { ...m.options }, meta: md, made: new Date().toISOString(), provider: r.provider };
+          if (m.verify !== false) {
+            status[type] = 'checking'; tiles(status);
+            try { m.results[type].check = await api.materialsCheck(type, r.data, m.options, ctx); } catch (e) { m.results[type].check = { error: cleanErr(e) }; }
+          }
           status[type] = 'done'; done++;
         } catch (e) {
           status[type] = { err: cleanErr(e) }; failed.push(M().typeOf(type).label + ': ' + cleanErr(e));
@@ -317,7 +327,7 @@
       }
     };
     $('mnGoNote').textContent = '만드는 중입니다… 자료마다 30초~1분쯤 걸립니다. 창을 닫지 마세요.';
-    await Promise.all([worker(), worker()]);
+    await Promise.all([worker(), worker(), worker()]); // 세 개씩 동시에
     busy = false; tiles(status);
     $('mnGoNote').textContent = `${done}개를 만들었습니다 (${Math.round((Date.now() - t0) / 1000)}초).` + (failed.length ? ' 실패한 것은 다시 눌러 주세요.' : '');
     if (failed.length) { err.textContent = failed.join('\n'); err.hidden = false; }
@@ -337,6 +347,7 @@
     if (!have.length) {
       $('mnTabs').innerHTML = ''; $('mnBar').innerHTML = '';
       $('mnStage').innerHTML = '<div class="mn-empty"><b>아직 만든 자료가 없습니다</b>[콘텐츠 만들기]에서 자료를 골라 만들어 보세요.</div>';
+      if ($('mnCheck')) $('mnCheck').remove();
       return;
     }
     if (!current || !m.results[current]) current = have[0].id;
@@ -365,11 +376,58 @@
     } else if (isCards) {
       if (m.design === 'scene' && !sceneUrl) grabScene();
       const cards = current === 'cardnews' ? D().newsCards(r.data, m.design, md, sceneUrl) : r.data.cards.map((c, i) => D().card(c, i, m.design, md, sceneUrl));
-      $('mnStage').innerHTML = `<div class="mn-cards">${cards.map((h) => `<div class="mn-cardwrap">${h}</div>`).join('')}</div>`;
+      $('mnStage').innerHTML = `<div class="mn-cards">${cards.map((h) => `<div class="mn-cardwrap">${h}</div>`).join('')}</div>` + captionBox(r.data);
     } else {
       $('mnStage').innerHTML = `<div class="mn-paperwrap">${D().page(current, r.data, md)}</div>`;
       const doc = $('mnStage').querySelector('.doc'); doc.classList.add('mn-paper');
     }
+    $('mnStage').querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => act(b.dataset.act)));
+    checkBox(r);
+  }
+
+  // ---------------- 인스타그램 캡션 (카드뉴스·묵상카드) ----------------
+  function captionBox(d) {
+    return `<div class="mn-caption"><div class="mn-cap-head"><b>인스타그램 캡션</b><span>글자를 눌러 고칠 수 있어요</span><button class="mn-btn blue sm ico i-copy" data-act="caption">캡션 전체 복사</button></div>`
+      + `<div class="mn-cap-text mn-ed" contenteditable="true" spellcheck="false" data-path="caption">${esc(d.caption || '')}</div>`
+      + `<div class="mn-cap-tags mn-ed" contenteditable="true" spellcheck="false" data-tags="1">${esc((d.hashtags || []).join(' '))}</div></div>`;
+  }
+
+  // ---------------- 충실도 검사: 설교와 대조한 결과 ----------------
+  function checkBox(r) {
+    let box = $('mnCheck');
+    if (!box) { box = document.createElement('div'); box.id = 'mnCheck'; box.className = 'mn-check'; $('mnStage').before(box); }
+    const ck = r.check;
+    if (CSS.highlights) CSS.highlights.delete('mn-flag');
+    if (!ck) { box.className = 'mn-check none'; box.innerHTML = '<span class="ico xs i-shield-check"></span><span>설교와 대조하지 않은 자료입니다.</span><button class="mn-btn sm" data-check>설교와 대조하기</button>'; }
+    else if (ck.error) { box.className = 'mn-check err'; box.innerHTML = `<span>설교와 대조하지 못했습니다: ${esc(ck.error)}</span><button class="mn-btn sm" data-check>다시 대조</button>`; }
+    else if (ck.ok) { box.className = 'mn-check ok'; box.innerHTML = '<span class="ico xs i-shield-check"></span><span><b>설교와 대조했습니다</b> · 설교에 없는 내용이나 어긋난 곳을 찾지 못했습니다.</span><button class="mn-btn sm ghost" data-check>다시 대조</button>'; }
+    else {
+      box.className = 'mn-check warn';
+      box.innerHTML = `<div class="mn-check-head"><span class="ico xs i-info"></span><b>설교와 대조: 확인할 곳 ${ck.issues.length}</b><span>노란 표시를 눌러 고치거나, 그대로 두셔도 됩니다.</span><button class="mn-btn sm ghost" data-check>다시 대조</button></div>`
+        + `<ol>${ck.issues.map((it, i) => `<li data-i="${i}"${it.found ? ' class="found"' : ''}><q>${esc(it.quote)}</q><span>${esc(it.problem)}</span>${it.fix ? `<em>제안: ${esc(it.fix)}</em>` : ''}</li>`).join('')}</ol>`;
+      flag(ck.issues);
+      box.querySelectorAll('li.found').forEach((li) => li.addEventListener('click', () => goFlag(ck.issues[+li.dataset.i].quote)));
+    }
+    box.querySelectorAll('[data-check]').forEach((b) => b.addEventListener('click', recheck));
+  }
+  /** 자료 속 문장에 노란 표시 (CSS Highlight: 글 자체는 바꾸지 않아 PDF·PNG 에 남지 않음) */
+  function rangesOf(quote) {
+    const out = [], q = String(quote || '').replace(/\s+/g, ' ').trim(); if (!q) return out;
+    const w = document.createTreeWalker($('mnStage'), NodeFilter.SHOW_TEXT);
+    let n; while ((n = w.nextNode())) { const t = n.nodeValue.replace(/\s+/g, ' '); const i = t.indexOf(q); if (i >= 0 && t.length === n.nodeValue.length) { const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + q.length); out.push(r); } }
+    return out;
+  }
+  function flag(issues) {
+    if (!window.Highlight || !CSS.highlights) return;
+    const rs = issues.flatMap((it) => rangesOf(it.quote));
+    if (rs.length) CSS.highlights.set('mn-flag', new Highlight(...rs));
+  }
+  function goFlag(q) { const r = rangesOf(q)[0]; if (!r) return; const el = r.startContainer.parentElement; el.scrollIntoView({ block: 'center', behavior: 'smooth' }); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+  async function recheck() {
+    const m = store(), r = m.results[current]; if (!r) return;
+    const box = $('mnCheck'); box.className = 'mn-check none'; box.innerHTML = '<span class="mn-spin"></span><span>설교와 대조하는 중… (30초쯤)</span>';
+    try { r.check = await api.materialsCheck(current, r.data, r.options || m.options, { ...r.meta, ...meta(), sermon: m.sermon }); } catch (e) { r.check = { error: cleanErr(e) }; }
+    renderResults(); tiles();
   }
 
   /** 지금 미리보기 영상 장면을 카드 배경으로 (1080×1350 가운데 잘라 내기) */
@@ -386,6 +444,8 @@
 
   /** 화면에서 고친 글을 자료 데이터에 반영 (data-path = "points.0.body") */
   function onEdit(e) {
+    const tg = e.target.closest && e.target.closest('[data-tags]');
+    if (tg && page === 'results') { const rr = store().results[current]; if (rr) rr.data.hashtags = M().tags(tg.innerText); return; }
     const el = e.target.closest && e.target.closest('[data-path]');
     if (!el || page !== 'results') return;
     const r = store().results[current]; if (!r) return;
@@ -403,7 +463,10 @@
     const md = { ...r.meta, ...meta() };
     const name = `${type.label} - ${(md.title || '설교').slice(0, 30)}`;
     try {
-      if (what === 'copy') {
+      if (what === 'caption') {
+        await navigator.clipboard.writeText([r.data.caption || '', (r.data.hashtags || []).join(' ')].filter(Boolean).join('\n\n'));
+        toast('캡션과 해시태그를 복사했습니다. 인스타그램에 붙여 넣으세요.');
+      } else if (what === 'copy') {
         await navigator.clipboard.writeText(M().toText(current, r.data, md));
         toast('글을 복사했습니다. 카톡·문자에 붙여 넣으세요.');
       } else if (what === 'pdf') {
@@ -457,7 +520,7 @@
   }
   SS.openMaterials = open;
   SS.closeMaterials = close;
-  SS._materialsTest = { generate, act, renderResults, show, store, setSource, grabScene, bundleOf, shortsUrl, get busy() { return busy; } };
+  SS._materialsTest = { generate, act, renderResults, tiles, show, store, setSource, grabScene, bundleOf, shortsUrl, get busy() { return busy; } };
 
   function init() {
     const b = $('btnMaterials');

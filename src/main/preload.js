@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('api', {
   openGuide: () => ipcRenderer.invoke('app:openGuide'),
   getLaunchInfo: () => ipcRenderer.invoke('app:launch'),
   voiceAnalyze: (p) => ipcRenderer.invoke('voice:analyze', p),
+  materialsCheck: (type, data, options, ctx) => ipcRenderer.invoke('materials:check', type, data, options, ctx),
   autosaveWrite: (p) => ipcRenderer.invoke('autosave:write', p),
   autosaveList: () => ipcRenderer.invoke('autosave:list'),
   autosaveRead: (key, file) => ipcRenderer.invoke('autosave:read', key, file),

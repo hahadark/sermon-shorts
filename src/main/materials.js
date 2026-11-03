@@ -122,8 +122,25 @@ function freeBase(folder, base, count) {
 }
 function safeName(s) { return String(s || '자료').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60) || '자료'; }
 
+/** 충실도 검사: 만든 자료를 설교와 다시 대조 (AI 한 번 더) */
+async function check(type, data, options, ctx) {
+  if (!M.typeOf(type)) throw new Error('모르는 자료 종류입니다.');
+  if (!ctx || !String(ctx.sermon || '').trim()) throw new Error('설교 원고가 비어 있습니다.');
+  const provider = llm.activeProvider();
+  if (!provider) throw Object.assign(new Error('AI 가 연결되어 있지 않습니다.'), { code: 'no_provider' });
+  const system = M.buildSystem({ ...ctx, options });
+  const messages = [{ role: 'user', content: M.buildCheckRequest(type, data) }];
+  const first = await llm.complete(provider, { system, messages });
+  try { return M.parseCheck(first.text, data, type); } catch (e) {
+    if (e.code !== 'format') throw e;
+    const fix = await llm.complete(provider, { system, messages: messages.concat([{ role: 'assistant', content: String(first.text || '').slice(0, 6000) }, { role: 'user', content: '요청한 JSON 하나로만 다시 쓰세요: {"issues":[...]}' }]) });
+    return M.parseCheck(fix.text, data, type);
+  }
+}
+
 function initMaterials() {
   ipcMain.handle('materials:generate', (_e, type, options, ctx) => generate(String(type), options || {}, ctx || {}));
+  ipcMain.handle('materials:check', (_e, type, data, options, ctx) => check(String(type), data || {}, options || {}, ctx || {}));
   // 유튜브 대화에서 불러온 설교 전체 자막 (AI 가 설교 범위를 찾았으면 그 범위)
   ipcMain.handle('materials:sermon', () => {
     const src = llm.sermonSource ? llm.sermonSource() : null;
@@ -132,13 +149,15 @@ function initMaterials() {
   });
   ipcMain.handle('materials:readFile', async (event) => {
     const w = BrowserWindow.fromWebContents(event.sender);
-    const r = await dialog.showOpenDialog(w, { title: '설교 원고 불러오기', properties: ['openFile'], filters: [{ name: '설교 원고', extensions: ['txt', 'md', 'docx', 'srt'] }] });
+    const r = await dialog.showOpenDialog(w, { title: '설교 원고 불러오기', properties: ['openFile'], filters: [{ name: '설교 원고 (한글·워드·글)', extensions: ['hwp', 'hwpx', 'docx', 'txt', 'md', 'srt'] }] });
     if (r.canceled || !r.filePaths[0]) return null;
     const f = r.filePaths[0];
     const buf = fs.readFileSync(f);
     if (buf.length > 20 * 1024 * 1024) throw new Error('파일이 너무 큽니다 (20MB 이하).');
     let text;
     if (/\.docx$/i.test(f)) text = docxText(buf);
+    else if (/\.hwpx$/i.test(f)) text = await require('./hwp').hwpxText(buf);
+    else if (/\.hwp$/i.test(f)) text = require('./hwp').hwpText(buf);
     else {
       text = buf.toString('utf8').replace(/^\uFEFF/, '');
       // 윈도우 메모장 옛 저장(ANSI=CP949) 한글 파일은 깨져 보이므로 한 번 더 시도
