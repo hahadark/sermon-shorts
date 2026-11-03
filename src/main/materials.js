@@ -142,6 +142,7 @@ function initMaterials() {
   ipcMain.handle('materials:generate', (_e, type, options, ctx) => generate(String(type), options || {}, ctx || {}));
   ipcMain.handle('materials:check', (_e, type, data, options, ctx) => check(String(type), data || {}, options || {}, ctx || {}));
   // 유튜브 대화에서 불러온 설교 전체 자막 (AI 가 설교 범위를 찾았으면 그 범위)
+  ipcMain.handle('materials:deliverySource', () => llm.sermonSource ? llm.sermonSource() : null);
   ipcMain.handle('materials:sermon', () => {
     const src = llm.sermonSource ? llm.sermonSource() : null;
     if (!src || !src.words.length) return null;

@@ -102,6 +102,7 @@
         <nav class="mn-nav">
           <button data-page="make" class="ico i-wand-sparkles on">콘텐츠 만들기</button>
           <button data-page="results" class="ico i-book-open">만든 자료<span id="mnResultCount" class="mn-count" hidden>0</span></button>
+          <button data-page="delivery" class="ico i-sliders-horizontal">설교 전달 점검</button>
         </nav>
         <div class="mn-sec">설교에서 함께 쓰기</div>
         <nav class="mn-nav">
@@ -160,6 +161,7 @@
       </div></div>
       <div class="mn-toast" id="mnToast" hidden></div>`;
     document.body.appendChild(root);
+    if (SS.deliveryUi) SS.deliveryUi.mount(root);
     const style = document.createElement('style'); style.id = 'mnDocCss'; style.textContent = D().DOC_CSS.replace(/body\{[^}]*\}/, '').replace(/@page\{[^}]*\}/, '');
     document.head.appendChild(style);
 
