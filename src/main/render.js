@@ -30,7 +30,7 @@ function initRender() {
     return r.canceled || r.filePaths.length === 0 ? null : guard.allowFile(r.filePaths[0]);
   });
   ipcMain.handle('fs:writeText', (event, p, text) => { fs.writeFileSync(guard.check(p), String(text), 'utf8'); return true; });
-  ipcMain.handle('fs:mkdir', (event, p) => { fs.mkdirSync(guard.check(p), { recursive: true }); return true; });
+  ipcMain.handle('fs:mkdir', (event, p) => { require('./tools').ensureDir(guard.check(p)); return true; });
   ipcMain.handle('dialog:saveExport', async (event, { defaultPath }) => {
     const w = require('electron').BrowserWindow.fromWebContents(event.sender);
     const r = await dialog.showSaveDialog(w, { title: '영상 내보내기', defaultPath, filters: [{ name: 'MP4 Video', extensions: ['mp4'] }] });

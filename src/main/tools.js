@@ -35,9 +35,41 @@ const paths = {
   assets: path.join(ROOT, 'assets'),
 };
 
+/** 폴더 만들기 (없는 상위 폴더도). fs.mkdirSync(..., { recursive: true }) 는 Windows '제어된 폴더 액세스'가 막으면
+ *  오류 없이 끝없이 다시 시도해 앱이 멈춘다(문서 폴더 등). 그래서 한 단계씩 만들고, 막히면 바로 알기 쉬운 오류를 낸다. */
+function isDir(p) { try { return fs.statSync(p).isDirectory(); } catch (_) { return false; } }
+function blockedError(dir, e) {
+  const code = e && e.code;
+  const why = code === 'ENOENT' || code === 'EPERM' || code === 'EACCES'
+    ? '이 위치에 쓸 수 없습니다. Windows 보안의 "제어된 폴더 액세스"가 막았거나 권한이 없을 수 있습니다. 다른 폴더를 고르거나, Windows 보안 → 랜섬웨어 방지 → 앱 허용에 SermonShorts 를 추가해 주세요.'
+    : String((e && e.message) || e);
+  return Object.assign(new Error('폴더를 만들지 못했습니다: ' + dir + '\n' + why), { code: code || 'EMKDIR', path: dir, blocked: code === 'ENOENT' || code === 'EPERM' || code === 'EACCES' });
+}
 function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
+  dir = path.resolve(String(dir));
+  if (isDir(dir)) return dir;
+  const todo = [];
+  for (let cur = dir; !isDir(cur);) {
+    todo.push(cur);
+    const up = path.dirname(cur);
+    if (up === cur) break;   // 드라이브 맨 위
+    cur = up;
+    if (todo.length > 256) throw blockedError(dir, new Error('경로가 너무 깁니다'));
+  }
+  for (const p of todo.reverse()) {
+    try { fs.mkdirSync(p); } catch (e) { if (!(e && e.code === 'EEXIST' && isDir(p))) throw blockedError(p, e); }
+  }
+  if (!isDir(dir)) throw blockedError(dir, Object.assign(new Error('만든 뒤에도 폴더가 없습니다'), { code: 'ENOENT' }));
   return dir;
+}
+/** 실제로 파일을 쓸 수 있는 폴더인지 (만들 수 있으면 만들고, 시험 파일을 썼다 지운다) */
+function canWriteDir(dir) {
+  try {
+    ensureDir(dir);
+    const f = path.join(dir, '.ss-write-test-' + process.pid + '-' + Date.now());
+    fs.writeFileSync(f, 'ok'); fs.unlinkSync(f);
+    return true;
+  } catch (_) { return false; }
 }
 
 ensureDir(paths.cache);
@@ -68,7 +100,7 @@ function toolPath(name) {
 }
 paths.managedBin = managedBin;
 
-module.exports = { ...paths, paths, ensureDir, cacheDir, IS_WIN, EXE, ytdlpPath };
+module.exports = { ...paths, paths, ensureDir, canWriteDir, isDir, cacheDir, IS_WIN, EXE, ytdlpPath };
 for (const [key, get] of [['ytdlp', ytdlpPath], ['ffmpeg', () => toolPath('ffmpeg')], ['ffprobe', () => toolPath('ffprobe')]]) {
   Object.defineProperty(module.exports, key, { get, enumerable: true });
   Object.defineProperty(paths, key, { get, enumerable: true });

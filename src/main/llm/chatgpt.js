@@ -46,7 +46,7 @@ function createChatGPT({ app, shell, safeStorage, fetchImpl = global.fetch, http
   }
   function save(data) {
     ensureCrypto();
-    fs.mkdirSync(path.dirname(file), { recursive: true });
+    require('../tools').ensureDir(path.dirname(file));
     const enc = safeStorage.encryptString(JSON.stringify(data)).toString('base64');
     const tmp = file + '.' + process.pid + '.tmp';
     fs.writeFileSync(tmp, enc, { mode: 0o600 });

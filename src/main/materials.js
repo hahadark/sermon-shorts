@@ -109,7 +109,7 @@ async function generate(type, options, ctx) {
 /** 파일 쓰기 실패(열려 있는 파일·권한)를 알아보기 쉬운 말로 */
 function writeFileFriendly(f, data) {
   try { fs.writeFileSync(f, data); } catch (e) {
-    const why = e && e.code === 'EBUSY' || e && e.code === 'EPERM' || e && e.code === 'EACCES' ? '같은 이름의 파일이 다른 프로그램에서 열려 있거나 쓸 수 없는 위치입니다. 파일을 닫거나 다른 이름·폴더로 저장해 주세요.' : (e && e.code === 'ENOSPC' ? '저장 공간이 부족합니다.' : String(e && e.message || e));
+    const why = e && e.code === 'ENOENT' && fs.existsSync(path.dirname(f)) ? '이 폴더에 쓸 수 없습니다. Windows 보안의 "제어된 폴더 액세스"가 막았을 수 있습니다. 다른 폴더를 고르거나 Windows 보안에서 SermonShorts 를 허용해 주세요.' : e && e.code === 'EBUSY' || e && e.code === 'EPERM' || e && e.code === 'EACCES' ? '같은 이름의 파일이 다른 프로그램에서 열려 있거나 쓸 수 없는 위치입니다. 파일을 닫거나 다른 이름·폴더로 저장해 주세요.' : (e && e.code === 'ENOSPC' ? '저장 공간이 부족합니다.' : String(e && e.message || e));
     throw new Error('저장하지 못했습니다. ' + why);
   }
 }
@@ -293,7 +293,7 @@ function initMaterials() {
       settingsMod.saveSettings({ homepageBundleDir: root });
     }
     const dir = path.join(root, date);
-    fs.mkdirSync(dir, { recursive: true });
+    require('./tools').ensureDir(dir);
     // 이미 있던 묶음은 지우지 않고 합친다 (쇼츠 주소는 모아서, 나머지는 새 값이 있으면 새 값)
     const file = path.join(dir, 'bundle.json');
     let old = {};

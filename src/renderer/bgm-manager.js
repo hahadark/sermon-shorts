@@ -61,6 +61,9 @@
   async function refresh() {
     try { lib = await api.bgmLibrary(); } catch (e) { lib = { dir: '', tracks: [] }; toast('보관함을 읽지 못했습니다: ' + cleanErr(e), 6000); }
     $('bmDir').textContent = lib.dir || '';
+    $('bmDir').title = lib.fallback ? `Windows 보안(제어된 폴더 액세스)이 ${lib.wanted} 쓰기를 막아 이 앱 데이터 폴더에 보관합니다. Windows 보안 → 바이러스 및 위협 방지 → 랜섬웨어 방지 → 제어된 폴더 액세스를 통해 앱 허용에 SermonShorts 를 추가하면 문서 폴더를 씁니다.` : (lib.dir || '');
+    $('bmDir').classList.toggle('bm-dir-fallback', !!lib.fallback);
+    if (lib.fallback && !refresh.warned) { refresh.warned = true; toast('문서 폴더에 쓸 수 없어(Windows 보안) 배경음악을 앱 데이터 폴더에 보관합니다.', 7000); }
     $('bmMood').innerHTML = ['전체'].concat(MOODS()).map((x) => `<option${x === filter.mood ? ' selected' : ''}>${esc(x)}</option>`).join('');
     renderList();
   }

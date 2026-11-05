@@ -220,7 +220,7 @@ function registerIpc() {
       log('준비 완료', JSON.stringify(info || {}));
       await new Promise((r) => setTimeout(r, 500));
       const img = await capture();
-      fs.mkdirSync(path.dirname(SCREENSHOT), { recursive: true });
+      require('./tools').ensureDir(path.dirname(SCREENSHOT));
       fs.writeFileSync(SCREENSHOT, img.toPNG());
       log('스크린샷 저장:', SCREENSHOT);
       app.exit(0);
@@ -250,7 +250,7 @@ function registerIpc() {
     try {
       const img = await capture();
       const p = guard.check(path.resolve(tools.dataRoot, String(customPath)));
-      fs.mkdirSync(path.dirname(p), { recursive: true });
+      require('./tools').ensureDir(path.dirname(p));
       fs.writeFileSync(p, img.toPNG());
       log('커스텀 스크린샷 저장:', p);
       return p;

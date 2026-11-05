@@ -137,7 +137,7 @@ function dirSize(dir) {
 function downloadModel(onProgress) {
   return exclusive('Whisper 모델', async () => {
     if (!fs.existsSync(tools.python)) return { ok: false, message: '먼저 자막 엔진을 설치하세요.' };
-    fs.mkdirSync(tools.models, { recursive: true });
+    require('./tools').ensureDir(tools.models);
     const code = [
       'import json, sys, torch',
       'from faster_whisper.utils import download_model',
@@ -188,10 +188,10 @@ function installFfmpeg(onProgress) {
   return exclusive('ffmpeg', async () => {
     if (!tools.IS_WIN) return { ok: false, message: 'Mac 은 터미널에서 brew install ffmpeg 로 설치하세요.' };
     const bin = tools.managedBin;
-    fs.mkdirSync(bin, { recursive: true });
+    require('./tools').ensureDir(bin);
     const work = path.join(tools.cache, 'ffmpeg-setup');
     fs.rmSync(work, { recursive: true, force: true });
-    fs.mkdirSync(work, { recursive: true });
+    require('./tools').ensureDir(work);
     const zip = path.join(work, 'ffmpeg.zip');
     try {
       onProgress({ pct: 0, message: 'ffmpeg 받는 중 (약 100MB)' });

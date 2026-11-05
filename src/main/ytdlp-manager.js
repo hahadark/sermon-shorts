@@ -91,7 +91,7 @@ function ensure(opts = {}) {
   if (running) return running;
   running = (async () => {
     const dest = tools.managedYtdlp;
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    require('./tools').ensureDir(path.dirname(dest));
     cleanupOld(dest);
     const st = readState();
     let fresh = false;

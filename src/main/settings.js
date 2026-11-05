@@ -114,7 +114,7 @@ function normalize(s) {
       theme.id = 'daegu-sarang';
       theme.userPreset = true;
       const dir = userThemesDir();
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      if (!fs.existsSync(dir)) require('./tools').ensureDir(dir);
       fs.writeFileSync(path.join(dir, 'daegu-sarang.json'), JSON.stringify(theme, null, 2), 'utf8');
       out.activeThemeId = 'daegu-sarang';
     } else {
@@ -183,7 +183,7 @@ function saveSettings(newSettings = {}) {
   }
 
   settingsCache = normalize(merged);
-  fs.mkdirSync(path.dirname(getSettingsPath()), { recursive: true });
+  require('./tools').ensureDir(path.dirname(getSettingsPath()));
   fs.writeFileSync(getSettingsPath(), JSON.stringify(settingsCache, null, 2), 'utf8');
   const pub = getPublicSettings();
   broadcast(pub);
@@ -253,7 +253,7 @@ async function chooseLogo(win) {
   });
   if (r.canceled || !r.filePaths.length) return null;
   const src = r.filePaths[0];
-  fs.mkdirSync(logosDir(), { recursive: true });
+  require('./tools').ensureDir(logosDir());
   const ext = path.extname(src).toLowerCase() || '.png';
   const dest = path.join(logosDir(), 'logo_' + Date.now() + ext);
   fs.copyFileSync(src, dest);
@@ -279,6 +279,7 @@ function initSettings() {
   ipcMain.handle('settings:chooseBgmDir', async (e) => {
     const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), { title: '배경음악 보관함 폴더 고르기', properties: ['openDirectory', 'createDirectory'] });
     if (r.canceled || !r.filePaths.length) return null;
+    if (!tools.canWriteDir(r.filePaths[0])) throw new Error('이 폴더에 쓸 수 없습니다. Windows 보안의 "제어된 폴더 액세스"가 막았거나 권한이 없을 수 있습니다. 다른 폴더를 골라 주세요.');
     saveSettings({ bgmLibraryDir: r.filePaths[0] });
     return r.filePaths[0];
   });
@@ -287,7 +288,7 @@ function initSettings() {
     const { shell } = require('electron');
     const p = which === 'bgm' ? require('./bgm').libraryDir() : which === 'autosave' ? path.join(app.getPath('userData'), 'autosave') : which === 'userData' ? app.getPath('userData') : '';
     if (!p) return false;
-    fs.mkdirSync(p, { recursive: true });
+    require('./tools').ensureDir(p);
     return shell.openPath(p).then((err) => !err);
   });
 }

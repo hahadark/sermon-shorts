@@ -182,7 +182,7 @@ function start(opts) {
     const done = path.join(dir, 'ready.json');
     if (fs.existsSync(done) && fs.existsSync(appDir)) return appDir;   // 지난번에 다 받아 둔 것
     fs.rmSync(dir, { recursive: true, force: true });
-    fs.mkdirSync(dir, { recursive: true });
+    require('./tools').ensureDir(dir);
     const zip = path.join(dir, rel.zip.name);
     setStatus({ state: 'downloading', version: rel.version, percent: 0 });
     await download(rel.zip.url, zip, rel.zip.size, (p) => setStatus({ state: 'downloading', version: rel.version, percent: p }));

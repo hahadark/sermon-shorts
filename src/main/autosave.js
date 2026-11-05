@@ -21,7 +21,7 @@ let root = '';
 let crashed = null;               // 지난번 갑자기 꺼진 실행 { pid, startedAt, keys: [] } (여러 개면 합침)
 const mine = { pid: process.pid, startedAt: Date.now(), keys: [] };
 
-function ensureDir(d) { fs.mkdirSync(d, { recursive: true }); return d; }
+function ensureDir(d) { require('./tools').ensureDir(d); return d; }
 function rootDir() { return root || (root = ensureDir(path.join(app.getPath('userData'), 'autosave'))); }
 function sessDir() { return ensureDir(path.join(rootDir(), 'sessions')); }
 function keyOf(s) { return crypto.createHash('sha1').update(String(s || '')).digest('hex').slice(0, 16); }

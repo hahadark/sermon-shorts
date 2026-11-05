@@ -19,12 +19,27 @@ function dir() { return tools.ensureDir(path.join(tools.cache, 'bgm')); }
 // 보관함 폴더(설정 bgmLibraryDir, 없으면 문서\SermonShorts\배경음악)에 곡 제목으로 저장하고 index.json 에 적는다.
 // 사용자가 폴더를 직접 열어 보고 백업할 수 있다. id 는 'custom-' 으로 시작한다. (예전 캐시 bgm/custom 은 처음 열 때 옮긴다)
 const AUDIO_EXT = ['mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac', 'webm', 'mp4'];
-function libraryDir() {
+// 문서 폴더를 Windows '제어된 폴더 액세스'가 막으면 앱 데이터 폴더(%APPDATA%\SermonShorts\배경음악)에 대신 보관한다.
+let libCache = { want: '', dir: '', fallback: false };
+function wantedLibraryDir() {
   let d = process.env.SS_BGM_LIBRARY || '';
   if (!d) { try { d = require('./settings').loadSettings().bgmLibraryDir || ''; } catch (_) { /* 설정 없음 */ } }
   if (!d) d = path.join(require('electron').app.getPath('documents'), 'SermonShorts', '배경음악');
-  return tools.ensureDir(d);
+  return path.resolve(d);
 }
+function libraryDir() {
+  const want = wantedLibraryDir();
+  if (libCache.want === want && libCache.dir && tools.isDir(libCache.dir)) return libCache.dir;
+  let d = want, fallback = false;
+  if (!tools.canWriteDir(want)) {
+    d = tools.ensureDir(path.join(require('electron').app.getPath('userData'), '배경음악'));
+    fallback = true;
+    console.warn('[bgm] 보관함 폴더에 쓸 수 없어 앱 데이터 폴더를 씁니다:', want, '→', d);
+  }
+  libCache = { want, dir: d, fallback };
+  return d;
+}
+function libraryInfo() { const dir = libraryDir(); return { dir, wanted: libCache.want, fallback: libCache.fallback }; }
 function customDir() { return libraryDir(); }
 /** 파일 이름으로 쓸 수 있게 (윈도우 금지 글자 빼고 80자) */
 function safeFile(name) { return String(name || '음악').replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '').slice(0, 80) || '음악'; }
@@ -363,7 +378,7 @@ function initBgm() {
     return importYoutube(url, (pct) => { if (!wc.isDestroyed()) wc.send('bgm:progress', { id: 'import', key: key || '', got: pct, total: 100 }); });
   });
   // 배경음악 관리: 보관함 목록·폴더·곡 정보 고치기·재생목록 펼치기
-  ipcMain.handle('bgm:library', () => ({ dir: customDir(), tracks: listCustom() }));
+  ipcMain.handle('bgm:library', () => ({ ...libraryInfo(), tracks: listCustom() }));
   ipcMain.handle('bgm:libUpdate', (_e, id, p) => updateCustom(String(id), p));
   ipcMain.handle('bgm:libReveal', (_e, id) => {
     const { shell } = require('electron');
@@ -375,4 +390,4 @@ function initBgm() {
   ipcMain.handle('bgm:peaks', (_e, id, n) => peaks(String(id), n));
 }
 
-module.exports = { initBgm, registerScheme, ensure, peaks, trackOf, cachedFile, parseRange, id3Size, SCHEME, importFile, importYoutube, listCustom, removeCustom, updateCustom, libraryDir, safeFile };
+module.exports = { initBgm, registerScheme, ensure, peaks, trackOf, cachedFile, parseRange, id3Size, SCHEME, importFile, importYoutube, listCustom, removeCustom, updateCustom, libraryDir, libraryInfo, safeFile };

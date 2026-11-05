@@ -63,7 +63,7 @@ function themeFile(id) {
 
 function saveTheme(json) {
   const userDir = getUserDir();
-  if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
+  if (!fs.existsSync(userDir)) require('./tools').ensureDir(userDir);
   const theme = themeLib.normalizeTheme(json);
   if (!theme.id) theme.id = 'user-' + Date.now();
   fs.writeFileSync(themeFile(theme.id), JSON.stringify(theme, null, 2), 'utf8');
@@ -120,7 +120,7 @@ async function addFont() {
   const src = r.filePaths[0];
   const name = path.basename(src);
   const destDir = getFontsDir();
-  if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+  if (!fs.existsSync(destDir)) require('./tools').ensureDir(destDir);
   const dest = path.join(destDir, name);
   fs.copyFileSync(src, dest);
   
