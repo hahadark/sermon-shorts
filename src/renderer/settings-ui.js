@@ -112,6 +112,7 @@
               <div>${numIn('setEdMax', ed.maxLineChars || 14, 1, 200, 1, '자 (공백 제외)')}</div>
               ${chk('setEdSemantic', ed.semanticBreaks !== false, '의미 단위로 나누기', '글자 수만 채워 끊지 않고 문장 끝·쉼·이음말에서 끊습니다.')}
               ${chk('setEdSplit', ed.splitLongWords !== false, '긴 단어도 나누기')}
+              ${chk('setPreviewProxy', s.previewProxy !== false, '부드러운 미리보기 (미리보기용 영상을 뒤에서 만들어 지운 곳을 건너뛸 때 끊기지 않게 · 내보내기는 원본)')}
             </div>
             <div class="settings-row">
               <label>컷 여백·페이드</label>
@@ -414,6 +415,7 @@
         recentYoutubeMax: Number($('#setRecentMax').value),
         sourceMissing: $('#setSourceMissing').value,
         autoUpdate: $('#setAutoUpdate').checked,
+        previewProxy: $('#setPreviewProxy').checked,
         autosave: { enabled: $('#setAsvOn').checked, everyMin: Number($('#setAsvEvery').value), maxVersions: Number($('#setAsvVersions').value), maxVideos: Number($('#setAsvVideos').value), keepDays: Number($('#setAsvDays').value) },
         // 편집 기본값
         editDefaults: { maxLineChars: Number($('#setEdMax').value), semanticBreaks: $('#setEdSemantic').checked, splitLongWords: $('#setEdSplit').checked,

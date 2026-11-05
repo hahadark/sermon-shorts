@@ -64,6 +64,7 @@ function defaults() {
     recentYoutubeMax: 5,          // 최근 작업한 유튜브 링크 보존 개수 (0 = 보존 안 함)
     recentYoutube: [],            // [{ url, title, at }] 최근 것이 앞
     sourceMissing: 'auto',         // 원본 영상이 없을 때: 'ask' 묻기 / 'auto' 유튜브에서 바로 다시 받기
+    previewProxy: true,           // 미리보기용 영상(기준 화면 0.5초마다)을 만들어 건너뛸 때 끊기지 않게
     autoUpdate: true,             // 새 버전 자동으로 확인·받기
     autosave: { enabled: true, everyMin: 2, maxVersions: 30, keepDays: 60, maxVideos: 40 },
     // ---- 설정 창 [편집]: 새 편집을 시작할 때의 기본값 ----
@@ -82,6 +83,7 @@ function normalizeExtras(out, d) {
     .slice(0, out.recentYoutubeMax);
   out.sourceMissing = out.sourceMissing === 'ask' ? 'ask' : 'auto';
   out.autoUpdate = out.autoUpdate !== false;
+  out.previewProxy = out.previewProxy !== false;
   const a = { ...d.autosave, ...(out.autosave && typeof out.autosave === 'object' ? out.autosave : {}) };
   out.autosave = { enabled: a.enabled !== false, everyMin: num(a.everyMin, 2, 1, 60), maxVersions: Math.round(num(a.maxVersions, 30, 1, 200)), keepDays: Math.round(num(a.keepDays, 60, 1, 3650)), maxVideos: Math.round(num(a.maxVideos, 40, 1, 500)) };
   const e = { ...d.editDefaults, ...(out.editDefaults && typeof out.editDefaults === 'object' ? out.editDefaults : {}) };

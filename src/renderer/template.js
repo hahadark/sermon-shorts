@@ -586,6 +586,7 @@
       }
     }
     lastKaraokeKey = karaokeIndex == null ? '' : subtitleText + '|' + karaokeIndex;
+    lastCaptionKey = captionKeyAt(SS.preview ? SS.preview.currentTime : 0, theme);
 
     const meta = SS.state.meta || {};
     const params = {
@@ -672,20 +673,36 @@
       blurLoop = requestAnimationFrame(tick);
     }
   }
-  // 재생 중 단어 강조(가라오케)는 timeupdate(초당 4번)보다 자주 바꿔야 하므로 따로 살핀다
-  let karaokeBusy = false;
-  (function karaokeTick() {
-    requestAnimationFrame(karaokeTick);
-    const theme = SS.state && SS.state.activeTheme;
-    if (karaokeBusy || !theme || !usesKaraoke(theme) || !SS.preview || SS.preview.paused || !SS._cachedLines || !SS._cachedSegs || !SS.state.words) return;
-    const segs = SS._cachedSegs;
-    const outT = SS.edl.srcToOut(segs, SS.preview.currentTime);
-    const line = outT == null ? null : SS._cachedLines.find(l => outT >= l.outStart && outT < l.outEnd);
-    if (!line) return;
-    const key = line.text + '|' + SS.textfx.karaokeIndexAt(karaokeOf(line, SS.state.words, segs).frames, outT);
-    if (key === lastKaraokeKey) return;
-    karaokeBusy = true;
-    Promise.resolve(SS.updateTemplatePreview()).finally(() => { karaokeBusy = false; });
+  // 재생 중에는 화면마다 지금 나와야 할 자막(가라오케면 강조 단어까지)을 보고, 바뀌는 순간 바로 다시 그린다.
+  // (timeupdate 는 0.25초에 한 번뿐이라 자막이 말보다 늦게 바뀌었다)
+  function captionKeyAt(t, theme) {
+    const segs = SS._cachedSegs, lines = SS._cachedLines;
+    if (!segs || !lines || !SS.state || !SS.state.words) return '';
+    const outT = SS.edl.srcToOut(segs, t);
+    const line = outT == null ? null : lines.find(l => outT >= l.outStart && outT < l.outEnd);
+    if (!line) return '-';
+    let key = line.outStart + '|' + line.text;
+    if (theme && usesKaraoke(theme)) key += '|' + SS.textfx.karaokeIndexAt(karaokeOf(line, SS.state.words, segs).frames, outT);
+    return key;
+  }
+  SS.captionKeyAt = captionKeyAt;
+  var lastCaptionKey = '', captionBusy = false, captionAgain = false;   // var: 위쪽 updateTemplatePreview 가 먼저 불려도 쓸 수 있게
+  function captionTick() {
+    const v = SS.preview && SS.preview.video;
+    if (!v || v.paused || !SS.state || !SS.state.words || !SS.state.words.length) return;
+    const key = captionKeyAt(v.currentTime, SS.state.activeTheme);
+    if (key === lastCaptionKey) return;
+    if (captionBusy) { captionAgain = true; return; }
+    captionBusy = true;
+    Promise.resolve(SS.updateTemplatePreview()).finally(() => { captionBusy = false; if (captionAgain) { captionAgain = false; captionTick(); } });
+  }
+  (function loopCaptions() { requestAnimationFrame(loopCaptions); captionTick(); })();
+  // 화면 갱신(rAF)보다 영상 프레임에 맞추는 편이 정확하다: 새 프레임이 나올 때마다 한 번 더 본다
+  (function frameCaptions() {
+    const v = SS.preview && SS.preview.video;
+    if (!v || !v.requestVideoFrameCallback) { setTimeout(frameCaptions, 300); return; }
+    const onFrame = () => { captionTick(); v.requestVideoFrameCallback(onFrame); };
+    v.requestVideoFrameCallback(onFrame);
   })();
 
   // 설정의 로고 경로 적용 (없으면 기본 logo-default.png)

@@ -291,6 +291,7 @@ app.whenReady().then(() => {
   registerIpc();
   initUpdater({ getWindow: () => mainWindow, log, disabled: !!SCREENSHOT });
   initYoutubeUpload();
+  require('./preview-proxy').initPreviewProxy();
   // yt-dlp: 처음이면 준비하고, 하루에 한 번 최신으로 (유튜브가 바뀌면 오래된 yt-dlp 는 403 으로 실패한다)
   const ytdlpManager = require('./ytdlp-manager');
   ytdlpManager.setLogger((m) => log(m));

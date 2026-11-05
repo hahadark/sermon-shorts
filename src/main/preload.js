@@ -85,6 +85,8 @@ contextBridge.exposeInMainWorld('api', {
   // 교인 배포 자료
   materialsGenerate: (type, options, ctx) => ipcRenderer.invoke('materials:generate', type, options, ctx),
   materialsSermon: () => ipcRenderer.invoke('materials:sermon'),
+  proxyEnsure: (src) => ipcRenderer.invoke('proxy:ensure', src),
+  proxyCancel: () => ipcRenderer.invoke('proxy:cancel'),
   materialsDeliverySource: () => ipcRenderer.invoke('materials:deliverySource'),
   materialsSpeechVoices: () => ipcRenderer.invoke('materials:speechVoices'),
   materialsSpeechMake: (o) => ipcRenderer.invoke('materials:speechMake', o),

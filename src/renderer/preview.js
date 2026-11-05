@@ -59,6 +59,7 @@
     load(path, info) {
       if (this._loadCancel) this._loadCancel();
       this.path = path;
+      this.mediaPath = path;   // 미리보기에 실제로 틀고 있는 파일 (미리보기용 영상이면 다름)
       this.fps = (info && info.fps) || 30;
       this.duration = (info && info.duration) || 0;
       const v = this.video;
@@ -73,6 +74,22 @@
         v.src = toFileUrl(path);
         v.load();
       });
+    }
+    /** 같은 시각의 다른 파일(미리보기용 영상)로 바꾼다. 자리·재생 상태를 그대로 둔다. 실패하면 원래 파일로 되돌린다. */
+    async useMedia(p) {
+      const v = this.video, t = v.currentTime || 0, wasPlaying = !v.paused, back = this.mediaPath;
+      if (wasPlaying) v.pause();
+      const open = (file) => new Promise((resolve, reject) => {
+        const ok = () => { done(); resolve(); };
+        const bad = () => { done(); reject(new Error('영상을 열 수 없습니다: ' + file)); };
+        const done = () => { v.removeEventListener('loadeddata', ok); v.removeEventListener('error', bad); };
+        v.addEventListener('loadeddata', ok); v.addEventListener('error', bad);
+        v.src = toFileUrl(file); v.load();
+      });
+      try { await open(p); this.mediaPath = p; }
+      catch (e) { await open(back).catch(() => {}); this.mediaPath = back; await this.seek(t); throw e; }
+      await this.seek(t);
+      if (wasPlaying) this.play();
     }
     get loaded() { return !!this.path && this.video.readyState >= 1; }
     get currentTime() { return this.video.currentTime || 0; }
