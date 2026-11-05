@@ -135,7 +135,7 @@
       await preview.load(path, info);
       if (state.path && state.path !== path && state.words && state.words.length) {
         // 다른 영상: 이전 자막/편집 상태 비우기
-        state.words = []; state.overrides = {}; state.markI = -1; state.markO = -1;
+        state.words = []; state.overrides = {}; state.order = null; state.markI = -1; state.markO = -1;
         state.caret = 0; state.selAnchor = 0; state.selection = null; state.hideDeleted = false; SS.projectPath = null;
         if (SS.resetEditorHistory) SS.resetEditorHistory(); else if (SS.renderTranscript) SS.renderTranscript();
       }

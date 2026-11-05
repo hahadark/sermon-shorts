@@ -11,7 +11,7 @@
       if (!st?.source || !st.words?.length) throw Error('내보낼 영상과 자막이 없습니다.');
       if (typeof outPath !== 'string' || !/\.mp4$/i.test(outPath)) throw Error('MP4 파일 경로를 선택해 주세요.');
       const words = range ? st.words.filter(w=>w.start>=range[0]&&w.end<=range[1]) : st.words;
-      const segments = SS.edl.buildSegments(words, st.settings, st.overrides, st.source.duration);
+      const segments = SS.edl.buildSegments(words, st.settings, st.overrides, st.source.duration, st.order);
       if (!segments.length) throw Error('남은 영상 구간이 없습니다. 지운 단어를 먼저 되살려 주세요.');
       const theme = SS.theme.normalizeTheme(st.activeTheme || st.theme);
       const lines = SS.edl.buildLines(words, segments, st.settings);

@@ -784,7 +784,7 @@
     const st = SS.state;
     if (!st || !st.words || !st.words.length) return 0;
     const dur = (SS.preview && SS.preview.duration) || (st.source && st.source.duration);
-    return SS.edl.segmentsDuration(SS.edl.buildSegments(st.words, st.settings, st.overrides, dur));
+    return SS.edl.segmentsDuration(SS.edl.buildSegments(st.words, st.settings, st.overrides, dur, st.order));
   }
 
   /** 목표 길이와 15초 넘게 다르면 알려 주고 맞추기 버튼 */
@@ -801,7 +801,7 @@
     const st = SS.state;
     if (!st || !st.source || !st.source.path || !st.words || !st.words.length) throw new Error('먼저 편집할 영상을 열어 주세요.');
     const dur = (SS.preview && SS.preview.duration) || st.source.duration;
-    const segs = SS.edl.buildSegments(st.words, st.settings, st.overrides, dur);
+    const segs = SS.edl.buildSegments(st.words, st.settings, st.overrides, dur, st.order);
     if (!segs.length) throw new Error('남은 영상 구간이 없습니다.');
     const before = SS.edl.segmentsDuration(segs);
     const found = await api.audioSilences(st.source.path, { start: Math.max(0, segs[0].start - 0.5), end: segs[segs.length - 1].end + 0.5, minDur: opts.minDur || 0.15 });
@@ -1013,7 +1013,7 @@
         await waitFor(() => !/반영하는 중|받는 중/.test($('chatBody').textContent.slice(-200)), 300000, 'apply');
         await sleep(2500);
         const kept = (SS.state.words || []).filter((w) => !w.del).length;
-        const segs = SS.edl.buildSegments(SS.state.words, SS.state.settings, SS.state.overrides, SS.preview && SS.preview.duration);
+        const segs = SS.edl.buildSegments(SS.state.words, SS.state.settings, SS.state.overrides, SS.preview && SS.preview.duration, SS.state.order);
         const outDur = segs.reduce((a, s) => a + (s.end - s.start), 0);
         log(`${text} → ${((Date.now() - t0) / 1000).toFixed(0)}s kept=${kept} segs=${segs.length} out=${outDur.toFixed(1)}s title=${JSON.stringify(SS.state.meta && SS.state.meta.title)}`);
         log('last: ' + $('chatBody').lastElementChild.textContent.slice(0, 160));
@@ -1160,7 +1160,9 @@
       check('이 편집 다시 열기 버튼', reopen && /chat_history\/.+\.sshorts$/.test(reopen.dataset.reopen), { path: reopen && reopen.dataset.reopen });
       const saved = await api.readJson(reopen.dataset.reopen);
       check('편집 자동 저장', saved && Array.isArray(saved.words) && saved.words.length > 10 && saved.meta && saved.meta.title === '기록 시험', { words: saved && saved.words && saved.words.length });
-      check('지난 버튼은 잠김', Array.from(body.querySelectorAll('.msg button')).every((b) => b.disabled));
+      // v0.3.21 부터 다시 할 수 있는 것(다시 열기·이 구간으로 만들기·다시 적용·유튜브에서 보기)은 살려 두고 나머지는 잠근다
+      const revive = (b) => !!(b.dataset.reopen || b.dataset.pick || b.dataset.replay || b.dataset.yturl);
+      check('지난 버튼은 잠김 (다시 할 수 있는 것만 살림)', Array.from(body.querySelectorAll('.msg button')).every((b) => (revive(b) ? !b.disabled : b.disabled)));
       check('주소 칸에 같은 영상', $('chatUrl').value === URL1);
       await SS.testShot('cache/chat_history_test/1_after_new.png');
       // 같은 영상 이어서

@@ -68,8 +68,8 @@ function buildExportArgs({ sourcePath, outPath, segments, lines, crop, fadeMs, t
   const t = normalizeTheme(theme);
   if (![t.video.x,t.video.y,t.video.width,t.video.height].every(Number.isFinite) || t.video.width <= 0 || t.video.height <= 0) throw Error('테마 영상 영역이 올바르지 않습니다.');
   fadeMs = Number.isFinite(fadeMs) ? Math.max(0, fadeMs) : 10;
-  const startT = Math.max(0, segments[0].start - 1);
-  const endT = segments[segments.length - 1].end + 1;
+  const startT = Math.max(0, Math.min(...segments.map((s) => s.start)) - 1);   // 순서를 바꿔도 가장 앞 구간부터 읽게
+  const endT = Math.max(...segments.map((s) => s.end)) + 1;
   // 자막 그림 순서표. 시각을 밀리초로 반올림한 뒤 빼서 길이를 구하므로 줄이 많아도 오차가 쌓이지 않는다.
   // 단어 강조(가라오케) 줄은 images: [{ name, start, end }] 로 여러 장을 이어 붙인다.
   const ms = (x) => Math.round(x * 1000);

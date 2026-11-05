@@ -16,7 +16,7 @@
       const curT = SS.preview.currentTime;
       // We need lines built by EDL
       if (!SS._cachedLines || SS._linesDirty) {
-        const segs = SS.edl.buildSegments(SS.state.words, SS.state.settings, SS.state.overrides, SS.state.source.duration);
+        const segs = SS.edl.buildSegments(SS.state.words, SS.state.settings, SS.state.overrides, SS.state.source.duration, SS.state.order);
         SS._cachedLines = SS.edl.buildLines(SS.state.words, segs, SS.state.settings);
         SS._linesDirty = false;
       }

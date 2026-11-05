@@ -39,8 +39,89 @@
    * 지워지지 않은 연속 단어 묶음 → 구간.
    * @returns [{ id, firstWordId, lastWordId, start, end }]
    */
-  function buildSegments(words, settings, overrides, duration) {
+  /**
+   * 출력 순서 (칸을 끌어 설교 내용 순서를 바꾼 것).
+   * order = 조각(piece)의 첫 단어 id 를 출력 순서대로 적은 배열. 조각 경계는 이 id 들의 원본 자리.
+   * 원본 단어 배열(words)은 그대로 두고, 내보낼 때 조각을 order 순서로 잇는다. order 가 없으면 원본 순서.
+   * → [{ a, b }] 출력 순서의 원본 단어 번호 범위 (b 는 포함하지 않음). 원본에서 이어지는 조각은 하나로 합친다.
+   */
+  function orderPieces(words, order) {
+    var n = Array.isArray(words) ? words.length : 0;
+    if (!n) return [];
+    var idx = new Map();
+    for (var i = 0; i < n; i++) if (words[i]) idx.set(words[i].id, i);
+    var listed = [], seen = new Set();
+    (Array.isArray(order) ? order : []).forEach(function (id) { var k = idx.get(id); if (k != null && !seen.has(k)) { seen.add(k); listed.push(k); } });
+    if (!listed.length) return [{ a: 0, b: n }];
+    var bounds = listed.concat(seen.has(0) ? [] : [0]).sort(function (x, y) { return x - y; });
+    var endOf = new Map();
+    for (var q = 0; q < bounds.length; q++) endOf.set(bounds[q], q + 1 < bounds.length ? bounds[q + 1] : n);
+    // 적히지 않은 조각(맨 앞 등)은 원본에서 바로 앞 조각 뒤에 둔다
+    var out = listed.map(function (a) { return { a: a, b: endOf.get(a) }; });
+    bounds.forEach(function (a) {
+      if (seen.has(a)) return;
+      var piece = { a: a, b: endOf.get(a) }, at = -1;
+      for (var k = 0; k < out.length; k++) if (out[k].b === a) { at = k; break; }
+      if (at < 0) out.unshift(piece); else out.splice(at + 1, 0, piece);
+    });
+    var merged = [];
+    out.forEach(function (p) { var last = merged[merged.length - 1]; if (last && last.b === p.a) last.b = p.b; else merged.push({ a: p.a, b: p.b }); });
+    return merged;
+  }
+  /** 조각 목록 → order (원본 순서와 같으면 null) */
+  function piecesToOrder(words, pieces) {
+    if (!pieces || pieces.length <= 1) return null;
+    return pieces.map(function (p) { return words[p.a].id; });
+  }
+  /**
+   * 원본 단어 [from, to) 를 원본 단어 before 앞으로 옮긴다 (before 가 null 이면 맨 끝). → 새 order (원본 순서면 null)
+   * 옮길 범위는 한 조각 안에 있어야 한다 (칸 하나 = 조각 안).
+   */
+  function moveRange(words, order, from, to, before) {
+    var n = Array.isArray(words) ? words.length : 0;
+    if (!n || !(from >= 0) || !(to > from) || to > n) return order || null;
+    if (before != null && before >= from && before < to) return order || null;   // 제자리
+    var pieces = orderPieces(words, order);
+    var cutAt = function (x) {
+      if (x == null || x <= 0 || x >= n) return;
+      for (var k = 0; k < pieces.length; k++) { var p = pieces[k]; if (x > p.a && x < p.b) { pieces.splice(k, 1, { a: p.a, b: x }, { a: x, b: p.b }); return; } }
+    };
+    cutAt(from); cutAt(to); cutAt(before);
+    var moving = [], rest = [];
+    pieces.forEach(function (p) { if (p.a >= from && p.b <= to) moving.push(p); else rest.push(p); });
+    if (!moving.length) return order || null;
+    var at = rest.length;
+    if (before != null) { at = -1; for (var k = 0; k < rest.length; k++) if (rest[k].a === before) { at = k; break; } if (at < 0) return order || null; }
+    var next = rest.slice(0, at).concat(moving, rest.slice(at));
+    var merged = [];
+    next.forEach(function (p) { var last = merged[merged.length - 1]; if (last && last.b === p.a) last.b = p.b; else merged.push({ a: p.a, b: p.b }); });
+    return piecesToOrder(words, merged);
+  }
+  function hasOrder(words, order) { return orderPieces(words, order).length > 1; }
+
+  function buildSegments(words, settings, overrides, duration, order) {
     if (!Array.isArray(words) || words.length === 0) return [];
+    if (order && order.length) {
+      var pcs = orderPieces(words, order);
+      if (pcs.length > 1) {
+        var all = [];
+        var ov = overrides || {};
+        var live = function (w) { return w && !w.del && isNum(w.start) && isNum(w.end); };
+        pcs.forEach(function (p, k) {
+          var ps = buildSegments(words.slice(p.a, p.b), settings, overrides, duration);
+          // 조각 경계: 원래 이어지던 이웃 단어가 남아 있으면 패딩을 두 단어 사이 가운데까지만 (옮긴 칸 앞뒤로 이웃 말소리가 새지 않게)
+          // 미세 조정으로 직접 정한 값(overrides)은 그대로 둔다
+          if (ps.length) {
+            var f = ps[0], fw = words[p.a], pw = words[p.a - 1];
+            if (fw && f.firstWordId === fw.id && live(pw) && live(fw) && !isNum(ov['s:' + fw.id])) f.start = Math.max(f.start, Math.min(fw.start, (pw.end + fw.start) / 2));
+            var L = ps[ps.length - 1], lw = words[p.b - 1], nw = words[p.b];
+            if (lw && L.lastWordId === lw.id && live(nw) && live(lw) && !isNum(ov['e:' + lw.id])) L.end = Math.min(L.end, Math.max(lw.end, (lw.end + nw.start) / 2));
+          }
+          ps.forEach(function (s) { if (s.end > s.start) { s.piece = k; all.push(s); } });
+        });
+        return all;
+      }
+    }
     settings = settings || {};
     overrides = overrides || {};
     var padBefore = isNum(settings.padBefore) ? settings.padBefore : 0;
@@ -192,17 +273,20 @@
     var acc = 0;
     for (var s = 0; s < segs.length; s++) { segOff.push(acc); acc += segs[s].end - segs[s].start; }
 
-    // 남은 단어마다 소속 구간 찾기 (firstWordId..lastWordId 범위를 단어 순서로 훑음)
+    // 남은 단어마다 소속 구간 찾기: 구간의 firstWordId..lastWordId 원본 번호 범위 (순서를 바꿔도 맞게)
     var items = [];
-    var si = 0;
-    var inSeg = false;
+    var wIdx = new Map();
+    for (var wi = 0; wi < words.length; wi++) if (words[wi]) wIdx.set(words[wi].id, wi);
+    var segOf = new Array(words.length);
+    for (var sk = 0; sk < segs.length; sk++) {
+      var ia = wIdx.get(segs[sk].firstWordId), ib = wIdx.get(segs[sk].lastWordId);
+      if (ia == null || ib == null) continue;
+      for (var wj = ia; wj <= ib; wj++) if (segOf[wj] == null) segOf[wj] = sk;
+    }
     for (var i = 0; i < words.length; i++) {
       var w = words[i];
       if (!w) continue;
-      // 구간 시작 전 단어(또는 클램프로 버려진 구간의 단어)는 segIdx = -1
-      if (si < segs.length && !inSeg && w.id === segs[si].firstWordId) inSeg = true;
-      var segIdx = inSeg ? si : -1;
-      if (inSeg && w.id === segs[si].lastWordId) { inSeg = false; si++; }
+      var segIdx = segOf[i] == null ? -1 : segOf[i];
       if (segIdx < 0 || w.del || !isNum(w.start) || !isNum(w.end) || !charCount(w.text)) continue;
       var sg = segs[segIdx];
       var a = clamp(w.start, sg.start, sg.end);
@@ -212,10 +296,14 @@
         w: w,
         outStart: segOff[segIdx] + (a - sg.start),
         outEnd: segOff[segIdx] + (b - sg.start),
-        len: charCount(w.text), textFrom: 0, textTo: Array.from(String(w.text || "")).length
+        len: charCount(w.text), textFrom: 0, textTo: Array.from(String(w.text || "")).length,
+        piece: sg.piece
       });
     }
     if (items.length === 0) return [];
+    // 출력 순서대로 (순서를 바꾸지 않았으면 이미 이 순서). 조각이 바뀌는 곳은 다른 내용이므로 줄을 꼭 바꾼다
+    items.sort(function (x, y) { return x.outStart - y.outStart; });
+    for (var pi = 1; pi < items.length; pi++) if (items[pi].piece !== items[pi - 1].piece) items[pi].pieceStart = true;
 
     // 손으로 나눈 자리(출력 자막 칸에서 Enter): 단어 글자 위치 captionSplits 에서 조각으로 나누고 앞 조각 뒤에서 줄을 바꾼다.
     // 표시만 나눌 뿐 원문 단어·편집 시각은 바꾸지 않는다. 조각 시각은 글자 수로 나눈다.
@@ -244,7 +332,7 @@
         used += len;
         var finish = item.outStart + (item.outEnd - item.outStart) * (total ? used / total : (idx + 1) / pieces.length);
         manualItems.push({ w: Object.assign({}, item.w, { text: p.text, br: idx === pieces.length - 1 ? item.w.br : true }),
-          outStart: begin, outEnd: finish, len: len, textFrom: p.from, textTo: p.to });
+          outStart: begin, outEnd: finish, len: len, textFrom: p.from, textTo: p.to, piece: item.piece });
       });
     });
     items = manualItems;
@@ -273,11 +361,15 @@
           var begin = item.outStart + (item.outEnd - item.outStart) * consumed / item.len;
           consumed += len;
           splitItems.push({ w: Object.assign({}, item.w, { text: part, br: index === parts.length - 1 && item.w.br }),
-            outStart: begin, outEnd: item.outStart + (item.outEnd - item.outStart) * consumed / item.len, len: len, textFrom: textFrom, textTo: textTo });
+            outStart: begin, outEnd: item.outStart + (item.outEnd - item.outStart) * consumed / item.len, len: len, textFrom: textFrom, textTo: textTo, piece: item.piece });
         });
       });
       items = splitItems;
     }
+
+    // 출력 순서대로 (순서를 바꾸지 않았으면 이미 이 순서). 조각이 바뀌는 곳은 다른 내용이므로 줄을 꼭 바꾼다
+    items.sort(function (x, y) { return x.outStart - y.outStart; });
+    for (var pi = 1; pi < items.length; pi++) if (items[pi].piece !== items[pi - 1].piece) items[pi].pieceStart = true;
 
     // 줄 나누기
     var groups = [];
@@ -289,7 +381,7 @@
         var cur0 = items[q];
         if (run.length) {
           var pv = run[run.length - 1], pt = String(pv.w.text || '').trim();
-          if (pv.w.br || SENTENCE_END.test(pt) || cur0.outStart - pv.outEnd > LINE_PAUSE || lb.isSentenceEnd(pt)) { runs.push(run); run = []; }
+          if (cur0.pieceStart || pv.w.br || SENTENCE_END.test(pt) || cur0.outStart - pv.outEnd > LINE_PAUSE || lb.isSentenceEnd(pt)) { runs.push(run); run = []; }
         }
         run.push(cur0);
       }
@@ -307,7 +399,8 @@
       if (cur.length > 0) {
         var prev = cur[cur.length - 1];
         var brk = false;
-        if (prev.w.br) brk = true;
+        if (it.pieceStart) brk = true;
+        else if (prev.w.br) brk = true;
         else if (SENTENCE_END.test(String(prev.w.text || '').trim())) brk = true;
         else if (it.outStart - prev.outEnd > LINE_PAUSE) brk = true;
         else if (curLen + it.len > maxChars) brk = true;
@@ -581,6 +674,7 @@
   return {
     buildSegments: buildSegments,
     segmentsDuration: segmentsDuration,
+    orderPieces: orderPieces, moveRange: moveRange, hasOrder: hasOrder,
     srcToOut: srcToOut,
     outToSrc: outToSrc,
     mediaSeekTime: mediaSeekTime,

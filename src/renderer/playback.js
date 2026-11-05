@@ -31,15 +31,35 @@
     return !rawOnce && !!(SS.getEditedPlayMode && SS.getEditedPlayMode()) && hasEdit();
   }
 
+  let curSeg = -1;         // 지금 틀고 있는 구간 (출력 순서). 칸 순서를 바꾸면 다음 구간이 원본에서 앞쪽일 수 있다
+  /** t 가 들어 있는 구간 (지금 틀던 구간을 먼저 본다: 패딩이 겹치는 경계에서 엉뚱한 구간으로 가지 않게) */
+  function segAt(s, t) {
+    if (curSeg >= 0 && curSeg < s.length && t >= s[curSeg].start - EDGE && t < s[curSeg].end) return curSeg;
+    for (let i = 0; i < s.length; i++) if (t >= s[i].start - EDGE && t < s[i].end) return i;
+    return -1;
+  }
+  /** 원본 시각 t → 출력 시각 (지금 틀던 구간을 먼저 본다). 구간 밖이면 null */
+  function outAt(s, t) {
+    const i = segAt(s, t);
+    if (i < 0) return null;
+    let off = 0;
+    for (let k = 0; k < i; k++) off += s[k].end - s[k].start;
+    return off + Math.max(0, Math.min(s[i].end, t) - s[i].start);
+  }
   /** 원본 시각 t 에서 해야 할 일: ok(그대로) / jump(다음 구간으로) / end(끝) */
   function plan(t) {
     const s = segs();
-    for (let i = 0; i < s.length; i++) {
-      if (t < s[i].start - EDGE) return { action: 'jump', to: s[i].start };
-      if (t < s[i].end - LOOK) return { action: 'ok', seg: i };
-      if (i + 1 < s.length && t < s[i + 1].start - EDGE) return { action: 'jump', to: s[i + 1].start };
+    if (!s.length) return { action: 'end', to: t };
+    const i = segAt(s, t);
+    if (i < 0) {   // 지운 곳: 원본에서 바로 다음에 시작하는 남은 구간으로
+      let best = -1;
+      for (let k = 0; k < s.length; k++) if (s[k].start >= t - EDGE && (best < 0 || s[k].start < s[best].start)) best = k;
+      if (best < 0) return { action: 'end', to: s[s.length - 1].end, seg: s.length - 1 };
+      return { action: 'jump', to: s[best].start, seg: best };
     }
-    return { action: 'end', to: s.length ? s[s.length - 1].end : t };
+    if (t < s[i].end - LOOK) return { action: 'ok', seg: i };
+    if (i + 1 < s.length) return { action: 'jump', to: s[i + 1].start, seg: i + 1 };
+    return { action: 'end', to: s[i].end, seg: i };
   }
 
   function unmute() {
@@ -84,13 +104,14 @@
     if (stopAtOut != null) {
       if (stopSig && stopSig !== sigOf(s)) stopAtOut = null;   // 편집으로 구간이 바뀌면 옛 정지 지점은 버린다
       else {
-        const out = SS.edl.srcToOut(s, t);
+        const out = outAt(s, t);
         if (out != null && out >= stopAtOut) { stopAtOut = null; SS.preview.pause(); return; }
       }
     }
     const p = plan(t);
-    if (p.action === 'jump') { jump(p.to); return; }
-    if (p.action === 'end') { finish(p.to); return; }
+    if (p.action === 'jump') { curSeg = p.seg; jump(p.to); return; }
+    if (p.action === 'end') { curSeg = -1; finish(p.to); return; }
+    curSeg = p.seg;
     // 구간 끝이 가까우면 그 순간에 맞춰 한 번 더 본다 (화면 갱신 주기보다 정확하게)
     const left = (s[p.seg].end - LOOK - t) / (v.playbackRate || 1);
     if (left < 0.25) timer = setTimeout(tick, Math.max(0, left * 1000 - 2));
@@ -107,8 +128,8 @@
     if (!active()) return;
     const s = segs();
     const p = plan(video().currentTime);
-    if (p.action === 'end') jump(s[0].start);
-    else if (p.action === 'jump') jump(p.to);
+    if (p.action === 'end') { curSeg = 0; jump(s[0].start); }
+    else if (p.action === 'jump') { curSeg = p.seg; jump(p.to); }
     else tick();
   }
 
@@ -130,7 +151,7 @@
     const t = SS.preview ? SS.preview.currentTime : 0;
     if (active()) {
       const s = segs();
-      let out = SS.edl.srcToOut(s, t);
+      let out = outAt(s, t);
       if (out == null) { // 지운 곳: 다음 남은 곳의 시각
         const p = plan(t);
         out = p.action === 'end' ? SS.edl.segmentsDuration(s) : (SS.edl.srcToOut(s, p.to) || 0);
@@ -191,7 +212,7 @@
     requestAnimationFrame(loop);
   }
 
-  SS.playback = { active, plan, timeInfo, seekFraction, toggleRaw, playOutRange, tick, isRaw: () => rawOnce, isSkipping: () => skipping };
+  SS.playback = { active, plan, outAt, timeInfo, seekFraction, toggleRaw, playOutRange, tick, isRaw: () => rawOnce, isSkipping: () => skipping };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else setTimeout(init, 0);
 })();

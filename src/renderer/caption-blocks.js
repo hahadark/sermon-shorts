@@ -95,7 +95,9 @@
       @keyframes blink{50%{opacity:0}} .caret-blink{display:inline-block;width:2px;height:1.2em;vertical-align:middle;background:#0f172a;margin:0 -1px;animation:blink 1s step-end infinite}
       #transcriptBody:focus{outline:none}
       .caption-block{border:1px solid #e6ebf2;border-radius:18px;margin:0 0 10px;padding:12px 16px 14px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.03)}
-      .caption-block.caret-active{border-color:#93b4f5;box-shadow:0 0 0 3px rgba(37,99,235,.10)}
+      .caption-grip{width:22px;height:26px;border:0;background:transparent;color:#94a3b8;cursor:grab;padding:0;margin:0 2px 0 -6px;border-radius:6px;flex:none}.caption-grip:hover,.caption-grip:focus-visible{color:#2563eb;background:#eef4ff}.caption-grip:active{cursor:grabbing}
+.caption-block.dragging-block{opacity:.45}.caption-block.drop-before{box-shadow:0 -3px 0 0 #2563eb}.caption-block.drop-after{box-shadow:0 3px 0 0 #2563eb}
+.caption-block.caret-active{border-color:#93b4f5;box-shadow:0 0 0 3px rgba(37,99,235,.10)}
       .caption-head{display:flex;gap:10px;align-items:center;color:#64748b;font-size:12px;margin-bottom:6px}
       .caption-head label{display:inline-flex;align-items:center;gap:8px}
       .caption-head strong{display:inline-grid;place-items:center;min-width:30px;height:24px;padding:0 8px;border-radius:999px;background:#eaf1fe;color:#2563eb;font-size:12px;font-weight:800}
@@ -141,11 +143,19 @@
     signature=nextSignature;const scroll=body.scrollTop;const blocks=[];let cursor=0;
     const ids=new Map(ws.map((w,i)=>[w.id,i]));const max=SS.state.settings.maxLineChars||14;
     function gaps(a,b){let group=[],size=0;for(let i=a;i<b;i++){const len=count(SS.captionEdit.sourceText(ws[i]));if(group.length&&size+len>max){blocks.push({indices:group,line:null});group=[];size=0;}group.push(i);size+=len;}if(group.length)blocks.push({indices:group,line:null});}
-    for(const line of lines){const indexes=line.words.map(id=>ids.get(id)).filter(i=>i!==undefined);if(!indexes.length)continue;const a=Math.min(...indexes),b=Math.max(...indexes)+1;if(a>cursor)gaps(cursor,a);blocks.push({indices:Array.from({length:b-a},(_,n)=>a+n),line});cursor=Math.max(cursor,b);}
-    if(cursor<ws.length)gaps(cursor,ws.length);
+    // 자막 줄 칸은 출력 순서(칸을 끌어 바꾼 순서)대로. 어느 줄에도 들지 않은 지운 말 묶음은 원본에서 바로 앞에 있던 줄 칸 뒤에 둔다
+    const lineBlocks=[];for(const line of lines){const indexes=line.words.map(id=>ids.get(id)).filter(i=>i!==undefined);if(!indexes.length)continue;const a=Math.min(...indexes),b=Math.max(...indexes)+1;lineBlocks.push({a,b,line});}
+    const covered=new Uint8Array(ws.length);lineBlocks.forEach(lb=>{for(let i=lb.a;i<lb.b;i++)covered[i]=1;});
+    const byEnd=lineBlocks.slice().sort((x,y)=>x.b-y.b),after=new Map(),top=[];
+    for(let i=0;i<ws.length;){if(covered[i]){i++;continue;}let j=i;while(j<ws.length&&!covered[j])j++;
+      let owner=null;for(const lb of byEnd){if(lb.b<=i)owner=lb;else break;}
+      if(owner){if(!after.has(owner))after.set(owner,[]);after.get(owner).push([i,j]);}else top.push([i,j]);i=j;}
+    top.forEach(([a,b])=>gaps(a,b));
+    for(const lb of lineBlocks){blocks.push({indices:Array.from({length:lb.b-lb.a},(_,n)=>lb.a+n),line:lb.line,lineRange:[lb.a,lb.b]});(after.get(lb)||[]).forEach(([a,b])=>gaps(a,b));}
+    cursor=ws.length;
     visibleBlocks=blocks;
     const runs=Caret.runsOf(ws),runMap=new Map();for(const [a,b] of runs)for(let i=a;i<b;i++)runMap.set(i,{a,b});
-    const cuts=new Map(SS.edl.cutPoints(segments).map(c=>[c.keyEnd,c]));
+    const cuts=new Map(SS.edl.cutPoints(segments).filter(c=>segments[c.index].piece===segments[c.index+1].piece).map(c=>[c.keyEnd,c]));
     // 군말·공백 표시: 군말만 지운 묶음은 노란 '군말', 이웃 단어 사이에서 잘라 낸 곳은 '공백 0.4초', 남겨 둔 긴 쉼은 '⏸ 0.8초'
     const D=SS.disfluency,isFill=t=>!!(D&&D.isFiller(t)),fillRun=new Map();
     for(const [a,b] of runs){let all=true;for(let i=a;i<b;i++)if(!isFill(ws[i].text)){all=false;break;}fillRun.set(a,all);}
@@ -155,7 +165,7 @@
     blocks.forEach((block,n)=>{
       const first=ws[block.indices[0]],last=ws[block.indices.at(-1)];const live=block.indices.filter(i=>!ws[i].del);
       const row=block.line||{text:'',words:live.map(i=>ws[i].id),parts:live.map(i=>({id:ws[i].id,text:ws[i].text,from:0,to:Array.from(ws[i].text).length}))};block.editorLine=row;
-      html+=`<section class="caption-block" data-block="${n}" data-from="${block.indices[0]}" data-to="${block.indices.at(-1)+1}"><div class="caption-head"><label title="같은 STT 단어를 나눠 표시한 구간은 함께 선택됩니다"><input type="checkbox" class="caption-check" data-check-block="${n}" aria-label="${n+1}번 구간 선택" style="width:auto;cursor:pointer"> <strong>${String(n+1).padStart(3,'0')}</strong></label>${live.length?`<button class="caption-delete btn sm ghost icon-only ico i-trash-2" data-delete-block="${n}" title="이 자막 구간 삭제 (영상·음성도 삭제 · Ctrl+Z로 복원)" aria-label="${n+1}번 구간 삭제"></button>`:''}<button class="caption-seek" data-seek="${first.start}">${esc(SS.fmtTime(first.start+(SS.state.source?.offset||0)))} ~ ${esc(SS.fmtTime(last.end+(SS.state.source?.offset||0)))}</button><span class="caption-count">${count(row.text)} / ${max}자${row.manualMerge?' · 수동 병합':count(row.text)>max?' · 적용 시 자동 분할':''}</span>${live.length?`<button class="caption-fine btn sm ghost icon-only ico i-audio-waveform" data-fine="${n}" title="시작·끝 미세 조정 (STT 원문·출력 자막 두 번 누르기)" aria-label="${n+1}번 자막 미세 조정"></button>`:''}</div>`;
+      html+=`<section class="caption-block" data-block="${n}" data-from="${block.indices[0]}" data-to="${block.indices.at(-1)+1}"><div class="caption-head">${block.line&&live.length?`<button class="caption-grip ico i-grip-vertical" type="button" draggable="true" data-grip="${n}" title="끌어서 설교 내용 순서 바꾸기 · Alt+↑/↓" aria-label="${n+1}번 칸 순서 바꾸기 (Alt+위·아래 화살표)"></button>`:''}<label title="같은 STT 단어를 나눠 표시한 구간은 함께 선택됩니다"><input type="checkbox" class="caption-check" data-check-block="${n}" aria-label="${n+1}번 구간 선택" style="width:auto;cursor:pointer"> <strong>${String(n+1).padStart(3,'0')}</strong></label>${live.length?`<button class="caption-delete btn sm ghost icon-only ico i-trash-2" data-delete-block="${n}" title="이 자막 구간 삭제 (영상·음성도 삭제 · Ctrl+Z로 복원)" aria-label="${n+1}번 구간 삭제"></button>`:''}<button class="caption-seek" data-seek="${first.start}">${esc(SS.fmtTime(first.start+(SS.state.source?.offset||0)))} ~ ${esc(SS.fmtTime(last.end+(SS.state.source?.offset||0)))}</button><span class="caption-count">${count(row.text)} / ${max}자${row.manualMerge?' · 수동 병합':count(row.text)>max?' · 적용 시 자동 분할':''}</span>${live.length?`<button class="caption-fine btn sm ghost icon-only ico i-audio-waveform" data-fine="${n}" title="시작·끝 미세 조정 (STT 원문·출력 자막 두 번 누르기)" aria-label="${n+1}번 자막 미세 조정"></button>`:''}</div>`;
       if(row.manualMerge)html+=`<button class="caption-unmerge" data-unmerge="${n}" style="font-size:11px;margin-bottom:5px">${max}자로 다시 나누기</button>`;
       html+='<div class="caption-track"><span class="caption-track-label">STT 원문</span><div class="caption-source">';
       let openRun=null;
@@ -207,6 +217,68 @@
         if(e.key==='Delete'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&el.selectionStart===el.value.length&&el.selectionEnd===el.value.length){e.preventDefault();mergeAtEnd(el,body);e.stopPropagation();return;}
         if(e.key==='Backspace'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&el.selectionStart===0&&el.selectionEnd===0){e.preventDefault();mergeAtStart(el,body);e.stopPropagation();return;}if(e.key==='Enter'&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();splitAtCaret(el,body);e.stopPropagation();return;}if(e.key==='Enter'){e.preventDefault();commit();body.focus();}else if(e.key==='Escape'){e.preventDefault();cancel();body.focus();}else if(e.key==='Tab'){e.preventDefault();const index=+el.dataset.captionEditor;commit();body.querySelector(`[data-caption-editor="${index+(e.shiftKey?-1:1)}"]`)?.focus();}e.stopPropagation();});
     });
+    wireReorder(body);
     refreshCaret(body);syncChecks(body);
   };
+
+  // ---------------- 칸을 끌어 설교 내용 순서 바꾸기 ----------------
+  /** 칸 n 이 옮겨 갈 원본 단어 범위 [from,to): 그 줄과, 원본에서 뒤따르는 지운 말까지 (같은 조각 안) */
+  function moveSpan(n){
+    const b=visibleBlocks[n];if(!b||!b.lineRange)return null;
+    const ws=SS.state.words,[a,end]=b.lineRange;
+    const shared=visibleBlocks.some((o,k)=>k!==n&&o.lineRange&&o.lineRange[0]<end&&o.lineRange[1]>a);
+    if(shared)return {error:'한 단어를 나눠 두 칸에 걸쳐 있어 옮길 수 없습니다. 칸을 합치거나 나눈 곳을 바꿔 주세요.'};
+    const piece=SS.edl.orderPieces(ws,SS.state.order).find(p=>a>=p.a&&a<p.b)||{a:0,b:ws.length};
+    let to=end;while(to<piece.b&&!visibleBlocks.some(o=>o.lineRange&&o.lineRange[0]===to))to++;
+    return {from:a,to:Math.min(to,piece.b)};
+  }
+  /** 칸 n 을 칸 target 앞(after=false) 또는 뒤(after=true)로 */
+  function moveBlock(n,target,after){
+    commit(false);
+    const span=moveSpan(n);if(!span)return false;if(span.error){SS.toast(span.error,5000);return false;}
+    // 놓을 자리: target 칸 앞이면 그 칸의 첫 단어, 뒤면 그다음 줄 칸의 첫 단어 (없으면 맨 끝)
+    let k=after?target+1:target;while(k<visibleBlocks.length&&!visibleBlocks[k].lineRange)k++;
+    if(k===n||(after&&target===n))return false;
+    const before=k<visibleBlocks.length?visibleBlocks[k].lineRange[0]:null;
+    return SS.applyOrderMove(span.from,span.to,before,n);
+  }
+  SS.moveCaptionBlock=moveBlock;
+  /** 커서·출력 자막이 있는 칸을 위(-1)·아래(+1)로 한 칸 */
+  function stepBlock(dir,el){
+    const body=document.getElementById('transcriptBody');if(!body)return false;
+    let n=el?+el.closest('.caption-block')?.dataset.block:NaN;
+    if(!Number.isInteger(n)){const c=SS.state.caret;n=visibleBlocks.findIndex(b=>b.lineRange&&c>=b.lineRange[0]&&c<b.lineRange[1]);}
+    if(!(n>=0)||!visibleBlocks[n]?.lineRange)return false;
+    const lines=visibleBlocks.map((b,i)=>b.lineRange?i:-1).filter(i=>i>=0),at=lines.indexOf(n);
+    if(dir<0){if(at<=0)return false;return moveBlock(n,lines[at-1],false);}
+    if(at>=lines.length-1)return false;return moveBlock(n,lines[at+1],true);
+  }
+  SS.stepCaptionBlock=stepBlock;
+  function wireReorder(body){
+    let drag=null;
+    const clear=()=>body.querySelectorAll('.drop-before,.drop-after,.dragging-block').forEach(e=>e.classList.remove('drop-before','drop-after','dragging-block'));
+    body.querySelectorAll('.caption-grip').forEach(g=>{
+      g.addEventListener('dragstart',e=>{commit(false);drag=+g.dataset.grip;e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',String(drag));}catch(_){}g.closest('.caption-block').classList.add('dragging-block');});
+      g.addEventListener('dragend',()=>{drag=null;clear();});
+    });
+    if(body._reorderWired)return;body._reorderWired=true;
+    const where=(e)=>{const sec=e.target.closest&&e.target.closest('.caption-block');if(!sec)return null;const r=sec.getBoundingClientRect();return {sec,n:+sec.dataset.block,after:e.clientY>r.top+r.height/2};};
+    body.addEventListener('dragover',e=>{
+      const src=body.querySelector('.dragging-block');if(!src)return;
+      e.preventDefault();e.dataTransfer.dropEffect='move';
+      const br=body.getBoundingClientRect();if(e.clientY<br.top+36)body.scrollTop-=14;else if(e.clientY>br.bottom-36)body.scrollTop+=14;   // 끝에 대면 목록이 따라 움직인다
+      const w=where(e);body.querySelectorAll('.drop-before,.drop-after').forEach(x=>{if(!w||x!==w.sec)x.classList.remove('drop-before','drop-after');});
+      if(w&&w.sec!==src){w.sec.classList.toggle('drop-after',w.after);w.sec.classList.toggle('drop-before',!w.after);}
+    });
+    body.addEventListener('drop',e=>{
+      const src=body.querySelector('.dragging-block');if(!src)return;e.preventDefault();
+      const w=where(e),n=+src.dataset.block;clear();
+      if(w&&w.n!==n)moveBlock(n,w.n,w.after);
+    });
+    body.addEventListener('keydown',e=>{
+      if(!e.altKey||e.ctrlKey||e.metaKey||e.shiftKey||(e.key!=='ArrowUp'&&e.key!=='ArrowDown'))return;
+      const el=e.target.closest&&e.target.closest('.caption-block');
+      if(stepBlock(e.key==='ArrowUp'?-1:1,el)){e.preventDefault();e.stopPropagation();}
+    },true);
+  }
 })();

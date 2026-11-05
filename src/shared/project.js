@@ -17,6 +17,9 @@
       if (!word || typeof word.text !== 'string' || !Number.isFinite(word.start) || !Number.isFinite(word.end) || word.start < 0 || word.end < word.start) throw Error(`${i + 1}번째 단어 시각이 올바르지 않습니다.`);
       return { ...clone(word), sttText: typeof word.sttText === "string" ? word.sttText : (word._oldText ?? word.text), id: i, del: !!word.del };
     });
+    // 출력 순서(칸을 끌어 바꾼 설교 내용 순서): 단어 번호를 다시 매기므로 예전 번호 → 새 번호
+    const newId = new Map(data.words.map((w, i) => [w && w.id, i]));
+    const orderIds = Array.isArray(data.order) ? Array.from(new Set(data.order.map((id) => newId.get(id)).filter(Number.isInteger))) : [];
     const settings = data.settings || {};
     const overrides = {};
     for (const [key, value] of Object.entries(data.overrides || {})) if (/^[se]:\d+$/.test(key) && Number.isFinite(value)) overrides[key] = value;
@@ -29,6 +32,7 @@
     const meta = data.meta || {};
     return {
       version: 1, source, words, overrides,
+      order: orderIds.length > 1 ? orderIds : null,
       settings: { padBefore: clamp(number(settings.padBefore, .1), 0, 5), padAfter: clamp(number(settings.padAfter, .15), 0, 5), fadeMs: clamp(number(settings.fadeMs, 10), 0, 1000), maxLineChars: Math.trunc(clamp(number(settings.maxLineChars, 14), 1, 200)), splitLongWords: settings.splitLongWords === true, semanticBreaks: settings.semanticBreaks !== false },
       meta: { title: String(meta.title || ''), verse: String(meta.verse || ''), speaker: String(meta.speaker || '') },
       crop: { scale: clamp(number(crop.scale, 1), 1, 3), x: clamp(number(crop.x, .5), 0, 1), y: clamp(number(crop.y, .5), 0, 1) },

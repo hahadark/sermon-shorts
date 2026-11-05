@@ -21,7 +21,7 @@
 
   function pushHistory() {
     SS.captionEdit.capture(SS.state.words);
-    const st = JSON.parse(JSON.stringify({ words: SS.state.words, overrides: SS.state.overrides, markI: SS.state.markI, markO: SS.state.markO, captionSettings: { maxLineChars: SS.state.settings.maxLineChars, splitLongWords: SS.state.settings.splitLongWords, semanticBreaks: SS.state.settings.semanticBreaks }, bgm: SS.state.bgm || null, voice: SS.state.voice || null, activeTheme: SS.state.activeTheme || null }));
+    const st = JSON.parse(JSON.stringify({ words: SS.state.words, overrides: SS.state.overrides, order: SS.state.order || null, markI: SS.state.markI, markO: SS.state.markO, captionSettings: { maxLineChars: SS.state.settings.maxLineChars, splitLongWords: SS.state.settings.splitLongWords, semanticBreaks: SS.state.settings.semanticBreaks }, bgm: SS.state.bgm || null, voice: SS.state.voice || null, activeTheme: SS.state.activeTheme || null }));
     if (historyIdx >= 0 && JSON.stringify(history[historyIdx]) === JSON.stringify(st)) return;
     history = history.slice(0, historyIdx + 1);
     history.push(st);
@@ -33,7 +33,7 @@
     if (historyIdx > 0) {
       historyIdx--;
       SS.state.words = JSON.parse(JSON.stringify(history[historyIdx].words));
-      SS.state.overrides = JSON.parse(JSON.stringify(history[historyIdx].overrides));
+      SS.state.overrides = JSON.parse(JSON.stringify(history[historyIdx].overrides)); SS.state.order = history[historyIdx].order ? history[historyIdx].order.slice() : null;
       SS.state.markI = history[historyIdx].markI; SS.state.markO = history[historyIdx].markO;
       if (history[historyIdx].captionSettings) Object.assign(SS.state.settings, history[historyIdx].captionSettings);
       if ('bgm' in history[historyIdx]) { SS.state.bgm = history[historyIdx].bgm ? JSON.parse(JSON.stringify(history[historyIdx].bgm)) : null; if (SS.bgmUi) { SS.bgmUi.render(); SS.bgmUi.drawWave(); } }
@@ -49,7 +49,7 @@
     if (historyIdx < history.length - 1) {
       historyIdx++;
       SS.state.words = JSON.parse(JSON.stringify(history[historyIdx].words));
-      SS.state.overrides = JSON.parse(JSON.stringify(history[historyIdx].overrides));
+      SS.state.overrides = JSON.parse(JSON.stringify(history[historyIdx].overrides)); SS.state.order = history[historyIdx].order ? history[historyIdx].order.slice() : null;
       SS.state.markI = history[historyIdx].markI; SS.state.markO = history[historyIdx].markO;
       if (history[historyIdx].captionSettings) Object.assign(SS.state.settings, history[historyIdx].captionSettings);
       if ('bgm' in history[historyIdx]) { SS.state.bgm = history[historyIdx].bgm ? JSON.parse(JSON.stringify(history[historyIdx].bgm)) : null; if (SS.bgmUi) { SS.bgmUi.render(); SS.bgmUi.drawWave(); } }
@@ -109,6 +109,7 @@
         <button id="btnDeleteCheckedCaptions" class="btn sm danger ico i-trash-2" disabled>선택 구간 삭제</button>
         <span id="lblCheckedCaptions" class="sr-only">0개 선택</span>
       </div>
+      <button id="btnResetOrder" class="btn sm ico i-list-restart" hidden title="칸을 끌어 바꾼 설교 내용 순서를 원본 순서로 되돌립니다 (Ctrl+Z 로도 되돌릴 수 있음)">원래 순서로</button>
       <span class="tb-spacer"></span>
       <button id="btnEdSettings" class="btn sm ghost ico i-sliders-horizontal" aria-expanded="false" aria-controls="edSettings" title="자막 한 줄 길이·컷 여백·페이드">설정</button>
     </div>
@@ -204,6 +205,30 @@
 
   let segments = [];
   let lines = [];
+  /** 칸 옮기기: 원본 단어 [from,to) 를 원본 단어 before 앞으로 (null 이면 맨 끝). 되돌리기(Ctrl+Z) 가능 */
+  SS.applyOrderMove = function (from, to, before, n) {
+    const next = edl.moveRange(SS.state.words, SS.state.order, from, to, before);
+    if (JSON.stringify(next || null) === JSON.stringify(SS.state.order || null)) return false;
+    if (SS.preview) SS.preview.pause();
+    SS.pushUndo();
+    SS.state.order = next;
+    if (SS.closeTrim) SS.closeTrim();
+    SS.state.caret = from; SS.state.selection = null; SS.state.manualCaret = true;
+    renderTranscript(); if (SS.updateTemplatePreview) SS.updateTemplatePreview();
+    SS.pushUndo();
+    window.dispatchEvent(new Event('ss:words-changed'));
+    if (SS.toast) SS.toast(next ? '칸을 옮겼습니다 · 미리보기·내보내기가 이 순서를 따릅니다 (Ctrl+Z 되돌리기)' : '원본 순서와 같아졌습니다', 3500);
+    const el = document.querySelector('#transcriptBody .caption-block[data-from="' + from + '"]'); if (el) el.scrollIntoView({ block: 'nearest' });
+    return true;
+  };
+  SS.resetOrder = function () {
+    if (!SS.state.order) return false;
+    if (SS.preview) SS.preview.pause();
+    SS.pushUndo(); SS.state.order = null; renderTranscript(); if (SS.updateTemplatePreview) SS.updateTemplatePreview(); SS.pushUndo();
+    window.dispatchEvent(new Event('ss:words-changed'));
+    if (SS.toast) SS.toast('원본 순서로 되돌렸습니다 (Ctrl+Z 로 다시 바꾼 순서)', 3500);
+    return true;
+  };
   SS.getSegments = () => segments;
   SS.getLines = () => lines;
 
@@ -211,9 +236,11 @@
     if (!SS.state.words || SS.state.words.length === 0) {
       segments = []; lines = []; $('lblCaptionStats').textContent = '자막 0개'; $('lblDuration').textContent = '00:00'; $('lblCuts').textContent = '0'; if ($('lblTidy')) $('lblTidy').textContent = ''; return;
     }
-    segments = edl.buildSegments(SS.state.words, SS.state.settings, SS.state.overrides, SS.preview.duration);
+    segments = edl.buildSegments(SS.state.words, SS.state.settings, SS.state.overrides, SS.preview.duration, SS.state.order);
     lines = edl.buildLines(SS.state.words, segments, SS.state.settings);
-    $('lblCaptionStats').textContent = '자막 ' + lines.length + '개';
+    const reordered = edl.hasOrder(SS.state.words, SS.state.order);
+    $('lblCaptionStats').textContent = '자막 ' + lines.length + '개' + (reordered ? ' · 순서 바꿈' : '');
+    if ($('btnResetOrder')) $('btnResetOrder').hidden = !reordered;
 
     let duration = 0;
     for (let s of segments) duration += (s.end - s.start);
@@ -400,6 +427,7 @@
   SS.keepSelection = () => $('btnKeepSel').click();
   $('btnToggleHide').addEventListener('click', SS.toggleHideDeleted);
   $('btnRestoreSel').addEventListener('click', SS.handleRestore);
+  $('btnResetOrder').addEventListener('click', () => SS.resetOrder());
 
   let domCreated = false;
   let lastWordsJson = '';
@@ -576,6 +604,7 @@
     if (SS.applyEditDefaults) SS.applyEditDefaults();   // 새 자막은 설정의 기본값으로 시작
     SS.state.words = e.detail.words;
     for(let i=0; i<SS.state.words.length; i++) SS.state.words[i].id = i;
+    SS.state.order = null;   // 새 자막: 원본 순서부터
     history = []; historyIdx = -1; SS.state.caret = 0; SS.state.selection = null; SS.state.selAnchor = 0;
     renderTranscript();
     editedPlayMode = true;

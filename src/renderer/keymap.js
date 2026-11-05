@@ -38,6 +38,8 @@
     { id: 'extend_sel_right', keys: ['Shift+ArrowRight'], mode: 'editor', label: '선택 넓히기(우)', group: '이동' },
     { id: 'extend_sel_para_prev', keys: ['Shift+ArrowUp'], mode: 'editor', label: '선택 넓히기(상)', group: '이동' },
     { id: 'extend_sel_para_next', keys: ['Shift+ArrowDown'], mode: 'editor', label: '선택 넓히기(하)', group: '이동' },
+    { id: 'block_up', keys: ['Alt+ArrowUp'], mode: 'editor', label: '칸을 위로 옮기기 (설교 내용 순서)', group: '편집' },
+    { id: 'block_down', keys: ['Alt+ArrowDown'], mode: 'editor', label: '칸을 아래로 옮기기 (설교 내용 순서)', group: '편집' },
     { id: 'select_all', keys: ['Ctrl+A'], mode: 'editor', label: '전체 선택', group: '이동' },
     { id: 'find_bar', keys: ['Ctrl+F'], mode: 'editor', label: '찾기', group: '이동' },
     { id: 'delete_back', keys: ['Backspace'], mode: 'editor', label: '앞 지우기', group: '편집' },
@@ -243,6 +245,8 @@
     keymap.setHandler('word_prev', function() { SS.moveCursor(-1); });
     keymap.setHandler('word_next', function() { SS.moveCursor(1); });
     keymap.setHandler('para_prev', function() { SS.movePara(-1); });
+  keymap.setHandler('block_up', function() { if (SS.stepCaptionBlock) SS.stepCaptionBlock(-1); });
+  keymap.setHandler('block_down', function() { if (SS.stepCaptionBlock) SS.stepCaptionBlock(1); });
     keymap.setHandler('para_next', function() { SS.movePara(1); });
     keymap.setHandler('extend_sel_left', function() { SS.moveCursor(-1, true); });
     keymap.setHandler('extend_sel_right', function() { SS.moveCursor(1, true); });

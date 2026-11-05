@@ -570,11 +570,11 @@
     if (SS.preview && SS.state.words && SS.state.source && SS.state.settings) {
       const curT = SS.preview.currentTime;
       // 편집할 때마다 바뀌므로 매번 다시 계산한다 (2천 단어 기준 1ms 이하)
-      const segsNow = SS.edl.buildSegments(SS.state.words, SS.state.settings, SS.state.overrides, SS.state.source.duration);
+      const segsNow = SS.edl.buildSegments(SS.state.words, SS.state.settings, SS.state.overrides, SS.state.source.duration, SS.state.order);
       SS._cachedLines = SS.edl.buildLines(SS.state.words, segsNow, SS.state.settings);
       SS._cachedSegs = segsNow;
       // 자막 줄 시각은 '편집 결과' 기준이므로 현재 원본(파일) 시각을 변환해서 찾는다
-      const outT = SS.edl.srcToOut(segsNow, curT);
+      const outT = SS.playback && SS.playback.outAt ? SS.playback.outAt(segsNow, curT) : SS.edl.srcToOut(segsNow, curT);
       const line = outT == null ? null : SS._cachedLines.find(l => outT >= l.outStart && outT < l.outEnd);
       if (line) {
         subtitleText = line.text;
@@ -678,7 +678,7 @@
   function captionKeyAt(t, theme) {
     const segs = SS._cachedSegs, lines = SS._cachedLines;
     if (!segs || !lines || !SS.state || !SS.state.words) return '';
-    const outT = SS.edl.srcToOut(segs, t);
+    const outT = SS.playback && SS.playback.outAt ? SS.playback.outAt(segs, t) : SS.edl.srcToOut(segs, t);
     const line = outT == null ? null : lines.find(l => outT >= l.outStart && outT < l.outEnd);
     if (!line) return '-';
     let key = line.outStart + '|' + line.text;

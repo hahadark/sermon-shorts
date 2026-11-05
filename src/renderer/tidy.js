@@ -51,7 +51,7 @@
     }
     // 말 사이 공백 (지금 남은 구간 기준)
     let gaps = 0, savedSec = 0, how = 'audio';
-    const segs = SS.edl.buildSegments(st.words, st.settings, st.overrides, dur());
+    const segs = SS.edl.buildSegments(st.words, st.settings, st.overrides, dur(), st.order);
     if (segs.length) {
       let plan = null;
       try {

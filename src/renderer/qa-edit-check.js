@@ -71,7 +71,7 @@ window.addEventListener('ss:run-test-script',async e=>{
      const wi=SS.state.words.findIndex(x=>!x.del&&x.start>SS.preview.currentTime+2);
      if(wi>=0){setCaret(wi);key('Backspace');await sleep(300);check('재생 중 편집 후 계속 재생',!SS.preview.paused,SS.preview.currentTime);SS.undo();await sleep(200);check('재생 중 undo 후 재생 유지',!SS.preview.paused);}
      SS.preview.pause();
-     const bar=$('seek');bar.value=500;bar.dispatchEvent(new Event('input',{bubbles:true}));bar.dispatchEvent(new Event('change',{bubbles:true}));await sleep(300);
+     const bar=$('seek');bar.value=String(Math.round(Number(bar.max)/2));bar.dispatchEvent(new Event('input',{bubbles:true}));bar.dispatchEvent(new Event('change',{bubbles:true}));await sleep(300);
      check('재생 막대 이동',Math.abs(SS.preview.currentTime-SS.preview.duration*.5)<SS.preview.duration*.1,{t:SS.preview.currentTime,d:SS.preview.duration});
      SS.setEditedPlayMode(false);await SS.preview.seek(seg.end-.1);await SS.preview.play();await sleep(700);
      check('편집결과 재생 끔: 삭제 구간 통과',SS.preview.currentTime<nxt.start-.05||SS.preview.currentTime>seg.end,SS.preview.currentTime);SS.preview.pause();SS.setEditedPlayMode(true);
