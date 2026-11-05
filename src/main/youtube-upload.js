@@ -53,14 +53,20 @@ function decrypt(enc) {
 }
 function refreshToken() { return decrypt(settingsMod.loadSettings().ytRefreshEnc); }
 
+/** 영상을 만든 뒤: review(완성 영상 창에서 점검하고 올리기, 기본) / auto(바로 올리기) / off(묻지 않음, 창의 단추로만) */
+const MODES = ['review', 'auto', 'off'];
+function uploadMode(s) { return MODES.includes(s.ytUploadMode) ? s.ytUploadMode : (s.ytAutoUpload ? 'auto' : 'review'); }
+const fakeLog = [];
 function status() {
   const s = settingsMod.loadSettings();
+  if (fakeYt()) return { hasClient: true, ownClient: false, clientIdSuffix: '', loggedIn: true, channel: '시험 채널', privacy: PRIVACY.includes(s.ytPrivacy) ? s.ytPrivacy : 'unlisted', autoUpload: uploadMode(s) === 'auto', uploadMode: uploadMode(s) };
   const c = client();
   return {
     hasClient: !!c, ownClient: !!(c && c.own), clientIdSuffix: c ? c.id.slice(0, 12) : '',
     loggedIn: !!refreshToken(), channel: s.ytChannel || '',
     privacy: PRIVACY.includes(s.ytPrivacy) ? s.ytPrivacy : 'unlisted',
-    autoUpload: !!s.ytAutoUpload,
+    autoUpload: uploadMode(s) === 'auto',
+    uploadMode: uploadMode(s),
   };
 }
 
@@ -147,12 +153,13 @@ async function channelName() {
 
 // ---- 업로드 ----
 /** 제목·설명 만들기 — 순수 함수 (테스트용으로 내보냄) */
-function buildMetadata({ title, verse, church, speaker, privacy, credits }) {
+function buildMetadata({ title, verse, church, speaker, privacy, credits, description }) {
   // 화면용 표시(*강조*, 줄바꿈 ' / ')는 유튜브 제목에서 뺀다
   let t = String(title || '').replace(/\*/g, '').replace(/\s+\/\s+/g, ' ').trim() || '설교 쇼츠';
   if (!/#shorts/i.test(t)) t += ' #Shorts';
   if (t.length > 100) t = t.slice(0, 100 - ' #Shorts'.length).trim() + ' #Shorts';
-  const desc = [verse, [church, speaker].filter(Boolean).join(' · '), '', String(credits || '').trim(), '#Shorts #설교'].filter((x, i) => x || i === 2).join('\n').trim();
+  // 완성 영상 창에서 고친 설명이 있으면 그대로 (없으면 본문·교회·설교자·음악 출처로 만든다)
+  const desc = typeof description === 'string' ? description.trim() : [verse, [church, speaker].filter(Boolean).join(' · '), '', String(credits || '').trim(), '#Shorts #설교'].filter((x, i) => x || i === 2).join('\n').trim();
   return {
     snippet: { title: t.replace(/[<>]/g, ''), description: desc.replace(/[<>]/g, '').slice(0, 5000), categoryId: '29', defaultLanguage: 'ko', defaultAudioLanguage: 'ko' },
     status: { privacyStatus: PRIVACY.includes(privacy) ? privacy : 'unlisted', selfDeclaredMadeForKids: false },
@@ -169,8 +176,22 @@ function apiError(status, data) {
   return new Error(`유튜브 업로드 오류 ${status}: ${msg.slice(0, 200)}`);
 }
 
+// 시험 전용 가짜 업로드: SS_TEST_SCRIPT 와 SS_TEST_YTFAKE 가 모두 있을 때만 (실제 유튜브에 올리지 않는다)
+const fakeYt = () => !!(process.env.SS_TEST_SCRIPT && process.env.SS_TEST_YTFAKE);
 async function upload(filePath, meta, onProgress) {
   if (uploading) throw new Error('이미 업로드가 진행 중입니다.');
+  if (fakeYt()) {
+    uploading = true;
+    try {
+      const file = guard.check(filePath);
+      if (!fs.existsSync(file)) throw new Error('올릴 MP4 파일이 없습니다.');
+      const body = buildMetadata({ ...meta, privacy: meta.privacy || settingsMod.loadSettings().ytPrivacy });
+      for (const p of [0, 35, 70, 100]) { onProgress({ pct: p }); await new Promise((r) => setTimeout(r, 120)); }
+      const id = 'fake' + Date.now().toString(36);
+      fakeLog.push({ file: path.basename(file), title: body.snippet.title, description: body.snippet.description, privacy: body.status.privacyStatus });
+      return { ok: true, id, url: 'https://youtu.be/' + id, studio: 'https://studio.youtube.com/video/' + id + '/edit', privacy: body.status.privacyStatus, title: body.snippet.title };
+    } finally { uploading = false; }
+  }
   uploading = true;
   try {
     const file = guard.check(filePath);
@@ -208,12 +229,16 @@ async function upload(filePath, meta, onProgress) {
 
 function initYoutubeUpload() {
   ipcMain.handle('ytup:status', () => status());
+  ipcMain.handle('ytup:testLog', () => (fakeYt() ? fakeLog.slice() : null));
+  // 완성 영상 창에 미리 채울 제목·설명·공개 범위 (올릴 때와 같은 규칙)
+  ipcMain.handle('ytup:defaults', (_e, meta = {}) => { const s = settingsMod.loadSettings(); const m = buildMetadata({ ...meta, privacy: meta.privacy || s.ytPrivacy }); return { title: m.snippet.title, description: m.snippet.description, privacy: m.status.privacyStatus }; });
   ipcMain.handle('ytup:signIn', () => signIn());
   ipcMain.handle('ytup:signOut', () => signOut());
   ipcMain.handle('ytup:setOptions', (_e, o = {}) => {
     const next = {};
     if (PRIVACY.includes(o.privacy)) next.ytPrivacy = o.privacy;
-    if (typeof o.autoUpload === 'boolean') next.ytAutoUpload = o.autoUpload;
+    if (typeof o.autoUpload === 'boolean') { next.ytAutoUpload = o.autoUpload; next.ytUploadMode = o.autoUpload ? 'auto' : 'review'; }
+    if (MODES.includes(o.uploadMode)) { next.ytUploadMode = o.uploadMode; next.ytAutoUpload = o.uploadMode === 'auto'; }
     if (typeof o.clientId === 'string') {
       const id = o.clientId.trim();
       if (id && !/^[\w-]+\.apps\.googleusercontent\.com$/.test(id)) throw new Error('클라이언트 ID 형식이 아닙니다. ...apps.googleusercontent.com 으로 끝나는 값을 넣어 주세요.');
@@ -234,4 +259,4 @@ function initYoutubeUpload() {
   }));
 }
 
-module.exports = { initYoutubeUpload, buildMetadata, _forTest: { signIn, signOut, status, getAccessToken, channelName, UPLOAD_URL } };
+module.exports = { initYoutubeUpload, buildMetadata, uploadMode, _forTest: { signIn, signOut, status, getAccessToken, channelName, UPLOAD_URL } };

@@ -60,6 +60,7 @@ function defaults() {
     ytChannel: '',
     ytPrivacy: 'unlisted',
     ytAutoUpload: false,
+    ytUploadMode: '',             // 영상을 만든 뒤: review 점검하고 올리기 / auto 바로 / off (비면 ytAutoUpload 로 판단)
     // ---- 설정 창 [일반] ----
     recentYoutubeMax: 5,          // 최근 작업한 유튜브 링크 보존 개수 (0 = 보존 안 함)
     recentYoutube: [],            // [{ url, title, at }] 최근 것이 앞

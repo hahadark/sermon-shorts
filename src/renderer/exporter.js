@@ -65,26 +65,22 @@
     } catch(e) { console.error('Export failed',e);return {success:false,error:String(e&&e.message||e).replace(/^Error invoking remote method '[^']+': (Error: )?/,'')}; }
     finally { busy=false; if (SS.refreshExportUI) SS.refreshExportUI(); }
   };
-  // 내보낸 뒤 유튜브 업로드: 로그인되어 있으면 [영상 만들면 바로 올리기]일 때 바로, 아니면 물어보고 올린다
+  // 유튜브 업로드: 완성 영상 창(export-player.js)에서 점검한 뒤 올린다. 설정 '바로 올리기'면 창이 열리자마자 올린다
   let uploading=false,refresh=()=>{};
-  const cleanIpc=e=>String(e&&e.message||e).replace(/^Error invoking remote method '[^']+': (Error: )?/,'');
-  SS.afterExportUpload = async function(outPath) {
-    let st; try { st=await window.api.ytupStatus(); } catch(_) { return; }
-    if(!st.loggedIn||uploading)return;
-    const names={unlisted:'일부공개',private:'비공개',public:'공개'};
-    if(!st.autoUpload&&!confirm('유튜브('+(st.channel||'내 채널')+')에 '+(names[st.privacy]||'')+'로 올릴까요?'))return;
+  const NAMES={unlisted:'일부공개',private:'비공개',public:'공개'};
+  /** 실제로 올리고 프로젝트의 업로드 기록(홈페이지 묶음의 공개 쇼츠 주소)에 남긴다. meta: { title, description, privacy, verse, speaker, church, credits } */
+  SS.ytUploadNow = async function(outPath, meta) {
+    if(uploading)throw new Error('이미 업로드가 진행 중입니다.');
     const btn=document.getElementById('btnExport');
     uploading=true;btn.disabled=true;btn.textContent='유튜브 업로드 준비 중...';
     const off=window.api.onProgress(p=>{if(p?.task==='ytupload'&&Number.isFinite(p.pct))btn.textContent='유튜브 업로드 '+p.pct+'%';});
-    const meta=SS.state?.meta||{};
     try {
-      const r=await window.api.ytupUpload(outPath,{title:meta.title||'',verse:meta.verse||'',speaker:meta.speaker||SS.appSettings?.defaultSpeaker||'',church:SS.appSettings?.template?.churchName||'',credits:SS.state?.bgm&&SS.bgmCredit?SS.bgmCredit():''});
-      if(SS.state){SS.state.uploads=Array.isArray(SS.state.uploads)?SS.state.uploads:[];SS.state.uploads.push({url:r.url,id:r.id,privacy:r.privacy||st.privacy,title:r.title||meta.title||'',at:Date.now()});}
-      const forced=r.privacy&&r.privacy!==st.privacy?" (유튜브가 '"+(names[r.privacy]||r.privacy)+"'로 바꿨습니다)":'';
-      SS.toast('유튜브에 올렸습니다: '+r.url+forced,9000);
-      if(confirm('유튜브에 올렸습니다'+forced+'.\n유튜브 스튜디오에서 확인할까요?'))window.api.ytupOpenUrl(r.studio);
-    } catch(e) {
-      SS.toast('유튜브 업로드 실패: '+cleanIpc(e),9000);
+      const r=await window.api.ytupUpload(outPath,meta||{});
+      if(SS.state){SS.state.uploads=Array.isArray(SS.state.uploads)?SS.state.uploads:[];SS.state.uploads.push({url:r.url,id:r.id,privacy:r.privacy||meta.privacy,title:r.title||meta.title||'',at:Date.now()});}
+      const forced=r.privacy&&meta&&meta.privacy&&r.privacy!==meta.privacy?" (유튜브가 '"+(NAMES[r.privacy]||r.privacy)+"'로 바꿨습니다)":'';
+      if(forced)SS.toast('유튜브에 올렸습니다'+forced,9000);
+      if(SS.autosave)SS.autosave.schedule();
+      return r;
     } finally { off(); uploading=false; refresh(); }
   };
   SS.initExporter = function() {
@@ -103,8 +99,7 @@
       const result=await SS.doExport(p);
       SS.toast(result.success?'MP4와 SRT를 저장했습니다':'내보내기 실패: '+result.error,result.success?3000:7000);
       refresh();
-      if(result.success&&SS.showExportPlayer)SS.showExportPlayer(result.outPath,{duration:result.duration,srtPath:result.srtPath});
-      if(result.success&&SS.afterExportUpload)SS.afterExportUpload(result.outPath);
+      if(result.success&&SS.showExportPlayer)SS.showExportPlayer(result.outPath,{duration:result.duration,srtPath:result.srtPath,autoUpload:true});
     });
   };
 })();

@@ -154,6 +154,8 @@ contextBridge.exposeInMainWorld('api', {
   ytupOpenUrl: (url) => ipcRenderer.invoke('ytup:openUrl', url),
   /** meta: { title, verse, church, speaker, privacy? } → { ok, id, url, studio, privacy, title } */
   ytupUpload: (filePath, meta) => ipcRenderer.invoke('ytup:upload', filePath, meta),
+  ytupDefaults: (meta) => ipcRenderer.invoke('ytup:defaults', meta),
+  ytupTestLog: () => ipcRenderer.invoke('ytup:testLog'),
   // 앱 자동 업데이트: 상태 { state, version, percent, current }
   updateGet: () => ipcRenderer.invoke('update:get'),
   updateCheck: () => ipcRenderer.invoke('update:check'),

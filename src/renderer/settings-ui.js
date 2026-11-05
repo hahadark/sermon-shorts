@@ -208,9 +208,14 @@
                 지금은 시험 운영 중이라 <b>미리 등록한 구글 계정만</b> 로그인됩니다. 브라우저에 '액세스 차단됨'이 나오면 개발자에게 구글 이메일 등록을 요청하거나, 아래 [고급]에 우리 교회 클라이언트를 넣으세요.<br>
                 교회 채널에 올리려면 계정 선택 화면에서 그 채널(브랜드 계정)을 고르세요. 목록에 없으면 채널 소유자가 로그인해야 합니다.</div>
             </div>
-            <div class="settings-row inline">
-              <input type="checkbox" id="ytAuto">
-              <label for="ytAuto" style="font-size:13px; color:var(--text-2)">영상을 만들면 바로 유튜브에 올리기</label>
+            <div class="settings-row">
+              <label>영상을 만든 뒤</label>
+              <select id="ytMode">
+                <option value="review">완성 영상 창에서 점검하고 올리기 (권장)</option>
+                <option value="auto">바로 유튜브에 올리기</option>
+                <option value="off">올리지 않기 (완성 영상 창의 [유튜브에 올리기…]로만)</option>
+              </select>
+              <div class="settings-note">점검하고 올리기: 완성 영상을 보면서 점검 목록을 체크하고, 제목·설명·공개 범위를 고친 뒤 올립니다.</div>
             </div>
             <div class="settings-row">
               <label>공개 범위</label>
@@ -282,7 +287,7 @@
       $('#btnYtSignIn').style.display = st.loggedIn ? 'none' : '';
       $('#btnYtSignIn').disabled = !st.hasClient;
       $('#btnYtSignOut').style.display = st.loggedIn ? '' : 'none';
-      $('#ytAuto').checked = st.autoUpload;
+      $('#ytMode').value = st.uploadMode || (st.autoUpload ? 'auto' : 'review');
       $('#ytPrivacy').value = st.privacy;
       if (st.ownClient && !$('#ytClientId').value) $('#ytClientId').placeholder = '저장됨: ' + st.clientIdSuffix + '…';
     };
@@ -292,7 +297,7 @@
       try { ytRender(await api.ytupSignIn()); ytMsg('유튜브에 로그인했습니다.', true); } catch (e) { ytMsg(cleanIpc(e), false); }
     };
     $('#btnYtSignOut').onclick = async () => { ytRender(await api.ytupSignOut()); ytMsg('로그아웃했습니다.', true); };
-    $('#ytAuto').onchange = async (e) => ytRender(await api.ytupSetOptions({ autoUpload: e.target.checked }));
+    $('#ytMode').onchange = async (e) => ytRender(await api.ytupSetOptions({ uploadMode: e.target.value }));
     $('#ytPrivacy').onchange = async (e) => ytRender(await api.ytupSetOptions({ privacy: e.target.value }));
     $('#btnYtApi').onclick = () => api.ytupOpenLink('api');
     $('#btnYtConsole').onclick = () => api.ytupOpenLink('console');
