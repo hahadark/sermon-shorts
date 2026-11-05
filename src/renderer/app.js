@@ -12,8 +12,24 @@
   SS.state = state;
 
   const preview = new SS.Preview();
+  // 끌어서 옮길 때: 영상 위치 바꾸기를 하나씩만 하고, 그동안 들어온 것 중 마지막 자리로만 간다 (밀려서 버벅이지 않게)
+  const seekQ = { busy: false, next: null };
+  function seekLatest(t) {
+    seekQ.next = t;
+    if (seekQ.busy) return;
+    const go = () => {
+      const to = seekQ.next; seekQ.next = null; seekQ.busy = true;
+      preview.seek(to).then(() => { seekQ.busy = false; updateTimeUI(); if (seekQ.next != null) go(); });
+    };
+    go();
+  }
+  SS.seekLatest = seekLatest;
+  let scrubResume = false;   // 재생 중에 끌기 시작했으면 놓은 뒤 이어서 재생
   const wave = new SS.Waveform($('waveCanvas'), {
-    onSeek: (t) => { preview.seek(t).then(updateTimeUI); },
+    onScrubStart: () => { scrubResume = !preview.paused; if (scrubResume) preview.pause(); },
+    onScrub: (t) => seekLatest(t),
+    onSeek: (t) => seekLatest(t),
+    onScrubEnd: () => { if (scrubResume) { scrubResume = false; const wait = () => (seekQ.busy || seekQ.next != null ? setTimeout(wait, 20) : preview.play()); wait(); } },
   });
   SS.preview = preview;
   SS.wave = wave;
@@ -59,6 +75,7 @@
   }
 
   let seeking = false; // 슬라이더 드래그 중
+  const SEEK_STEPS = 100000;   // 재생 바 칸 수 (2시간 영상도 한 칸 0.07초)
   // 시간 표시·재생 막대: 편집 결과로 재생 중이면 완성될 쇼츠 기준(지운 부분 제외), 아니면 원본 기준
   function updateTimeUI() {
     const t = preview.currentTime;
@@ -78,7 +95,7 @@
     const seekEl = $('seek');
     const base = info.edited ? info.dur : preview.duration;
     const pos = info.edited ? info.cur : t;
-    if (!seeking && base > 0 && seekEl) seekEl.value = String(Math.round((pos / base) * 1000));
+    if (!seeking && base > 0 && seekEl) seekEl.value = String(Math.round((pos / base) * SEEK_STEPS));
     wave.setPlayhead(t, !preview.paused);
   }
   SS.updateTimeUI = updateTimeUI;
@@ -216,7 +233,8 @@
 
   const seekEl = $('seek');
   if (seekEl) {
-    seekEl.addEventListener('input', () => { seeking = true; const f = Number(seekEl.value) / 1000; const t = SS.playback ? SS.playback.seekFraction(f) : f * preview.duration; const ct = $('curTime'); if (ct) { const info = SS.playback ? SS.playback.timeInfo() : null; ct.textContent = SS.fmtTime(info && info.edited ? f * info.dur : t + ((state.source && state.source.offset) || 0)); } preview.seek(t); });
+    seekEl.max = String(SEEK_STEPS);
+    seekEl.addEventListener('input', () => { seeking = true; const f = Number(seekEl.value) / SEEK_STEPS; const t = SS.playback ? SS.playback.seekFraction(f) : f * preview.duration; const ct = $('curTime'); if (ct) { const info = SS.playback ? SS.playback.timeInfo() : null; ct.textContent = SS.fmtTime(info && info.edited ? f * info.dur : t + ((state.source && state.source.offset) || 0)); } wave.setPlayhead(t, false); seekLatest(t); });
     seekEl.addEventListener('change', () => { seeking = false; seekEl.blur(); updateTimeUI(); });
   }
 
