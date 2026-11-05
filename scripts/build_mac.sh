@@ -40,7 +40,12 @@ mkdmg() { # mkdmg <앱 폴더> <이름>  (macOS 의 hdiutil 이 있을 때만)
   ditto "$1/SermonShorts.app" "$stage/SermonShorts.app"
   ln -s /Applications "$stage/Applications"
   rm -f "dist/SermonShorts-$VER-mac-$2.dmg"
-  hdiutil create -volname "SermonShorts $VER" -srcfolder "$stage" -ov -format UDZO "dist/SermonShorts-$VER-mac-$2.dmg" >/dev/null
+  local ok=0
+  for try in 1 2 3 4 5; do   # GitHub Mac 서버에서 'Resource busy' 로 가끔 실패한다
+    if hdiutil create -volname "SermonShorts $VER" -srcfolder "$stage" -ov -format UDZO "dist/SermonShorts-$VER-mac-$2.dmg" >/dev/null; then ok=1; break; fi
+    echo "hdiutil 실패 ($try/5), 잠시 뒤 다시 시도"; sleep $((try * 5))
+  done
+  [ "$ok" = 1 ] || { echo "DMG 를 만들지 못했습니다" >&2; exit 1; }
   rm -rf "$stage"
   echo "dist/SermonShorts-$VER-mac-$2.dmg"
 }

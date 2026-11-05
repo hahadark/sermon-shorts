@@ -28,7 +28,7 @@
 .settings-overlay .settings-dialog { width: 720px; max-width: calc(100vw - 40px); }
 .settings-overlay .settings-tabs { flex-wrap: wrap; }
 .settings-overlay .settings-tab { padding: 8px 13px; white-space: nowrap; }
-.settings-overlay .settings-content { min-height: 360px; max-height: calc(100vh - 230px); overflow-y: auto; padding-right: 4px; }
+.settings-overlay .settings-content { height: min(600px, calc(100vh - 230px)); min-height: 0; max-height: none; overflow-y: auto; padding-right: 4px; scrollbar-gutter: stable; }
 .settings-overlay input[type=number] { background: #f8fafc; border: 1px solid #e6ebf2; color: #0f172a; padding: 5px 6px; border-radius: 4px; font-family: var(--font); font-size: 13px; }
 .settings-overlay .settings-row.inline label { font-weight: 400; }`;
     document.head.appendChild(st);

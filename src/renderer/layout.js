@@ -36,6 +36,24 @@
     'open-project': () => click('btnOpenProject'),
     shortcuts: () => SS.showShortcuts && SS.showShortcuts(),
     settings: () => click('btnSettings'),
+    'update-check': async () => {
+      if (!window.api || !window.api.updateCheck) return;
+      const T = (m, ms) => SS.toast && SS.toast(m, ms || 5000);
+      T('업데이트 확인 중…', 2500);
+      try {
+        const s = await window.api.updateCheck();
+        const cur = s && s.current ? ' (지금 버전 ' + s.current + ')' : '';
+        const msg = !s ? '업데이트 상태를 읽지 못했습니다'
+          : s.state === 'latest' ? '최신 버전입니다' + cur
+          : s.state === 'downloading' ? '새 버전 ' + (s.version || '') + ' 받는 중… 위쪽 알림 줄에서 진행을 볼 수 있습니다'
+          : s.state === 'ready' ? '새 버전 ' + (s.version || '') + ' 준비됨 · 위쪽 알림 줄의 [지금 다시 시작]을 누르거나 닫을 때 설치됩니다'
+          : s.state === 'portable' ? '새 버전 ' + (s.version || '') + ' 이 나왔습니다 · 위쪽 알림 줄의 [내려받기 페이지]에서 받으세요'
+          : s.state === 'off' ? '개발용으로 실행 중이라 업데이트를 확인하지 않습니다' + cur
+          : s.state === 'error' ? '확인하지 못했습니다' + (s.message ? ': ' + s.message : '')
+          : '업데이트 확인: ' + s.state + cur;
+        T(msg, 7000);
+      } catch (e) { T('확인하지 못했습니다: ' + String(e && e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 7000); }
+    },
     materials: () => SS.openMaterials && SS.openMaterials(),
   };
   SS.runCommand = (name) => { const f = CMDS[name]; if (f) f(); };
