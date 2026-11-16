@@ -1,0 +1,55 @@
+#!/bin/bash
+# 맥 앱 묶음 만들기 (GitHub 맥 서버에서): dist/SermonShorts.app → ZIP·DMG
+#   Contents/MacOS/SermonShorts, Contents/Resources/{assets,bin}. ffmpeg·ffprobe 는 Electron판과 같은 ffmpeg-static b6.1.1.
+#   Apple 칩은 서명 없는 코드를 실행하지 않으므로 ad-hoc 서명한다.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+ARCH="$1"; LABEL="$2"
+VER="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"
+APP="dist/SermonShorts.app"
+rm -rf dist; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/bin"
+cp target/release/sermon_shorts "$APP/Contents/MacOS/SermonShorts"
+rsync -a --exclude google-client.json assets "$APP/Contents/Resources/"
+for t in ffmpeg ffprobe; do
+  curl -fsSL "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/$t-darwin-$ARCH.gz" | gunzip > "$APP/Contents/Resources/bin/$t"
+done
+mkdir -p "$APP/Contents/Resources/assets/bin"
+curl -fsSL -o "$APP/Contents/Resources/assets/bin/yt-dlp" https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos
+chmod +x "$APP/Contents/MacOS/SermonShorts" "$APP/Contents/Resources/bin/"* "$APP/Contents/Resources/assets/bin/yt-dlp"
+# 아이콘
+ICON="$(mktemp -d)/icon.iconset"; mkdir -p "$ICON"
+for s in 16 32 128 256 512; do
+  sips -z $s $s assets/images/app-icon.png --out "$ICON/icon_${s}x${s}.png" >/dev/null
+  sips -z $((s*2)) $((s*2)) assets/images/app-icon.png --out "$ICON/icon_${s}x${s}@2x.png" >/dev/null
+done
+iconutil -c icns "$ICON" -o "$APP/Contents/Resources/icon.icns"
+cat > "$APP/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleName</key><string>SermonShorts</string>
+  <key>CFBundleDisplayName</key><string>설교 쇼츠 편집기 (Rust 베타)</string>
+  <key>CFBundleIdentifier</key><string>com.hahadark.sermonshorts.rust</string>
+  <key>CFBundleExecutable</key><string>SermonShorts</string>
+  <key>CFBundleIconFile</key><string>icon</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>${VER}</string>
+  <key>CFBundleVersion</key><string>${VER}</string>
+  <key>LSMinimumSystemVersion</key><string>11.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>LSApplicationCategoryType</key><string>public.app-category.video</string>
+</dict></plist>
+PLIST
+codesign --force --sign - "$APP/Contents/Resources/bin/"* "$APP/Contents/Resources/assets/bin/yt-dlp"
+codesign --force --deep --sign - "$APP"
+codesign --verify --deep --strict --verbose=2 "$APP"
+NAME="SermonShorts-Rust-$VER-mac-$LABEL"
+ditto -c -k --sequesterRsrc --keepParent "$APP" "dist/$NAME.zip"
+STAGE="$(mktemp -d)"; ditto "$APP" "$STAGE/SermonShorts.app"; ln -s /Applications "$STAGE/Applications"
+ok=0
+for try in 1 2 3 4 5; do
+  if hdiutil create -volname "SermonShorts $VER" -srcfolder "$STAGE" -ov -format UDZO "dist/$NAME.dmg" >/dev/null; then ok=1; break; fi
+  echo "hdiutil 실패 ($try/5)"; sleep $((try * 5))
+done
+[ "$ok" = 1 ] || { echo "DMG 를 만들지 못했습니다" >&2; exit 1; }
+ls -la dist

@@ -26,4 +26,9 @@ sha2 = "0.11.1"
 tiny-skia = "0.12.0"
 ttf-parser = "0.25.1"
 ureq = { version = "2", features = ["json"] }
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+
+[target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Security_Cryptography", "Win32_Foundation", "Win32_System_Memory", "Win32_System_SystemInformation", "Win32_System_Threading"] }

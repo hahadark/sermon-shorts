@@ -386,6 +386,13 @@ pub mod claude {
         }
         #[cfg(not(windows))] { let _ = args; Err("Windows 에서만 됩니다.".into()) }
     }
+    /// 맥 터미널 앱에서 명령 실행 (osascript)
+    fn mac_terminal(cmd: &str) -> Result<(), String> {
+        let esc = cmd.replace('\\', "\\\\").replace('"', "\\\"");
+        std::process::Command::new("osascript").args(["-e", &format!("tell application \"Terminal\" to do script \"{esc}\""), "-e", "tell application \"Terminal\" to activate"])
+            .spawn().map(|_| ()).map_err(|er| er.to_string())
+    }
+    #[allow(dead_code)]
     fn ps_quote(s: &str) -> String { format!("'{}'", s.replace('\'', "''")) }
 
     /// 공식 설치 명령을 새 창에서 (진행 상황을 사용자가 본다)
@@ -393,6 +400,8 @@ pub mod claude {
         if cfg!(windows) {
             open_powershell_window("Claude Code 설치", &format!("Write-Host 'Claude Code 공식 설치를 시작합니다...'; {INSTALL_WIN}; Write-Host ''; Write-Host '설치가 끝났습니다. 이 창을 닫고 SermonShorts에서 [다시 확인]을 누르세요.'"))?;
             Ok(())
+        } else if cfg!(target_os = "macos") {
+            mac_terminal("curl -fsSL https://claude.ai/install.sh | bash; echo; echo 설치가 끝났습니다. SermonShorts에서 [다시 확인]을 누르세요.")
         } else { Err("터미널에서 직접 설치해 주세요: curl -fsSL https://claude.ai/install.sh | bash".into()) }
     }
     /// 공식 로그인(claude auth login)을 새 창에서
@@ -401,6 +410,8 @@ pub mod claude {
         if cfg!(windows) {
             open_powershell_window("Claude 로그인", &format!("Write-Host '브라우저에서 클로드 계정으로 로그인하세요. 코드를 붙여 넣으라고 하면 Ctrl+V 또는 마우스 오른쪽 클릭으로 붙여 넣습니다.'; Write-Host ''; & {} auth login; Write-Host ''; Write-Host '로그인이 끝났습니다. 이 창을 닫고 SermonShorts에서 [다시 확인]을 누르세요.'", ps_quote(&bin.display().to_string())))?;
             Ok(())
+        } else if cfg!(target_os = "macos") {
+            mac_terminal(&format!("'{}' auth login", bin.display().to_string().replace('\'', "'\\''")))
         } else { Err("터미널에서 다음을 실행해 로그인해 주세요: claude auth login".into()) }
     }
     /// 대화를 한 글로 합치기 (기존 completeOnce)

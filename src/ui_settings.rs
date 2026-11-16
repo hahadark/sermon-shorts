@@ -31,10 +31,10 @@ pub(crate) struct Prefs {
 fn bgm_dir(s: &Value) -> String {
     if let Ok(d) = std::env::var("SS_BGM_LIBRARY") { if !d.is_empty() { return d; } }
     if let Some(d) = s["bgmLibraryDir"].as_str().filter(|d| !d.is_empty()) { return d.to_string(); }
-    let docs = std::env::var("USERPROFILE").map(|h| PathBuf::from(h).join("Documents")).unwrap_or_default();
+    let docs = sermon_shorts::documents_dir();
     docs.join("SermonShorts").join("배경음악").to_string_lossy().to_string()
 }
-fn open_dir(p: &std::path::Path) { let _ = std::fs::create_dir_all(p); let _ = std::process::Command::new("explorer.exe").arg(p).spawn(); }
+fn open_dir(p: &std::path::Path) { sermon_shorts::open_folder(p); }
 /// 저장된 로고 경로 → 실제 파일 (앱 assets 또는 사용자 logos 폴더)
 pub(crate) fn resolve_logo(p: &str) -> Option<PathBuf> {
     let p = if p.is_empty() { st::DEFAULT_LOGO } else { p };

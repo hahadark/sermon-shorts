@@ -513,7 +513,16 @@ pub fn local_offset_secs() -> i64 {
         (d as f64 / 900.0).round() as i64 * 900
     }
     #[cfg(not(windows))]
-    { 0 }
+    {
+        static OFF: std::sync::OnceLock<i64> = std::sync::OnceLock::new();
+        *OFF.get_or_init(|| {
+            let z = std::process::Command::new("date").arg("+%z").output().ok().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default();
+            let (sign, rest) = match z.as_bytes().first() { Some(b'-') => (-1, &z[1..]), Some(b'+') => (1, &z[1..]), _ => (1, z.as_str()) };
+            if rest.len() < 4 { return 0; }
+            let (h, m) = (rest[..2].parse::<i64>().unwrap_or(0), rest[2..4].parse::<i64>().unwrap_or(0));
+            sign * (h * 3600 + m * 60)
+        })
+    }
 }
 /// 1970-01-01 부터의 날 수 ↔ (년, 월, 일)
 pub fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {

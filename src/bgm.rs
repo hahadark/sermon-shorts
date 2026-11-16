@@ -151,7 +151,7 @@ fn can_write_dir(d: &Path) -> bool {
 pub fn wanted_library_dir() -> PathBuf {
     if let Ok(d) = std::env::var("SS_BGM_LIBRARY") { if !d.is_empty() { return PathBuf::from(d); } }
     if let Some(d) = settings::load()["bgmLibraryDir"].as_str().filter(|d| !d.is_empty()) { return PathBuf::from(d); }
-    std::env::var("USERPROFILE").map(|h| PathBuf::from(h).join("Documents")).unwrap_or_default().join("SermonShorts").join("배경음악")
+    crate::documents_dir().join("SermonShorts").join("배경음악")
 }
 /// 보관함 폴더 (문서 폴더를 '제어된 폴더 액세스'가 막으면 앱 데이터 폴더의 배경음악) → (폴더, 대신 쓰는 중인지)
 pub fn library_info() -> (PathBuf, PathBuf, bool) {

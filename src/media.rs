@@ -11,7 +11,7 @@ pub fn find_tool(name: &str) -> PathBuf {
     let exe = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
     if let Ok(me) = std::env::current_exe() {
         if let Some(dir) = me.parent() {
-            for cand in [dir.join("bin").join(&exe), dir.join(&exe)] { if cand.exists() { return cand; } }
+            for cand in [dir.join("bin").join(&exe), dir.join(&exe), dir.join("..").join("Resources").join("bin").join(&exe)] { if cand.exists() { return cand; } }
         }
     }
     if let Some(paths) = std::env::var_os("PATH") {

@@ -279,7 +279,7 @@ impl App {
                     ui.add(egui::Label::new(RichText::new(&foot).size(11.5).color(style::MUTED)).wrap());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.add(egui::Button::new(RichText::new("설정").size(11.5).color(style::PRIMARY)).frame(false)).clicked() { goto_settings = true; }
-                        if ui.add(egui::Button::new(RichText::new("폴더 열기").size(11.5).color(style::PRIMARY)).frame(false)).clicked() { let _ = std::process::Command::new("explorer.exe").arg(asv::root_dir()).spawn(); }
+                        if ui.add(egui::Button::new(RichText::new("폴더 열기").size(11.5).color(style::PRIMARY)).frame(false)).clicked() { sermon_shorts::open_folder(&asv::root_dir()); }
                     });
                 });
             });

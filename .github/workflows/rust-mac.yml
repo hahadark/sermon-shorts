@@ -1,0 +1,48 @@
+# rust 가지를 푸시하면 맥(Apple 칩·Intel) 앱을 빌드하고 실행 시험한 뒤 ZIP·DMG 를 내려받을 수 있게 둔다.
+# 릴리스에 올리는 일은 사람이 확인한 뒤 따로 한다 (Electron 판 release.yml 은 main 에만 있다).
+name: Rust Mac
+
+on:
+  push:
+    branches: [rust]
+
+jobs:
+  mac:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15, arch: arm64, label: arm64 }
+          - { runner: macos-15-intel, arch: x64, label: intel }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: 구글 OAuth 클라이언트 넣기 (실행 파일 안으로)
+        env:
+          GOOGLE_CLIENT_JSON: ${{ secrets.GOOGLE_CLIENT_JSON }}
+        run: if [ -n "$GOOGLE_CLIENT_JSON" ]; then printf '%s' "$GOOGLE_CLIENT_JSON" > assets/google-client.json; echo 넣음; else echo 없음; fi
+      - name: 빌드
+        run: cargo build --release
+      - name: 계산 시험 (공개 저장소에 있는 자료로)
+        run: cargo test --release --test bgm_parity --test llm_parity --test settings_parity --test snap_parity --test ytmeta_parity --test mac_crypt_parity
+      - name: 앱 묶음·ZIP·DMG
+        run: bash tools/mac_bundle.sh ${{ matrix.arch }} ${{ matrix.label }}
+      - name: 실행 시험 (화면·내보내기)
+        run: bash tools/mac_smoke.sh dist/SermonShorts.app smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ matrix.label }}
+          path: smoke/
+          if-no-files-found: warn
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-${{ matrix.label }}
+          path: |
+            dist/*.zip
+            dist/*.dmg
+          if-no-files-found: error
+          retention-days: 14

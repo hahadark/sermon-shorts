@@ -707,7 +707,7 @@ impl App {
                             ui.add(icons::img("folder", 13.0, style::MUTED));
                             let tip = if m.info.2 { format!("Windows 보안(제어된 폴더 액세스)이 {} 쓰기를 막아 이 앱 데이터 폴더에 보관합니다. Windows 보안 → 바이러스 및 위협 방지 → 랜섬웨어 방지 → 제어된 폴더 액세스를 통해 앱 허용에 SermonShorts 를 추가하면 문서 폴더를 씁니다.", m.info.1.display()) } else { m.info.0.display().to_string() };
                             ui.label(RichText::new(m.info.0.to_string_lossy()).size(11.5).color(if m.info.2 { WARN } else { style::MUTED })).on_hover_text(tip);
-                            if ui.link(RichText::new("폴더 열기").size(11.5).color(style::PRIMARY)).clicked() { let _ = std::process::Command::new("explorer.exe").arg(&m.info.0).spawn(); }
+                            if ui.link(RichText::new("폴더 열기").size(11.5).color(style::PRIMARY)).clicked() { sermon_shorts::open_folder(std::path::Path::new(&m.info.0)); }
                         });
                     });
                     if style::icon_btn(ui, "x", 18.0, style::MUTED, "닫기 (Esc)").clicked() { close = true; }
@@ -827,7 +827,7 @@ impl App {
         if clear_q { self.bgm.shared.queue.lock().unwrap().clear(); }
         if let Some((id, title)) = rename_done { m.rename = None; let title = title.trim().to_string(); if !title.is_empty() { if let Err(e) = bgm::update_custom(&id, Some(&title), None) { self.toast(format!("이름을 바꾸지 못했습니다: {e}")); } self.reload_custom(); } }
         if let Some((id, md)) = set_mood { if let Err(e) = bgm::update_custom(&id, None, Some(&md)) { self.toast(format!("바꾸지 못했습니다: {e}")); } self.reload_custom(); }
-        if let Some(id) = reveal { match bgm::custom_track(&id).and_then(|t| t.file).filter(|f| f.exists()) { Some(f) => { let _ = std::process::Command::new("explorer.exe").arg(format!("/select,{}", f.display())).spawn(); } None => { let _ = std::process::Command::new("explorer.exe").arg(bgm::library_dir()).spawn(); } } }
+        if let Some(id) = reveal { match bgm::custom_track(&id).and_then(|t| t.file).filter(|f| f.exists()) { Some(f) => sermon_shorts::reveal_file(&f), None => sermon_shorts::open_folder(&bgm::library_dir()), } }
         if let Some(id) = del {
             if sel.as_deref() == Some(id.as_str()) { self.toast("지금 쓰는 음악은 지울 수 없습니다. 다른 음악으로 바꾼 뒤 지워 주세요."); }
             else {

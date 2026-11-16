@@ -92,6 +92,7 @@ pub fn s<'a>(v: &'a Value, d: &'a str) -> &'a str { match v.as_str() { Some(x) i
 /// 기존 앱 사용자 자료 폴더 (%APPDATA%\SermonShorts)
 pub fn user_data_dir() -> PathBuf {
     if let Ok(p) = std::env::var("SS_USER_DATA_DIR") { return PathBuf::from(p); }
+    if cfg!(target_os = "macos") { return crate::home_dir().join("Library").join("Application Support").join("SermonShorts"); }
     std::env::var("APPDATA").map(|a| PathBuf::from(a).join("SermonShorts")).unwrap_or_else(|_| PathBuf::from("."))
 }
 /// 기본 테마 폴더: 실행 파일 옆 assets/themes, 개발 중에는 저장소 assets/themes

@@ -56,7 +56,7 @@ pub fn alive(pid: u32) -> bool {
         ok && code == 259
     }
     #[cfg(not(windows))]
-    { std::path::Path::new(&format!("/proc/{pid}")).exists() }
+    { std::process::Command::new("kill").args(["-0", &pid.to_string()]).stderr(std::process::Stdio::null()).status().is_ok_and(|s| s.success()) }
 }
 /// 이 PC 시각으로 (년, 월, 일, 시, 분, 초)
 pub fn local_parts(ms: f64) -> (i64, u32, u32, u32, u32, u32) {
