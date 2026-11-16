@@ -198,7 +198,11 @@ impl App {
                         let tp = style::pill_button(ui, format!("{} ~ {}", edl::format_time(a + src_off, true), edl::format_time(z + src_off, true)), style::PANEL3, style::TEXT2, ""); if tp.clicked() { action = Some(Action::SeekSrc(a)); }
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             let fine_on = fine_block == Some(n); if !live.is_empty() && style::icon_btn(ui, "audio-waveform", 17.0, if fine_on { style::PRIMARY } else { style::FAINT }, if fine_on { "미세 조정 닫기" } else { "시작·끝 미세 조정 (STT 원문·출력 자막 두 번 누르기)" }).clicked() { action = Some(Action::Fine(b.from, b.to)); }
-                            if let Some(li) = b.line { let c = edl::char_count(&lines[li].text); let note = if lines[li].manual_merge { " · 수동 병합" } else if c > max_chars { " · 적용 시 자동 분할" } else { "" }; ui.label(RichText::new(format!("{c} / {max_chars}자{note}")).size(13.5).color(if c > max_chars { style::WARN } else { style::MUTED })); }
+                            if let Some(li) = b.line { let c = edl::char_count(&lines[li].text); let note = if lines[li].manual_merge { " · 수동 병합" } else if c > max_chars { " · 적용 시 자동 분할" } else { "" };
+                                let txt = format!("{c} / {max_chars}자{note}");
+                                // 칸이 좁아 시간 표시와 겹치면 글자 수는 보이지 않는다
+                                let tw = ui.fonts_mut(|f| f.layout_no_wrap(txt.clone(), egui::FontId::proportional(13.5), Color32::WHITE).size().x);
+                                if ui.available_width() > tw + 4.0 { ui.label(RichText::new(txt).size(13.5).color(if c > max_chars { style::WARN } else { style::MUTED })); } }
                             else { ui.label(RichText::new(format!("0 / {max_chars}자")).size(13.5).color(style::MUTED)); }
                         });
                     });

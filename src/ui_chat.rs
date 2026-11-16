@@ -14,32 +14,39 @@ fn rich_par(ui: &mut egui::Ui, parts: &[(&str, bool)]) {
 }
 
 impl App {
+    /// 연결 상태 표시 (누르면 AI 연결 창, 기존 #chatProvider)
+    fn chat_chip(&mut self, ui: &mut egui::Ui) {
+                    let (chip, ok) = self.ai_chip();
+                    let (fill, col) = if ok { (Color32::from_rgb(0xe7, 0xf8, 0xee), Color32::from_rgb(0x15, 0x80, 0x3d)) } else { (Color32::from_rgb(0xff, 0xf4, 0xe5), Color32::from_rgb(0xb4, 0x53, 0x09)) };
+                    let r = egui::Frame::new().fill(fill).corner_radius(CornerRadius::same(255)).inner_margin(egui::Margin::symmetric(10, 4))
+                        .show(ui, |ui| ui.label(RichText::new(&chip).size(12.0).family(style::bold()).color(col))).response.interact(egui::Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+                    if r.clicked() { self.open_ai_connect(); }
+    }
+
     pub(crate) fn right_column(&mut self, ui: &mut egui::Ui) {
         style::card().inner_margin(egui::Margin::same(0)).show(ui, |ui| {
             ui.set_min_size(ui.available_size());
             let full = ui.available_rect_before_wrap();
             // 머리: 제목 · AI 연결 상태 · [새로] · 기록 지우기 · 접기
             egui::Frame::new().inner_margin(egui::Margin { left: 18, right: 14, top: 14, bottom: 12 }).show(ui, |ui| {
+                let narrow = ui.available_width() < 336.0;
                 ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = if narrow { 5.0 } else { 8.0 };
                     ui.add(crate::icons::img("message-square", 19.0, style::TEXT2));
-                    ui.label(RichText::new("AI 편집 대화").size(18.0).family(style::bold()).color(style::TEXT));
-                    // 연결 상태 (누르면 AI 연결 창, 기존 #chatProvider)
-                    let (chip, ok) = self.ai_chip();
-                    let (fill, col) = if ok { (Color32::from_rgb(0xe7, 0xf8, 0xee), Color32::from_rgb(0x15, 0x80, 0x3d)) } else { (Color32::from_rgb(0xff, 0xf4, 0xe5), Color32::from_rgb(0xb4, 0x53, 0x09)) };
-                    let r = egui::Frame::new().fill(fill).corner_radius(CornerRadius::same(255)).inner_margin(egui::Margin::symmetric(10, 4))
-                        .show(ui, |ui| ui.label(RichText::new(&chip).size(12.0).family(style::bold()).color(col))).response.interact(egui::Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
-                    if r.clicked() { self.open_ai_connect(); }
+                    ui.label(RichText::new("AI 편집 대화").size(if narrow { 15.5 } else { 18.0 }).family(style::bold()).color(style::TEXT));
+                    if !narrow { self.chat_chip(ui); }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
                         if style::icon_btn(ui, "panel-right-close", 17.0, style::MUTED, "대화 창 접기").clicked() { self.chat_open = false; }
                         if style::icon_btn(ui, "trash-2", 17.0, style::MUTED, "대화 기록 지우기").clicked() { self.chat_input.clear(); }
-                        let b = egui::Button::image_and_text(crate::icons::img("plus", 14.0, style::TEXT2), RichText::new("새로").size(12.0).color(style::TEXT2).family(style::semi()))
+                        let b = egui::Button::image_and_text(crate::icons::img("plus", 14.0, style::TEXT2), RichText::new(if narrow { "" } else { "새로" }).size(12.0).color(style::TEXT2).family(style::semi()))
                             .fill(Color32::WHITE).stroke(Stroke::new(1.0, style::BORDER_STRONG)).corner_radius(CornerRadius::same(9)).min_size(egui::vec2(0.0, 28.0));
                         if ui.add(b).on_hover_text("다른 영상으로 새로 시작 (지금 대화와 편집은 위에 남고, 편집은 자동 저장됩니다)").clicked() {
                             self.chat_input.clear(); self.yt_url.clear(); self.focus_chat_url = true;
                         }
                     });
                 });
+                if narrow { ui.add_space(6.0); ui.horizontal(|ui| self.chat_chip(ui)); }
             });
             let (r, _) = ui.allocate_exact_size(egui::vec2(full.width(), 1.0), egui::Sense::hover());
             ui.painter().rect_filled(r, 0.0, style::BORDER);

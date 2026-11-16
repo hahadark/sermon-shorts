@@ -62,7 +62,7 @@ fn args() -> Args {
 fn main() -> eframe::Result<()> {
     let a = args();
     let options = eframe::NativeOptions {
-        viewport: { let vb = egui::ViewportBuilder::default().with_title("설교 쇼츠 편집기"); match image::open(sermon_shorts::assets_dir().join("images").join("app-icon.png")) { Ok(im) => { let im = im.to_rgba8(); let (w, h) = im.dimensions(); vb.with_icon(std::sync::Arc::new(egui::IconData { rgba: im.into_raw(), width: w, height: h })) } Err(_) => vb } }.with_inner_size([1600.0, 980.0]).with_min_inner_size([1180.0, 720.0]),
+        viewport: { let vb = egui::ViewportBuilder::default().with_title("설교 쇼츠 편집기"); match image::open(sermon_shorts::assets_dir().join("images").join("app-icon.png")) { Ok(im) => { let im = im.to_rgba8(); let (w, h) = im.dimensions(); vb.with_icon(std::sync::Arc::new(egui::IconData { rgba: im.into_raw(), width: w, height: h })) } Err(_) => vb } }.with_inner_size(std::env::var("SS_WIN_SIZE").ok().and_then(|s| s.split_once('x').and_then(|(a, b)| Some([a.parse::<f32>().ok()?, b.parse::<f32>().ok()?]))).unwrap_or([1600.0, 980.0])).with_min_inner_size([1280.0, 760.0]),
         ..Default::default()
     };
     eframe::run_native("SermonShortsRs", options, Box::new(move |cc| {
@@ -557,16 +557,22 @@ impl App {
     pub(crate) fn editor(&mut self, ui: &mut egui::Ui) {
         let avail = ui.available_rect_before_wrap();
         let gap = 18.0;
-        let left_w = (avail.width() * 0.29).clamp(360.0, 540.0);
-        let right_w = if self.chat_open { (avail.width() * 0.24).clamp(300.0, 470.0) } else { 0.0 };
+        // 기존 #workspace: 왼쪽 440·대화 380 고정, 가운데가 300 보다 좁아지면 두 칸을 너비 비율대로 줄인다 (왼쪽 최소 400, 대화 최소 280)
+        let free = avail.width() - gap * if self.chat_open { 2.0 } else { 1.0 };
+        let (lb, rb) = (440.0_f32, if self.chat_open { 380.0_f32 } else { 0.0 });
+        let short = (lb + rb + 440.0 - free).max(0.0); // 가운데 자막 칸은 440 은 있어야 쓸 만하다
+        let left_w = (lb - short * lb / (lb + rb)).max(400.0);
+        let right_w = if self.chat_open { (free - left_w - 440.0).clamp(280.0, rb) } else { 0.0 };
         let center_w = avail.width() - left_w - right_w - gap * if self.chat_open { 2.0 } else { 1.0 };
         let h = avail.height();
         let r_left = egui::Rect::from_min_size(avail.min, egui::vec2(left_w, h));
         let r_center = egui::Rect::from_min_size(avail.min + egui::vec2(left_w + gap, 0.0), egui::vec2(center_w, h));
         let r_right = egui::Rect::from_min_size(avail.min + egui::vec2(left_w + gap + center_w + gap, 0.0), egui::vec2(right_w, h));
-        ui.scope_builder(egui::UiBuilder::new().max_rect(r_left), |ui| self.left_column(ui));
-        ui.scope_builder(egui::UiBuilder::new().max_rect(r_center), |ui| self.center_column(ui));
-        if self.chat_open { ui.scope_builder(egui::UiBuilder::new().max_rect(r_right), |ui| self.right_column(ui)); }
+        // 칸마다 제 영역 밖으로는 그리지 않는다 (좁은 창에서 칸끼리 겹치지 않게, 기존 overflow: hidden)
+        let clip = |r: egui::Rect| r.expand(2.0);
+        ui.scope_builder(egui::UiBuilder::new().max_rect(r_left), |ui| { ui.set_clip_rect(clip(r_left)); self.left_column(ui) });
+        ui.scope_builder(egui::UiBuilder::new().max_rect(r_center), |ui| { ui.set_clip_rect(clip(r_center)); self.center_column(ui) });
+        if self.chat_open { ui.scope_builder(egui::UiBuilder::new().max_rect(r_right), |ui| { ui.set_clip_rect(clip(r_right)); self.right_column(ui) }); }
         ui.allocate_rect(avail, egui::Sense::hover());
     }
 

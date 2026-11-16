@@ -109,7 +109,10 @@ impl App {
     fn crop_changed(&mut self) { if self.has_project { self.unsaved = true; } }
 
     fn play_controls(&mut self, ui: &mut egui::Ui) {
+        // 칸이 좁으면 시간 글자를 조금 작게 (줄바꿈 없이)
+        let narrow = ui.available_width() < 370.0;
         ui.horizontal(|ui| {
+            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
             let playing = self.player.playing();
             let b = egui::Button::image_and_text(img(if playing { "pause" } else { "play" }, 17.0, style::TEXT), RichText::new(if playing { "일시정지" } else { "재생" }).size(14.5).family(style::semi()).color(style::TEXT))
                 .fill(style::PANEL).stroke(Stroke::new(1.0, style::BORDER_STRONG)).corner_radius(CornerRadius::same(12)).min_size(egui::vec2(110.0, 40.0));
@@ -117,7 +120,7 @@ impl App {
             ui.add_space(6.0);
             let out = self.player.out_t;
             let dur = self.player.duration();
-            ui.label(RichText::new(format!("{} / {}", edl::format_time(out, true), edl::format_time(dur, true))).monospace().size(15.0).strong().color(style::TEXT));
+            ui.label(RichText::new(format!("{} / {}", edl::format_time(out, true), edl::format_time(dur, true))).monospace().size(if narrow { 13.0 } else { 15.0 }).strong().color(style::TEXT));
             style::pill(ui, if self.edited { "편집본" } else { "원본" }, style::PRIMARY_SOFT, style::PRIMARY);
         });
         ui.add_space(4.0);
@@ -183,12 +186,14 @@ impl App {
         let cur_name = format!("{}{}", self.theme["name"].as_str().unwrap_or("테마"), if self.project_theme { " (프로젝트)" } else { "" });
         let themes: Vec<(String, String)> = self.themes.iter().map(|e| (e.id.clone(), e.name.clone())).collect();
         row(ui, "테마", &mut |ui| {
-            let w = (ui.available_width() - 190.0).max(120.0);
+            // 좁으면 단추는 아이콘만 (글은 풍선 도움말로)
+            let short = ui.available_width() < 310.0;
+            let w = if short { (ui.available_width() - 100.0).max(100.0) } else { ui.available_width() - 190.0 };
             egui::ComboBox::from_id_salt("theme").width(w).selected_text(RichText::new(&cur_name).size(14.5)).show_ui(ui, |ui| {
                 for (id, name) in &themes { if ui.selectable_label(*id == cur_id, name).clicked() { pick = Some(id.clone()); } }
             });
-            if style::tool(ui, "pencil", "편집").on_hover_text("테마 편집기").clicked() { edit_theme = true; }
-            if style::tool(ui, "pencil-line", "미리보기 편집").on_hover_text("미리보기에서 글자·영상 위치를 끌어 바꾸기").clicked() { preview_edit = true; }
+            if style::tool(ui, "pencil", if short { "" } else { "편집" }).on_hover_text("테마 편집기").clicked() { edit_theme = true; }
+            if style::tool(ui, "pencil-line", if short { "" } else { "미리보기 편집" }).on_hover_text("미리보기 편집: 미리보기에서 글자·영상 위치를 끌어 바꾸기").clicked() { preview_edit = true; }
         });
         if let Some(id) = pick { self.pick_theme(&id); }
         if edit_theme { self.cmd_edit_theme(); }
