@@ -1,0 +1,123 @@
+{
+  "id": "black-headline",
+  "name": "검은 바탕 두 줄 헤드라인",
+  "source": [
+    "https://www.youtube.com/shorts/cxG3QZqffPY",
+    "https://www.youtube.com/shorts/T5Icn-np-no",
+    "https://www.youtube.com/shorts/t0BzhhxoI6A"
+  ],
+  "note": "검은 바탕 위쪽에 아주 굵은 두 줄 제목(첫 줄 하늘색, 둘째 줄 흰색. 제목에 \" / \"를 넣으면 줄이 바뀜), 가운데 영상, 영상 아래쪽에 겹친 흰 자막(검은 외곽선), 그 아래 교회·설교자.",
+  "canvas": {
+    "background": "#000000",
+    "mode": "solid"
+  },
+  "title": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1010,
+    "y": 400,
+    "anchor": "bottom",
+    "font": "Black Han Sans",
+    "weight": 400,
+    "size": 84,
+    "color": "#FFFFFF",
+    "lineColors": [
+      "#41E6FF",
+      "#FFFFFF"
+    ],
+    "lineGap": 1.18,
+    "maxLines": 2,
+    "stroke": 0,
+    "strokeColor": null,
+    "shadow": null
+  },
+  "verse": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 490,
+    "font": "Noto Sans KR",
+    "weight": 500,
+    "size": 38,
+    "color": "#9A9A9A",
+    "band": null
+  },
+  "video": {
+    "show": true,
+    "x": 0,
+    "y": 560,
+    "width": 1080,
+    "height": 760,
+    "fit": "cover",
+    "radius": 0,
+    "border": null,
+    "fade": null
+  },
+  "subtitle": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1250,
+    "anchor": "bottom",
+    "font": "Noto Sans KR",
+    "weight": 800,
+    "size": 58,
+    "color": "#FFFFFF",
+    "stroke": 6,
+    "strokeColor": "#000000",
+    "box": null,
+    "maxChars": 14,
+    "maxLines": 2,
+    "lineGap": 1.22,
+    "highlightColor": "#FFE14D"
+  },
+  "churchName": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1420,
+    "font": "Noto Sans KR",
+    "weight": 700,
+    "size": 40,
+    "color": "#FFFFFF",
+    "letterSpacing": 0.05,
+    "text": ""
+  },
+  "speaker": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1480,
+    "font": "Noto Sans KR",
+    "weight": 400,
+    "size": 34,
+    "color": "#AAAAAA",
+    "text": "",
+    "format": "{speaker}"
+  },
+  "logo": {
+    "show": false,
+    "x": 540,
+    "y": 1620,
+    "height": 120,
+    "path": ""
+  },
+  "fadeInSec": 0.4,
+  "fonts": [
+    {
+      "name": "Black Han Sans",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Black+Han+Sans"
+    },
+    {
+      "name": "Noto Sans KR",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Noto+Sans+KR"
+    }
+  ]
+}

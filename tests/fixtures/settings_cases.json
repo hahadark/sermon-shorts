@@ -1,0 +1,1427 @@
+{
+ "load": [
+  {
+   "raw": {},
+   "out": {
+    "activeThemeId": "basic-blank",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [],
+     "defaultSpeaker": "",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [],
+    "defaultSpeaker": "",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 5,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {
+    "activeThemeId": "channel-header-blur",
+    "template": {
+     "churchName": "",
+     "logoPath": ""
+    },
+    "speakers": [
+     " 차재수 사관 ",
+     "",
+     "김택근 사관"
+    ],
+    "defaultSpeaker": "없는 사람"
+   },
+   "out": {
+    "activeThemeId": "channel-header-blur",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [
+      "차재수 사관",
+      "김택근 사관"
+     ],
+     "defaultSpeaker": "차재수 사관",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [
+     "차재수 사관",
+     "김택근 사관"
+    ],
+    "defaultSpeaker": "차재수 사관",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 5,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {
+    "activeThemeId": "x",
+    "template": {
+     "speakers": [
+      "갑 목사",
+      "을 전도사"
+     ],
+     "defaultSpeaker": "을 전도사",
+     "aiModel": "m"
+    }
+   },
+   "out": {
+    "activeThemeId": "x",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [
+      "갑 목사",
+      "을 전도사"
+     ],
+     "defaultSpeaker": "을 전도사",
+     "aiModel": "m"
+    },
+    "speakers": [
+     "갑 목사",
+     "을 전도사"
+    ],
+    "defaultSpeaker": "을 전도사",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 5,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {
+    "activeThemeId": "x",
+    "template": {
+     "speakers": [
+      "갑 목사"
+     ]
+    },
+    "defaultSpeaker": 3
+   },
+   "out": {
+    "activeThemeId": "x",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [
+      "갑 목사"
+     ],
+     "defaultSpeaker": "갑 목사",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [
+     "갑 목사"
+    ],
+    "defaultSpeaker": "갑 목사",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 5,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {
+    "activeThemeId": "x",
+    "recentYoutubeMax": "7.6",
+    "recentYoutube": [
+     {
+      "url": " https://youtu.be/a ",
+      "title": "A",
+      "at": 5
+     },
+     {
+      "url": "https://youtu.be/a",
+      "title": "dup"
+     },
+     {
+      "url": "",
+      "title": "x"
+     },
+     {
+      "title": "no url"
+     },
+     null,
+     {
+      "url": "https://youtu.be/b",
+      "title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "at": "abc"
+     },
+     {
+      "url": "https://youtu.be/c",
+      "at": 10000000000000000
+     }
+    ]
+   },
+   "out": {
+    "activeThemeId": "x",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [],
+     "defaultSpeaker": "",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [],
+    "defaultSpeaker": "",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 8,
+    "recentYoutube": [
+     {
+      "url": "https://youtu.be/a",
+      "title": "A",
+      "at": 5
+     },
+     {
+      "url": "https://youtu.be/b",
+      "title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "at": 0
+     },
+     {
+      "url": "https://youtu.be/c",
+      "title": "",
+      "at": 1000000000000000
+     }
+    ],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {
+    "activeThemeId": "x",
+    "recentYoutubeMax": -3,
+    "sourceMissing": "ASK",
+    "autoUpdate": 0,
+    "previewProxy": null
+   },
+   "out": {
+    "activeThemeId": "x",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [],
+     "defaultSpeaker": "",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [],
+    "defaultSpeaker": "",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 0,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {
+    "activeThemeId": "x",
+    "recentYoutubeMax": 99,
+    "sourceMissing": "ask",
+    "autoUpdate": false,
+    "previewProxy": false
+   },
+   "out": {
+    "activeThemeId": "x",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [],
+     "defaultSpeaker": "",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [],
+    "defaultSpeaker": "",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 50,
+    "recentYoutube": [],
+    "sourceMissing": "ask",
+    "previewProxy": false,
+    "autoUpdate": false,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {
+    "activeThemeId": "x",
+    "autosave": {
+     "enabled": false,
+     "everyMin": 0.5,
+     "maxVersions": 1000,
+     "keepDays": "12",
+     "maxVideos": "abc"
+    }
+   },
+   "out": {
+    "activeThemeId": "x",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [],
+     "defaultSpeaker": "",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [],
+    "defaultSpeaker": "",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 5,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": false,
+     "everyMin": 1,
+     "maxVersions": 200,
+     "keepDays": 12,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {
+    "activeThemeId": "x",
+    "autosave": "bad",
+    "editDefaults": [
+     1
+    ]
+   },
+   "out": {
+    "activeThemeId": "x",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [],
+     "defaultSpeaker": "",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [],
+    "defaultSpeaker": "",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 5,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {
+    "activeThemeId": "x",
+    "editDefaults": {
+     "maxLineChars": 14.5,
+     "semanticBreaks": 0,
+     "splitLongWords": false,
+     "padBefore": -1,
+     "padAfter": "0.3",
+     "fadeMs": 2000.4,
+     "autoTidy": false
+    }
+   },
+   "out": {
+    "activeThemeId": "x",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [],
+     "defaultSpeaker": "",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [],
+    "defaultSpeaker": "",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 5,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 15,
+     "semanticBreaks": true,
+     "splitLongWords": false,
+     "padBefore": 0,
+     "padAfter": 0.3,
+     "fadeMs": 1000,
+     "autoTidy": false
+    }
+   }
+  },
+  {
+   "raw": {
+    "activeThemeId": "x",
+    "editDefaults": {
+     "maxLineChars": null,
+     "padBefore": true,
+     "fadeMs": ""
+    }
+   },
+   "out": {
+    "activeThemeId": "x",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [],
+     "defaultSpeaker": "",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [],
+    "defaultSpeaker": "",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 5,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 1,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 1,
+     "padAfter": 0.15,
+     "fadeMs": 0,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {
+    "activeThemeId": "x",
+    "ytPrivacy": "public",
+    "ytUploadMode": "review",
+    "extraKey": {
+     "a": [
+      1,
+      2
+     ]
+    },
+    "churchTerms": "구역장, 셀모임"
+   },
+   "out": {
+    "activeThemeId": "x",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [],
+     "defaultSpeaker": "",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [],
+    "defaultSpeaker": "",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "구역장, 셀모임",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "public",
+    "ytAutoUpload": false,
+    "ytUploadMode": "review",
+    "recentYoutubeMax": 5,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    },
+    "extraKey": {
+     "a": [
+      1,
+      2
+     ]
+    }
+   }
+  }
+ ],
+ "save": [
+  {
+   "raw": {
+    "activeThemeId": "channel-header-blur",
+    "template": {
+     "churchName": "",
+     "logoPath": ""
+    },
+    "speakers": [
+     " 차재수 사관 ",
+     "",
+     "김택근 사관"
+    ],
+    "defaultSpeaker": "없는 사람"
+   },
+   "patch": {
+    "template": {
+     "churchName": "대구사랑",
+     "logoPath": "C:/x/logo.png"
+    },
+    "speakers": [
+     "a",
+     " b "
+    ],
+    "defaultSpeaker": "b"
+   },
+   "out": {
+    "activeThemeId": "channel-header-blur",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "대구사랑",
+     "logoPath": "C:/x/logo.png",
+     "speakers": [
+      "a",
+      "b"
+     ],
+     "defaultSpeaker": "b",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [
+     "a",
+     "b"
+    ],
+    "defaultSpeaker": "b",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 5,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {
+    "activeThemeId": "x",
+    "template": {
+     "speakers": [
+      "갑 목사",
+      "을 전도사"
+     ],
+     "defaultSpeaker": "을 전도사",
+     "aiModel": "m"
+    }
+   },
+   "patch": {
+    "template": {
+     "speakers": [
+      "새 사람"
+     ],
+     "defaultSpeaker": "새 사람"
+    }
+   },
+   "out": {
+    "activeThemeId": "x",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [
+      "새 사람"
+     ],
+     "defaultSpeaker": "새 사람",
+     "aiModel": "m"
+    },
+    "speakers": [
+     "새 사람"
+    ],
+    "defaultSpeaker": "새 사람",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 5,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {
+    "activeThemeId": "x",
+    "template": {
+     "speakers": [
+      "갑 목사",
+      "을 전도사"
+     ],
+     "defaultSpeaker": "을 전도사",
+     "aiModel": "m"
+    }
+   },
+   "patch": {
+    "template": {
+     "churchName": ""
+    }
+   },
+   "out": {
+    "activeThemeId": "x",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [
+      "갑 목사",
+      "을 전도사"
+     ],
+     "defaultSpeaker": "을 전도사",
+     "aiModel": "m"
+    },
+    "speakers": [
+     "갑 목사",
+     "을 전도사"
+    ],
+    "defaultSpeaker": "을 전도사",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 5,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {},
+   "patch": {
+    "recentYoutubeMax": 2,
+    "recentYoutube": [
+     {
+      "url": "u1",
+      "title": "t1",
+      "at": 1
+     },
+     {
+      "url": "u2",
+      "at": 2
+     },
+     {
+      "url": "u3",
+      "at": 3
+     }
+    ]
+   },
+   "out": {
+    "activeThemeId": "basic-blank",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [],
+     "defaultSpeaker": "",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [],
+    "defaultSpeaker": "",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 2,
+    "recentYoutube": [
+     {
+      "url": "u1",
+      "title": "t1",
+      "at": 1
+     },
+     {
+      "url": "u2",
+      "title": "",
+      "at": 2
+     }
+    ],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {},
+   "patch": {
+    "autosave": {
+     "enabled": false
+    },
+    "editDefaults": {
+     "padBefore": 0.25
+    }
+   },
+   "out": {
+    "activeThemeId": "basic-blank",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [],
+     "defaultSpeaker": "",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [],
+    "defaultSpeaker": "",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 5,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": false,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.25,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {
+    "activeThemeId": "x",
+    "recentYoutubeMax": 99,
+    "sourceMissing": "ask",
+    "autoUpdate": false,
+    "previewProxy": false
+   },
+   "patch": {
+    "sourceMissing": "auto",
+    "autoUpdate": true,
+    "hasApiKey": true,
+    "apiKeySuffix": "abcd",
+    "geminiApiKeyEnc": "hack"
+   },
+   "out": {
+    "activeThemeId": "x",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [],
+     "defaultSpeaker": "",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [],
+    "defaultSpeaker": "",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 50,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": false,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  },
+  {
+   "raw": {},
+   "patch": {
+    "geminiApiKey": "",
+    "openrouterApiKey": ""
+   },
+   "out": {
+    "activeThemeId": "basic-blank",
+    "template": {
+     "titleY": 205,
+     "verseY": 280,
+     "videoY": 353,
+     "videoH": 958,
+     "subtitleY": 1390,
+     "footerY": 1620,
+     "fontTitleVerse": "Yeon Sung",
+     "fontSubtitleFooter": "Noto Sans KR",
+     "colorTitleVerse": "#39FF5A",
+     "colorSubtitle": "#ffffff",
+     "fadeMs": 10,
+     "churchName": "우리 교회",
+     "logoPath": "assets/images/logo-default.png",
+     "speakers": [],
+     "defaultSpeaker": "",
+     "aiModel": "gemini-3.5-flash"
+    },
+    "speakers": [],
+    "defaultSpeaker": "",
+    "lastExportDir": "",
+    "sysCheckSeen": false,
+    "churchTerms": "",
+    "geminiApiKeyEnc": "",
+    "openrouterApiKeyEnc": "",
+    "openrouterModel": "",
+    "ytClientId": "",
+    "ytClientSecretEnc": "",
+    "ytRefreshEnc": "",
+    "ytChannel": "",
+    "ytPrivacy": "unlisted",
+    "ytAutoUpload": false,
+    "ytUploadMode": "",
+    "recentYoutubeMax": 5,
+    "recentYoutube": [],
+    "sourceMissing": "auto",
+    "previewProxy": true,
+    "autoUpdate": true,
+    "autosave": {
+     "enabled": true,
+     "everyMin": 2,
+     "maxVersions": 30,
+     "keepDays": 60,
+     "maxVideos": 40
+    },
+    "editDefaults": {
+     "maxLineChars": 14,
+     "semanticBreaks": true,
+     "splitLongWords": true,
+     "padBefore": 0.1,
+     "padAfter": 0.15,
+     "fadeMs": 10,
+     "autoTidy": true
+    }
+   }
+  }
+ ]
+}

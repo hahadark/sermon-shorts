@@ -1,0 +1,1832 @@
+{
+ "authorize": [
+  {
+   "args": {
+    "clientId": null,
+    "hostId": "urn:uuid:1",
+    "redirectUri": "http://127.0.0.1:1455/auth/callback",
+    "state": "st a+b",
+    "nonce": "n/1",
+    "codeChallenge": "cc_-",
+    "idTokenHint": "id.tok",
+    "loginHint": "a@b.c",
+    "isNew": true
+   },
+   "out": {
+    "ok": "https://auth.openai.com/api/accounts/authorize?client_id=dynamic_agent_client&agent_name_hint=SermonShorts&ext_agent_host_id=urn%3Auuid%3A1&response_type=code&redirect_uri=http%3A%2F%2F127.0.0.1%3A1455%2Fauth%2Fcallback&scope=openid+profile+email+offline_access+resource.invoke+chatgpt.tokens.use.direct&resource=https%3A%2F%2Fapi.openai.com%2Fv1&state=st+a%2Bb&nonce=n%2F1&code_challenge_method=S256&code_challenge=cc_-"
+   }
+  },
+  {
+   "args": {
+    "clientId": "client-x",
+    "hostId": "urn:uuid:2",
+    "redirectUri": "http://127.0.0.1:50123/auth/callback",
+    "state": "S",
+    "nonce": "N",
+    "codeChallenge": "C",
+    "idTokenHint": "h.e.y",
+    "loginHint": "목사@교회.kr",
+    "isNew": false
+   },
+   "out": {
+    "ok": "https://auth.openai.com/api/accounts/authorize?client_id=client-x&ext_agent_host_id=urn%3Auuid%3A2&id_token_hint=h.e.y&login_hint=%EB%AA%A9%EC%82%AC%40%EA%B5%90%ED%9A%8C.kr&response_type=code&redirect_uri=http%3A%2F%2F127.0.0.1%3A50123%2Fauth%2Fcallback&scope=openid+profile+email+offline_access+resource.invoke+chatgpt.tokens.use.direct&resource=https%3A%2F%2Fapi.openai.com%2Fv1&state=S&nonce=N&code_challenge_method=S256&code_challenge=C"
+   }
+  },
+  {
+   "args": {
+    "clientId": "client-x",
+    "hostId": "urn:uuid:3",
+    "redirectUri": "http://127.0.0.1:9/auth/callback",
+    "state": "S",
+    "nonce": "N",
+    "codeChallenge": "C",
+    "idTokenHint": "",
+    "loginHint": "",
+    "isNew": false
+   },
+   "out": {
+    "ok": "https://auth.openai.com/api/accounts/authorize?client_id=client-x&ext_agent_host_id=urn%3Auuid%3A3&response_type=code&redirect_uri=http%3A%2F%2F127.0.0.1%3A9%2Fauth%2Fcallback&scope=openid+profile+email+offline_access+resource.invoke+chatgpt.tokens.use.direct&resource=https%3A%2F%2Fapi.openai.com%2Fv1&state=S&nonce=N&code_challenge_method=S256&code_challenge=C"
+   }
+  },
+  {
+   "args": {
+    "clientId": "c",
+    "hostId": "",
+    "redirectUri": "http://127.0.0.1:9/auth/callback",
+    "state": "S",
+    "nonce": "N",
+    "codeChallenge": "C",
+    "isNew": false
+   },
+   "out": {
+    "err": "error",
+    "msg": "ext_agent_host_id 가 없습니다."
+   }
+  },
+  {
+   "args": {
+    "clientId": "c",
+    "hostId": "h",
+    "redirectUri": "http://localhost:9/auth/callback",
+    "state": "S",
+    "nonce": "N",
+    "codeChallenge": "C",
+    "isNew": false
+   },
+   "out": {
+    "err": "error",
+    "msg": "잘못된 redirect_uri 입니다."
+   }
+  }
+ ],
+ "callback": [
+  {
+   "url": "/auth/callback?code=abc&state=S&client_id=cid1&scope=openid+chatgpt.tokens.use.direct",
+   "pending": {
+    "state": "S",
+    "isNew": true,
+    "clientId": null
+   },
+   "out": {
+    "ok": {
+     "code": "abc",
+     "clientId": "cid1",
+     "scope": "openid chatgpt.tokens.use.direct"
+    }
+   }
+  },
+  {
+   "url": "/auth/callback?code=abc&state=S&client_id=dynamic_agent_client",
+   "pending": {
+    "state": "S",
+    "isNew": true,
+    "clientId": null
+   },
+   "out": {
+    "err": "registration",
+    "msg": "앱 등록이 끝나지 않았습니다(client_id 없음). 다시 시도해 주세요."
+   }
+  },
+  {
+   "url": "/auth/callback?code=abc&state=S",
+   "pending": {
+    "state": "S",
+    "isNew": true,
+    "clientId": null
+   },
+   "out": {
+    "err": "registration",
+    "msg": "앱 등록이 끝나지 않았습니다(client_id 없음). 다시 시도해 주세요."
+   }
+  },
+  {
+   "url": "/auth/callback?code=abc&state=X",
+   "pending": {
+    "state": "S",
+    "isNew": false,
+    "clientId": "cid"
+   },
+   "out": {
+    "err": "state",
+    "msg": "로그인 확인값(state)이 맞지 않습니다. 다시 시도해 주세요."
+   }
+  },
+  {
+   "url": "/auth/callback?error=access_denied&state=S",
+   "pending": {
+    "state": "S",
+    "isNew": false,
+    "clientId": "cid"
+   },
+   "out": {
+    "err": "denied",
+    "msg": "ChatGPT 로그인 또는 요금제 사용 허용이 취소되었습니다."
+   }
+  },
+  {
+   "url": "/auth/callback?error=server_error&state=S",
+   "pending": {
+    "state": "S",
+    "isNew": false,
+    "clientId": "cid"
+   },
+   "out": {
+    "err": "oauth",
+    "msg": "ChatGPT 로그인 오류: server_error"
+   }
+  },
+  {
+   "url": "/auth/callback?state=S",
+   "pending": {
+    "state": "S",
+    "isNew": false,
+    "clientId": "cid"
+   },
+   "out": {
+    "err": "oauth",
+    "msg": "로그인 코드가 없습니다. 다시 시도해 주세요."
+   }
+  },
+  {
+   "url": "/auth/callback?code=c%2Bd&state=S&client_id=other",
+   "pending": {
+    "state": "S",
+    "isNew": false,
+    "clientId": "cid"
+   },
+   "out": {
+    "err": "client_mismatch",
+    "msg": "다른 앱 등록으로 돌아왔습니다. 다시 시도해 주세요."
+   }
+  },
+  {
+   "url": "/auth/callback?code=c%2Bd&state=S",
+   "pending": {
+    "state": "S",
+    "isNew": false,
+    "clientId": "cid"
+   },
+   "out": {
+    "ok": {
+     "code": "c+d",
+     "clientId": "cid",
+     "scope": ""
+    }
+   }
+  },
+  {
+   "url": "/auth/callback?code=q&state=S&client_id=cid&scope=a%20b",
+   "pending": {
+    "state": "S",
+    "isNew": false,
+    "clientId": "cid"
+   },
+   "out": {
+    "ok": {
+     "code": "q",
+     "clientId": "cid",
+     "scope": "a b"
+    }
+   }
+  }
+ ],
+ "forms": {
+  "token": "grant_type=authorization_code&client_id=c+i&code=x%2Fy%2Bz&code_verifier=v%7Ev&redirect_uri=http%3A%2F%2F127.0.0.1%3A1455%2Fauth%2Fcallback&resource=https%3A%2F%2Fapi.openai.com%2Fv1",
+  "refresh": "grant_type=refresh_token&client_id=cid&refresh_token=r.t-_*%21&resource=https%3A%2F%2Fapi.openai.com%2Fv1",
+  "revoke": "token=rt%3D1%262&token_type_hint=refresh_token&client_id=cid"
+ },
+ "scopes": [
+  {
+   "in": "openid profile  chatgpt.tokens.use.direct",
+   "out": [
+    "openid",
+    "profile",
+    "chatgpt.tokens.use.direct"
+   ],
+   "plan": true
+  },
+  {
+   "in": "a+b+c",
+   "out": [
+    "a",
+    "b",
+    "c"
+   ],
+   "plan": false
+  },
+  {
+   "in": [
+    "x",
+    "chatgpt.tokens.use.direct"
+   ],
+   "out": [
+    "x",
+    "chatgpt.tokens.use.direct"
+   ],
+   "plan": true
+  },
+  {
+   "in": "",
+   "out": [],
+   "plan": false
+  },
+  {
+   "in": null,
+   "out": [],
+   "plan": false
+  }
+ ],
+ "jwt": [
+  {
+   "name": "good",
+   "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImsxIn0.eyJpc3MiOiJodHRwczovL2F1dGgub3BlbmFpLmNvbSIsImF1ZCI6ImNpZCIsInN1YiI6InVzZXItMSIsImVtYWlsIjoiYUBiLmMiLCJuYW1lIjoi6rmAIiwiZXhwIjoyMDAwMDAwMDAwLCJub25jZSI6Ik4xIn0.JrmxvUYDGnsxI7oJTaeVUVnsMXJE3dkdzXlZPIdW9iKrRZeSmYWjHG2wrxUyPOLWzGKtNE_zuGc4ZCWTdSLMUxuqraAVEG2_GEr1VV1KBhS7Hw_GWXCfvx4DuPA8Kj_o1HPt3KW-5rjP_0WeUQ1K-uCjbo8YzqeTqj8CPgvDtyCSaDKiqoUzhOmp4oxBl7SyCgHgFFurstO3dK0oA4sVLzn729JZYJQ5DiO4hxEjA07InBf9iFJ_wknVdf7Xmn8-59Xa9xetIbd5FBfE2a3Hli4gyrn2c_PlHqDv9oz4fsLU4CG9lCHHsjzxgrd4la0b-skBp13_aQQRrEdsajB1RQ",
+   "jwks": {
+    "keys": [
+     {
+      "kty": "RSA",
+      "n": "rgZjEuczt3LN_ZMNkH_beZwQphxhR2m6x-vaMWuLRWk9nvsaJh1x-UkoIno9ebezTKUZMGq-LY4ciKZjI9Kt8jWsEGuVt9WjvUvcTsjzEavOkfJYCMu5nAq-3WgCJ8SkkWF4UlEqFKwjzYNqqSTPNtvI29qutfrW0FYidsPLFkdMMQBGBofdPyMpLbxqqDeRLqzHLLGKuX7yjcRU7hdahkAb-6uJVj_dYqDiNAUdJLD4uYUDyepzSuPpWhbxIL75opJBmGoAqfRn6DbWtPeqKEW0RULzEllzTeFZRdEWwraVtqQU9ve1g9ls575kxBb0vwO8CH83qWD0r6yf_hdCdw",
+      "e": "AQAB",
+      "kid": "k0"
+     },
+     {
+      "kty": "RSA",
+      "n": "wI84wNlakcn4AE9VQ0I1ZWepIPKC4ovOn_mGpqIuzRBrt6ysMm3pHpUd0uHqoMtiVjYtHNLjx9u0-05mG0Ny_aOpA1HE5b7KV9hBYvFGfv2WGjA9FI86SqkXlPPYlaiflZXFmIjKekjT0oiDwn-cTkkAyt3g2EsQwONTtJgjKxP6HBvGLP01t_j2Kcei7H2bmnjjLbekdD-LBRNRevYDf3whyCaXFdk77KIN9Qk8UH5dOn4j7v5syxSAeS4hAqWrICMXjMS7Hy49M2m6MyAqMTXhfGCHi7ERj3STCgjwbO-axumRiFnHDGjAKahdX4JxN1PJnAqnKKUE2wbrzrrUCQ",
+      "e": "AQAB",
+      "kid": "k1"
+     }
+    ]
+   },
+   "out": {
+    "ok": {
+     "iss": "https://auth.openai.com",
+     "aud": "cid",
+     "sub": "user-1",
+     "email": "a@b.c",
+     "name": "김",
+     "exp": 2000000000,
+     "nonce": "N1"
+    }
+   }
+  },
+  {
+   "name": "nokid",
+   "token": "eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL2F1dGgub3BlbmFpLmNvbSIsImF1ZCI6ImNpZCIsInN1YiI6InVzZXItMSIsImVtYWlsIjoiYUBiLmMiLCJuYW1lIjoi6rmAIiwiZXhwIjoyMDAwMDAwMDAwLCJub25jZSI6Ik4xIn0.hTKxl2KNCPS1Ck6s5MRhOrxn0xfBJ6aSPgopqTSQRYghttk8P1mMWBpKRIGNNNLsq9FMRryMG5WnHuiSJYcBuU8nzK4jTVsNJh74F66IeaHsTM-CY3jiMOExuVNRi-UvBYcG898Ll9-cRAJ_pRi7XXGn96InO9Musj17YPBvqabRKFUgbLs7KIH_OApkm0OQnm-wIMzAz8AjrnGbMziAKdoWj4nOKvJWQ_y2VOcYvRaNHpFuLaFqxcVb5YnNAqcEAh4pXf3If17g6z4rQkFk23jrWVwAP2bl2OIBNDEudChmeLeVedqe-mIaEdmo1ssFskrG2L5igs6lWPQYkQJnOg",
+   "jwks": {
+    "keys": [
+     {
+      "kty": "RSA",
+      "n": "rgZjEuczt3LN_ZMNkH_beZwQphxhR2m6x-vaMWuLRWk9nvsaJh1x-UkoIno9ebezTKUZMGq-LY4ciKZjI9Kt8jWsEGuVt9WjvUvcTsjzEavOkfJYCMu5nAq-3WgCJ8SkkWF4UlEqFKwjzYNqqSTPNtvI29qutfrW0FYidsPLFkdMMQBGBofdPyMpLbxqqDeRLqzHLLGKuX7yjcRU7hdahkAb-6uJVj_dYqDiNAUdJLD4uYUDyepzSuPpWhbxIL75opJBmGoAqfRn6DbWtPeqKEW0RULzEllzTeFZRdEWwraVtqQU9ve1g9ls575kxBb0vwO8CH83qWD0r6yf_hdCdw",
+      "e": "AQAB",
+      "kid": "k0"
+     },
+     {
+      "kty": "RSA",
+      "n": "wI84wNlakcn4AE9VQ0I1ZWepIPKC4ovOn_mGpqIuzRBrt6ysMm3pHpUd0uHqoMtiVjYtHNLjx9u0-05mG0Ny_aOpA1HE5b7KV9hBYvFGfv2WGjA9FI86SqkXlPPYlaiflZXFmIjKekjT0oiDwn-cTkkAyt3g2EsQwONTtJgjKxP6HBvGLP01t_j2Kcei7H2bmnjjLbekdD-LBRNRevYDf3whyCaXFdk77KIN9Qk8UH5dOn4j7v5syxSAeS4hAqWrICMXjMS7Hy49M2m6MyAqMTXhfGCHi7ERj3STCgjwbO-axumRiFnHDGjAKahdX4JxN1PJnAqnKKUE2wbrzrrUCQ",
+      "e": "AQAB",
+      "kid": "k1"
+     }
+    ]
+   },
+   "out": {
+    "ok": {
+     "iss": "https://auth.openai.com",
+     "aud": "cid",
+     "sub": "user-1",
+     "email": "a@b.c",
+     "name": "김",
+     "exp": 2000000000,
+     "nonce": "N1"
+    }
+   }
+  },
+  {
+   "name": "tampered",
+   "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImsxIn0.eyJpc3MiOiJodHRwczovL2F1dGgub3BlbmFpLmNvbSIsImF1ZCI6ImNpZCIsInN1YiI6ImV2aWwiLCJlbWFpbCI6ImFAYi5jIiwibmFtZSI6Iuq5gCIsImV4cCI6MjAwMDAwMDAwMCwibm9uY2UiOiJOMSJ9.JrmxvUYDGnsxI7oJTaeVUVnsMXJE3dkdzXlZPIdW9iKrRZeSmYWjHG2wrxUyPOLWzGKtNE_zuGc4ZCWTdSLMUxuqraAVEG2_GEr1VV1KBhS7Hw_GWXCfvx4DuPA8Kj_o1HPt3KW-5rjP_0WeUQ1K-uCjbo8YzqeTqj8CPgvDtyCSaDKiqoUzhOmp4oxBl7SyCgHgFFurstO3dK0oA4sVLzn729JZYJQ5DiO4hxEjA07InBf9iFJ_wknVdf7Xmn8-59Xa9xetIbd5FBfE2a3Hli4gyrn2c_PlHqDv9oz4fsLU4CG9lCHHsjzxgrd4la0b-skBp13_aQQRrEdsajB1RQ",
+   "jwks": {
+    "keys": [
+     {
+      "kty": "RSA",
+      "n": "rgZjEuczt3LN_ZMNkH_beZwQphxhR2m6x-vaMWuLRWk9nvsaJh1x-UkoIno9ebezTKUZMGq-LY4ciKZjI9Kt8jWsEGuVt9WjvUvcTsjzEavOkfJYCMu5nAq-3WgCJ8SkkWF4UlEqFKwjzYNqqSTPNtvI29qutfrW0FYidsPLFkdMMQBGBofdPyMpLbxqqDeRLqzHLLGKuX7yjcRU7hdahkAb-6uJVj_dYqDiNAUdJLD4uYUDyepzSuPpWhbxIL75opJBmGoAqfRn6DbWtPeqKEW0RULzEllzTeFZRdEWwraVtqQU9ve1g9ls575kxBb0vwO8CH83qWD0r6yf_hdCdw",
+      "e": "AQAB",
+      "kid": "k0"
+     },
+     {
+      "kty": "RSA",
+      "n": "wI84wNlakcn4AE9VQ0I1ZWepIPKC4ovOn_mGpqIuzRBrt6ysMm3pHpUd0uHqoMtiVjYtHNLjx9u0-05mG0Ny_aOpA1HE5b7KV9hBYvFGfv2WGjA9FI86SqkXlPPYlaiflZXFmIjKekjT0oiDwn-cTkkAyt3g2EsQwONTtJgjKxP6HBvGLP01t_j2Kcei7H2bmnjjLbekdD-LBRNRevYDf3whyCaXFdk77KIN9Qk8UH5dOn4j7v5syxSAeS4hAqWrICMXjMS7Hy49M2m6MyAqMTXhfGCHi7ERj3STCgjwbO-axumRiFnHDGjAKahdX4JxN1PJnAqnKKUE2wbrzrrUCQ",
+      "e": "AQAB",
+      "kid": "k1"
+     }
+    ]
+   },
+   "out": {
+    "err": "id_token",
+    "msg": "ID 토큰 서명이 올바르지 않습니다."
+   }
+  },
+  {
+   "name": "wrongkid",
+   "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Inp6In0.eyJpc3MiOiJodHRwczovL2F1dGgub3BlbmFpLmNvbSIsImF1ZCI6ImNpZCIsInN1YiI6InVzZXItMSIsImVtYWlsIjoiYUBiLmMiLCJuYW1lIjoi6rmAIiwiZXhwIjoyMDAwMDAwMDAwLCJub25jZSI6Ik4xIn0.KoclfUcZA4cvEnxe1hoISPWKHqaLvLsHXAEc_8FqFFQEdK-sruGVo2Fmgb_E4reA_0xJulzhjWwBjUsYSoY-zkq0mdZRq-BYfgJ8E9tZi6w0BydRXkC715cV1YtLilFpqMkPrjAj0A61msQ9EwR4SZobrvTA3VsJ7dISyTiu6K1pl4bdhbw-qz0hfwhRI3or3Rrah7RN_qDcdxU__ba-GsDZOphoZxZILU_VnlRgFy5eDLw0xD1PgxW6W7RRnPWoHbKUQH-_DRPpgvg6oi_TOJ8D7gC-eroavChr392akbXzg-f1yPay5vaIZF1zjUEhJrbSRdRjTw20SjndtQnLcA",
+   "jwks": {
+    "keys": [
+     {
+      "kty": "RSA",
+      "n": "rgZjEuczt3LN_ZMNkH_beZwQphxhR2m6x-vaMWuLRWk9nvsaJh1x-UkoIno9ebezTKUZMGq-LY4ciKZjI9Kt8jWsEGuVt9WjvUvcTsjzEavOkfJYCMu5nAq-3WgCJ8SkkWF4UlEqFKwjzYNqqSTPNtvI29qutfrW0FYidsPLFkdMMQBGBofdPyMpLbxqqDeRLqzHLLGKuX7yjcRU7hdahkAb-6uJVj_dYqDiNAUdJLD4uYUDyepzSuPpWhbxIL75opJBmGoAqfRn6DbWtPeqKEW0RULzEllzTeFZRdEWwraVtqQU9ve1g9ls575kxBb0vwO8CH83qWD0r6yf_hdCdw",
+      "e": "AQAB",
+      "kid": "k0"
+     },
+     {
+      "kty": "RSA",
+      "n": "wI84wNlakcn4AE9VQ0I1ZWepIPKC4ovOn_mGpqIuzRBrt6ysMm3pHpUd0uHqoMtiVjYtHNLjx9u0-05mG0Ny_aOpA1HE5b7KV9hBYvFGfv2WGjA9FI86SqkXlPPYlaiflZXFmIjKekjT0oiDwn-cTkkAyt3g2EsQwONTtJgjKxP6HBvGLP01t_j2Kcei7H2bmnjjLbekdD-LBRNRevYDf3whyCaXFdk77KIN9Qk8UH5dOn4j7v5syxSAeS4hAqWrICMXjMS7Hy49M2m6MyAqMTXhfGCHi7ERj3STCgjwbO-axumRiFnHDGjAKahdX4JxN1PJnAqnKKUE2wbrzrrUCQ",
+      "e": "AQAB",
+      "kid": "k1"
+     }
+    ]
+   },
+   "out": {
+    "err": "id_token",
+    "msg": "ID 토큰 서명 키를 찾지 못했습니다."
+   }
+  },
+  {
+   "name": "hs256",
+   "token": "eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL2F1dGgub3BlbmFpLmNvbSIsImF1ZCI6ImNpZCIsInN1YiI6InVzZXItMSIsImVtYWlsIjoiYUBiLmMiLCJuYW1lIjoi6rmAIiwiZXhwIjoyMDAwMDAwMDAwLCJub25jZSI6Ik4xIn0.abc",
+   "jwks": {
+    "keys": [
+     {
+      "kty": "RSA",
+      "n": "rgZjEuczt3LN_ZMNkH_beZwQphxhR2m6x-vaMWuLRWk9nvsaJh1x-UkoIno9ebezTKUZMGq-LY4ciKZjI9Kt8jWsEGuVt9WjvUvcTsjzEavOkfJYCMu5nAq-3WgCJ8SkkWF4UlEqFKwjzYNqqSTPNtvI29qutfrW0FYidsPLFkdMMQBGBofdPyMpLbxqqDeRLqzHLLGKuX7yjcRU7hdahkAb-6uJVj_dYqDiNAUdJLD4uYUDyepzSuPpWhbxIL75opJBmGoAqfRn6DbWtPeqKEW0RULzEllzTeFZRdEWwraVtqQU9ve1g9ls575kxBb0vwO8CH83qWD0r6yf_hdCdw",
+      "e": "AQAB",
+      "kid": "k0"
+     },
+     {
+      "kty": "RSA",
+      "n": "wI84wNlakcn4AE9VQ0I1ZWepIPKC4ovOn_mGpqIuzRBrt6ysMm3pHpUd0uHqoMtiVjYtHNLjx9u0-05mG0Ny_aOpA1HE5b7KV9hBYvFGfv2WGjA9FI86SqkXlPPYlaiflZXFmIjKekjT0oiDwn-cTkkAyt3g2EsQwONTtJgjKxP6HBvGLP01t_j2Kcei7H2bmnjjLbekdD-LBRNRevYDf3whyCaXFdk77KIN9Qk8UH5dOn4j7v5syxSAeS4hAqWrICMXjMS7Hy49M2m6MyAqMTXhfGCHi7ERj3STCgjwbO-axumRiFnHDGjAKahdX4JxN1PJnAqnKKUE2wbrzrrUCQ",
+      "e": "AQAB",
+      "kid": "k1"
+     }
+    ]
+   },
+   "out": {
+    "err": "id_token",
+    "msg": "지원하지 않는 서명 방식입니다: HS256"
+   }
+  },
+  {
+   "name": "badform",
+   "token": "a.b",
+   "jwks": {
+    "keys": [
+     {
+      "kty": "RSA",
+      "n": "rgZjEuczt3LN_ZMNkH_beZwQphxhR2m6x-vaMWuLRWk9nvsaJh1x-UkoIno9ebezTKUZMGq-LY4ciKZjI9Kt8jWsEGuVt9WjvUvcTsjzEavOkfJYCMu5nAq-3WgCJ8SkkWF4UlEqFKwjzYNqqSTPNtvI29qutfrW0FYidsPLFkdMMQBGBofdPyMpLbxqqDeRLqzHLLGKuX7yjcRU7hdahkAb-6uJVj_dYqDiNAUdJLD4uYUDyepzSuPpWhbxIL75opJBmGoAqfRn6DbWtPeqKEW0RULzEllzTeFZRdEWwraVtqQU9ve1g9ls575kxBb0vwO8CH83qWD0r6yf_hdCdw",
+      "e": "AQAB",
+      "kid": "k0"
+     },
+     {
+      "kty": "RSA",
+      "n": "wI84wNlakcn4AE9VQ0I1ZWepIPKC4ovOn_mGpqIuzRBrt6ysMm3pHpUd0uHqoMtiVjYtHNLjx9u0-05mG0Ny_aOpA1HE5b7KV9hBYvFGfv2WGjA9FI86SqkXlPPYlaiflZXFmIjKekjT0oiDwn-cTkkAyt3g2EsQwONTtJgjKxP6HBvGLP01t_j2Kcei7H2bmnjjLbekdD-LBRNRevYDf3whyCaXFdk77KIN9Qk8UH5dOn4j7v5syxSAeS4hAqWrICMXjMS7Hy49M2m6MyAqMTXhfGCHi7ERj3STCgjwbO-axumRiFnHDGjAKahdX4JxN1PJnAqnKKUE2wbrzrrUCQ",
+      "e": "AQAB",
+      "kid": "k1"
+     }
+    ]
+   },
+   "out": {
+    "err": "id_token",
+    "msg": "ID 토큰 형식이 잘못되었습니다."
+   }
+  },
+  {
+   "name": "otherkey",
+   "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImswIn0.eyJpc3MiOiJodHRwczovL2F1dGgub3BlbmFpLmNvbSIsImF1ZCI6ImNpZCIsInN1YiI6InVzZXItMSIsImVtYWlsIjoiYUBiLmMiLCJuYW1lIjoi6rmAIiwiZXhwIjoyMDAwMDAwMDAwLCJub25jZSI6Ik4xIn0.TI3_yH6XdBIQmXO7q4jhNBDqyeJ-7XcnVcJMeDeEfDvY1iuJTWONHEYI6dAgW_oDePfD9dv0-oXRLAwy-Nbe3g-TvdGRl00vyGBVUlgXDlLgBkH3NdizoE-uV2SZg-b7ypRjp5cG15gR0io-pxcm5J7fH0RxpsWObj4MdkcEYaakQcNpXthQZyABrfPRJWs5CMm0D8V9kUB5q-qkxPEQ-JlwLlngQb4WuOK3_b3-xCm9ru9O6-BB31tz_xt7YNKwZEXuB5E_LsOfXC5QmXSE3WQGnooS2JGuMF6eGrO_MidoPKReNCuvFwZoBUBjhw39RTRNOqWA0vY6K9cx8wpoZw",
+   "jwks": {
+    "keys": [
+     {
+      "kty": "RSA",
+      "n": "rgZjEuczt3LN_ZMNkH_beZwQphxhR2m6x-vaMWuLRWk9nvsaJh1x-UkoIno9ebezTKUZMGq-LY4ciKZjI9Kt8jWsEGuVt9WjvUvcTsjzEavOkfJYCMu5nAq-3WgCJ8SkkWF4UlEqFKwjzYNqqSTPNtvI29qutfrW0FYidsPLFkdMMQBGBofdPyMpLbxqqDeRLqzHLLGKuX7yjcRU7hdahkAb-6uJVj_dYqDiNAUdJLD4uYUDyepzSuPpWhbxIL75opJBmGoAqfRn6DbWtPeqKEW0RULzEllzTeFZRdEWwraVtqQU9ve1g9ls575kxBb0vwO8CH83qWD0r6yf_hdCdw",
+      "e": "AQAB",
+      "kid": "k0"
+     },
+     {
+      "kty": "RSA",
+      "n": "wI84wNlakcn4AE9VQ0I1ZWepIPKC4ovOn_mGpqIuzRBrt6ysMm3pHpUd0uHqoMtiVjYtHNLjx9u0-05mG0Ny_aOpA1HE5b7KV9hBYvFGfv2WGjA9FI86SqkXlPPYlaiflZXFmIjKekjT0oiDwn-cTkkAyt3g2EsQwONTtJgjKxP6HBvGLP01t_j2Kcei7H2bmnjjLbekdD-LBRNRevYDf3whyCaXFdk77KIN9Qk8UH5dOn4j7v5syxSAeS4hAqWrICMXjMS7Hy49M2m6MyAqMTXhfGCHi7ERj3STCgjwbO-axumRiFnHDGjAKahdX4JxN1PJnAqnKKUE2wbrzrrUCQ",
+      "e": "AQAB",
+      "kid": "k1"
+     }
+    ]
+   },
+   "out": {
+    "err": "id_token",
+    "msg": "ID 토큰 서명이 올바르지 않습니다."
+   }
+  }
+ ],
+ "validate": [
+  {
+   "claims": {
+    "iss": "https://auth.openai.com",
+    "aud": "cid",
+    "sub": "user-1",
+    "email": "a@b.c",
+    "name": "김",
+    "exp": 2000000000,
+    "nonce": "N1"
+   },
+   "audience": "cid",
+   "nonce": "N1",
+   "out": {
+    "ok": {
+     "sub": "user-1",
+     "email": "a@b.c",
+     "name": "김"
+    }
+   }
+  },
+  {
+   "claims": {
+    "iss": "https://auth.openai.com/",
+    "aud": "cid",
+    "sub": "user-1",
+    "email": "a@b.c",
+    "name": "김",
+    "exp": 2000000000,
+    "nonce": "N1"
+   },
+   "audience": "cid",
+   "nonce": "N1",
+   "out": {
+    "ok": {
+     "sub": "user-1",
+     "email": "a@b.c",
+     "name": "김"
+    }
+   }
+  },
+  {
+   "claims": {
+    "iss": "https://evil",
+    "aud": "cid",
+    "sub": "user-1",
+    "email": "a@b.c",
+    "name": "김",
+    "exp": 2000000000,
+    "nonce": "N1"
+   },
+   "audience": "cid",
+   "nonce": "N1",
+   "out": {
+    "err": "id_token",
+    "msg": "ID 토큰 발급자가 다릅니다."
+   }
+  },
+  {
+   "claims": {
+    "iss": "https://auth.openai.com",
+    "aud": [
+     "x",
+     "cid"
+    ],
+    "sub": "user-1",
+    "email": "a@b.c",
+    "name": "김",
+    "exp": 2000000000,
+    "nonce": "N1",
+    "azp": "x"
+   },
+   "audience": "cid",
+   "nonce": "N1",
+   "out": {
+    "err": "id_token",
+    "msg": "ID 토큰 대상(azp)이 다릅니다."
+   }
+  },
+  {
+   "claims": {
+    "iss": "https://auth.openai.com",
+    "aud": [
+     "x",
+     "cid"
+    ],
+    "sub": "user-1",
+    "email": "a@b.c",
+    "name": "김",
+    "exp": 2000000000,
+    "nonce": "N1",
+    "azp": "cid"
+   },
+   "audience": "cid",
+   "nonce": "N1",
+   "out": {
+    "ok": {
+     "sub": "user-1",
+     "email": "a@b.c",
+     "name": "김"
+    }
+   }
+  },
+  {
+   "claims": {
+    "iss": "https://auth.openai.com",
+    "aud": [
+     "cid"
+    ],
+    "sub": "user-1",
+    "email": "a@b.c",
+    "name": "김",
+    "exp": 2000000000,
+    "nonce": "N1"
+   },
+   "audience": "cid",
+   "nonce": "N1",
+   "out": {
+    "ok": {
+     "sub": "user-1",
+     "email": "a@b.c",
+     "name": "김"
+    }
+   }
+  },
+  {
+   "claims": {
+    "iss": "https://auth.openai.com",
+    "aud": "cid",
+    "sub": "user-1",
+    "email": "a@b.c",
+    "name": "김",
+    "exp": 1899999879,
+    "nonce": "N1"
+   },
+   "audience": "cid",
+   "nonce": "N1",
+   "out": {
+    "err": "id_token",
+    "msg": "ID 토큰이 만료되었습니다. 다시 로그인해 주세요."
+   }
+  },
+  {
+   "claims": {
+    "iss": "https://auth.openai.com",
+    "aud": "cid",
+    "sub": "user-1",
+    "email": "a@b.c",
+    "name": "김",
+    "exp": 1899999881,
+    "nonce": "N1"
+   },
+   "audience": "cid",
+   "nonce": "N1",
+   "out": {
+    "ok": {
+     "sub": "user-1",
+     "email": "a@b.c",
+     "name": "김"
+    }
+   }
+  },
+  {
+   "claims": {
+    "iss": "https://auth.openai.com",
+    "aud": "cid",
+    "sub": "user-1",
+    "email": "a@b.c",
+    "name": "김",
+    "exp": "9999999999",
+    "nonce": "N1"
+   },
+   "audience": "cid",
+   "nonce": "N1",
+   "out": {
+    "err": "id_token",
+    "msg": "ID 토큰이 만료되었습니다. 다시 로그인해 주세요."
+   }
+  },
+  {
+   "claims": {
+    "iss": "https://auth.openai.com",
+    "aud": "cid",
+    "sub": "user-1",
+    "email": "a@b.c",
+    "name": "김",
+    "exp": 2000000000,
+    "nonce": "N1"
+   },
+   "audience": "cid",
+   "nonce": "other",
+   "out": {
+    "err": "id_token",
+    "msg": "로그인 확인값(nonce)이 맞지 않습니다."
+   }
+  },
+  {
+   "claims": {
+    "iss": "https://auth.openai.com",
+    "aud": "cid",
+    "sub": "user-1",
+    "email": "a@b.c",
+    "name": "김",
+    "exp": 2000000000,
+    "nonce": "N1"
+   },
+   "audience": "cid",
+   "nonce": null,
+   "out": {
+    "ok": {
+     "sub": "user-1",
+     "email": "a@b.c",
+     "name": "김"
+    }
+   }
+  },
+  {
+   "claims": {
+    "iss": "https://auth.openai.com",
+    "aud": "cid",
+    "sub": "",
+    "email": "a@b.c",
+    "name": "김",
+    "exp": 2000000000,
+    "nonce": "N1"
+   },
+   "audience": "cid",
+   "nonce": "N1",
+   "out": {
+    "err": "id_token",
+    "msg": "ID 토큰에 계정 정보(sub)가 없습니다."
+   }
+  },
+  {
+   "claims": {
+    "iss": "https://auth.openai.com",
+    "aud": "cid",
+    "sub": "user-1",
+    "email": "a@b.c",
+    "name": "김",
+    "exp": 2000000000,
+    "nonce": "N1"
+   },
+   "audience": "",
+   "nonce": "N1",
+   "out": {
+    "err": "id_token",
+    "msg": "ID 토큰 대상(client_id)이 다릅니다."
+   }
+  }
+ ],
+ "responses": [
+  {
+   "args": {
+    "model": "gpt-x",
+    "instructions": "시스템",
+    "messages": [
+     {
+      "role": "user",
+      "content": "안녕"
+     },
+     {
+      "role": "assistant",
+      "content": "네"
+     },
+     {
+      "role": "system",
+      "content": "x"
+     },
+     {
+      "role": "user",
+      "content": ""
+     }
+    ]
+   },
+   "out": {
+    "ok": {
+     "model": "gpt-x",
+     "input": [
+      {
+       "role": "user",
+       "content": "안녕"
+      },
+      {
+       "role": "assistant",
+       "content": "네"
+      }
+     ],
+     "store": false,
+     "stream": true,
+     "instructions": "시스템"
+    }
+   }
+  },
+  {
+   "args": {
+    "model": "gpt-x",
+    "instructions": "",
+    "messages": [
+     {
+      "role": "user",
+      "content": "a"
+     }
+    ]
+   },
+   "out": {
+    "ok": {
+     "model": "gpt-x",
+     "input": [
+      {
+       "role": "user",
+       "content": "a"
+      }
+     ],
+     "store": false,
+     "stream": true
+    }
+   }
+  },
+  {
+   "args": {
+    "model": "",
+    "instructions": "",
+    "messages": [
+     {
+      "role": "user",
+      "content": "a"
+     }
+    ]
+   },
+   "out": {
+    "err": "error",
+    "msg": "모델이 정해지지 않았습니다."
+   }
+  },
+  {
+   "args": {
+    "model": "m",
+    "instructions": "i",
+    "messages": [
+     {
+      "role": "system",
+      "content": "x"
+     }
+    ]
+   },
+   "out": {
+    "err": "error",
+    "msg": "보낼 메시지가 없습니다."
+   }
+  }
+ ],
+ "sse": [
+  {
+   "chunks": [
+    "data: {\"type\":\"response.output_text.delta\",\"delta\":\"{\\\"ok\\\"\"}\n\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\":true}\"}\n\n: keepalive\n\ndata: {\"type\":\"response.completed\",\"response\":{}}\n\ndata: [DONE]\n\n"
+   ],
+   "out": {
+    "text": "{\"ok\":true}",
+    "completed": true,
+    "failed": null,
+    "incomplete": null,
+    "events": 3
+   }
+  },
+  {
+   "chunks": [
+    "data: {\"type\":\"re",
+    "sponse.output_text.delta\",\"delta\":\"{\\\"ok\\\"\"",
+    "}\n\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\":true}\"}\n\n: keepalive\n\ndata: {\"type\":\"response.completed\",\"response\":{}}\n\ndata: [DONE]\n\n"
+   ],
+   "out": {
+    "text": "{\"ok\":true}",
+    "completed": true,
+    "failed": null,
+    "incomplete": null,
+    "events": 3
+   }
+  },
+  {
+   "chunks": [
+    "data: {\"type\":\"response.output_text.delta\",\"delta\":\"{\\\"ok\\\"\"}\r\n\r\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\":true}\"}\r\n\r\n: keepalive\r\n\r\ndata: {\"type\":\"response.completed\",\"response\":{}}\r\n\r\ndata: [DONE]\r\n\r\n"
+   ],
+   "out": {
+    "text": "{\"ok\":true}",
+    "completed": true,
+    "failed": null,
+    "incomplete": null,
+    "events": 3
+   }
+  },
+  {
+   "chunks": [
+    "data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":\"usage_limit_exceeded\",\"message\":\"m\"}}}\n\n"
+   ],
+   "out": {
+    "text": "",
+    "completed": false,
+    "failed": {
+     "code": "usage_limit_exceeded",
+     "message": "m"
+    },
+    "incomplete": null,
+    "events": 1
+   }
+  },
+  {
+   "chunks": [
+    "data: {\"type\":\"response.incomplete\",\"response\":{\"incomplete_details\":{\"reason\":\"max_output_tokens\"}}}\n\n"
+   ],
+   "out": {
+    "text": "",
+    "completed": false,
+    "failed": null,
+    "incomplete": {
+     "reason": "max_output_tokens"
+    },
+    "events": 1
+   }
+  },
+  {
+   "chunks": [
+    "event: error\ndata: {\"code\":\"bad\",\"message\":\"oops\"}\n\n"
+   ],
+   "out": {
+    "text": "",
+    "completed": false,
+    "failed": {
+     "code": "bad",
+     "message": "oops"
+    },
+    "incomplete": null,
+    "events": 1
+   }
+  },
+  {
+   "chunks": [
+    "data: {\"type\":\"response.output_text.delta\",\ndata: \"delta\":\"여러 줄\"}\n\n"
+   ],
+   "out": {
+    "text": "여러 줄",
+    "completed": false,
+    "failed": null,
+    "incomplete": null,
+    "events": 1
+   }
+  },
+  {
+   "chunks": [
+    "data: not json\n\ndata: {\"type\":\"response.completed\"}"
+   ],
+   "out": {
+    "text": "",
+    "completed": true,
+    "failed": null,
+    "incomplete": null,
+    "events": 1
+   }
+  }
+ ],
+ "models": [
+  {
+   "in": {
+    "models": [
+     {
+      "slug": "a",
+      "display_name": "A",
+      "visibility": "list"
+     },
+     {
+      "slug": "b",
+      "visibility": "hide"
+     },
+     {
+      "id": "c"
+     }
+    ]
+   },
+   "out": [
+    {
+     "slug": "a",
+     "display_name": "A"
+    },
+    {
+     "slug": "c",
+     "display_name": "c"
+    }
+   ]
+  },
+  {
+   "in": {
+    "data": [
+     {
+      "id": "d",
+      "display_name": "D"
+     },
+     {}
+    ]
+   },
+   "out": [
+    {
+     "slug": "d",
+     "display_name": "D"
+    }
+   ]
+  },
+  {
+   "in": {},
+   "out": []
+  }
+ ],
+ "usage": [
+  {
+   "in": "usage_limit_exceeded",
+   "out": true
+  },
+  {
+   "in": "insufficient_quota",
+   "out": true
+  },
+  {
+   "in": "other",
+   "out": false
+  },
+  {
+   "in": "",
+   "out": false
+  }
+ ],
+ "gemini": [
+  {
+   "status": 200,
+   "json": {
+    "candidates": [
+     {
+      "content": {
+       "parts": [
+        {
+         "text": "생각",
+         "thought": true
+        },
+        {
+         "text": "{\"ok\""
+        },
+        {
+         "text": ":true}"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "system": "시스템 글",
+   "out": {
+    "ok": "{\"ok\":true}"
+   },
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "첫 질문"
+       }
+      ]
+     },
+     {
+      "role": "model",
+      "parts": [
+       {
+        "text": "{\"a\":1}"
+       }
+      ]
+     },
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "둘째"
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "temperature": 0.3,
+     "responseMimeType": "application/json",
+     "thinkingConfig": {
+      "thinkingLevel": "medium"
+     }
+    },
+    "systemInstruction": {
+     "parts": [
+      {
+       "text": "시스템 글"
+      }
+     ]
+    }
+   },
+   "url": "gemini-3.5-flash:generateContent"
+  },
+  {
+   "status": 200,
+   "json": {},
+   "system": "",
+   "out": {
+    "ok": ""
+   },
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "첫 질문"
+       }
+      ]
+     },
+     {
+      "role": "model",
+      "parts": [
+       {
+        "text": "{\"a\":1}"
+       }
+      ]
+     },
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "둘째"
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "temperature": 0.3,
+     "responseMimeType": "application/json",
+     "thinkingConfig": {
+      "thinkingLevel": "medium"
+     }
+    }
+   },
+   "url": "gemini-3.5-flash:generateContent"
+  },
+  {
+   "status": 429,
+   "json": {
+    "error": {
+     "message": "quota"
+    }
+   },
+   "system": "s",
+   "out": {
+    "err": "usage_limit",
+    "msg": "제미나이 무료 사용량을 다 썼습니다. 잠시 뒤 다시 하거나 다른 AI 로 바꿔 주세요."
+   },
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "첫 질문"
+       }
+      ]
+     },
+     {
+      "role": "model",
+      "parts": [
+       {
+        "text": "{\"a\":1}"
+       }
+      ]
+     },
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "둘째"
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "temperature": 0.3,
+     "responseMimeType": "application/json",
+     "thinkingConfig": {
+      "thinkingLevel": "medium"
+     }
+    },
+    "systemInstruction": {
+     "parts": [
+      {
+       "text": "s"
+      }
+     ]
+    }
+   },
+   "url": "gemini-3.5-flash:generateContent"
+  },
+  {
+   "status": 400,
+   "json": {
+    "error": {
+     "message": "API key not valid. Please pass a valid API key."
+    }
+   },
+   "system": "s",
+   "out": {
+    "err": "auth",
+    "msg": "제미나이 키가 올바르지 않습니다. [AI 연결]에서 다시 입력해 주세요."
+   },
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "첫 질문"
+       }
+      ]
+     },
+     {
+      "role": "model",
+      "parts": [
+       {
+        "text": "{\"a\":1}"
+       }
+      ]
+     },
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "둘째"
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "temperature": 0.3,
+     "responseMimeType": "application/json",
+     "thinkingConfig": {
+      "thinkingLevel": "medium"
+     }
+    },
+    "systemInstruction": {
+     "parts": [
+      {
+       "text": "s"
+      }
+     ]
+    }
+   },
+   "url": "gemini-3.5-flash:generateContent"
+  },
+  {
+   "status": 400,
+   "json": {
+    "error": {
+     "message": "Invalid JSON payload"
+    }
+   },
+   "system": "s",
+   "out": {
+    "err": "api",
+    "msg": "제미나이 오류 400: Invalid JSON payload"
+   },
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "첫 질문"
+       }
+      ]
+     },
+     {
+      "role": "model",
+      "parts": [
+       {
+        "text": "{\"a\":1}"
+       }
+      ]
+     },
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "둘째"
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "temperature": 0.3,
+     "responseMimeType": "application/json",
+     "thinkingConfig": {
+      "thinkingLevel": "medium"
+     }
+    },
+    "systemInstruction": {
+     "parts": [
+      {
+       "text": "s"
+      }
+     ]
+    }
+   },
+   "url": "gemini-3.5-flash:generateContent"
+  },
+  {
+   "status": 401,
+   "json": {},
+   "system": "s",
+   "out": {
+    "err": "auth",
+    "msg": "제미나이 키가 올바르지 않습니다. [AI 연결]에서 다시 입력해 주세요."
+   },
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "첫 질문"
+       }
+      ]
+     },
+     {
+      "role": "model",
+      "parts": [
+       {
+        "text": "{\"a\":1}"
+       }
+      ]
+     },
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "둘째"
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "temperature": 0.3,
+     "responseMimeType": "application/json",
+     "thinkingConfig": {
+      "thinkingLevel": "medium"
+     }
+    },
+    "systemInstruction": {
+     "parts": [
+      {
+       "text": "s"
+      }
+     ]
+    }
+   },
+   "url": "gemini-3.5-flash:generateContent"
+  },
+  {
+   "status": 403,
+   "json": {
+    "error": {
+     "message": "denied"
+    }
+   },
+   "system": "s",
+   "out": {
+    "err": "auth",
+    "msg": "제미나이 키가 올바르지 않습니다. [AI 연결]에서 다시 입력해 주세요."
+   },
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "첫 질문"
+       }
+      ]
+     },
+     {
+      "role": "model",
+      "parts": [
+       {
+        "text": "{\"a\":1}"
+       }
+      ]
+     },
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "둘째"
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "temperature": 0.3,
+     "responseMimeType": "application/json",
+     "thinkingConfig": {
+      "thinkingLevel": "medium"
+     }
+    },
+    "systemInstruction": {
+     "parts": [
+      {
+       "text": "s"
+      }
+     ]
+    }
+   },
+   "url": "gemini-3.5-flash:generateContent"
+  },
+  {
+   "status": 500,
+   "json": {
+    "error": {
+     "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+   },
+   "system": "s",
+   "out": {
+    "err": "api",
+    "msg": "제미나이 오류 500: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   },
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "첫 질문"
+       }
+      ]
+     },
+     {
+      "role": "model",
+      "parts": [
+       {
+        "text": "{\"a\":1}"
+       }
+      ]
+     },
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "둘째"
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "temperature": 0.3,
+     "responseMimeType": "application/json",
+     "thinkingConfig": {
+      "thinkingLevel": "medium"
+     }
+    },
+    "systemInstruction": {
+     "parts": [
+      {
+       "text": "s"
+      }
+     ]
+    }
+   },
+   "url": "gemini-3.5-flash:generateContent"
+  }
+ ],
+ "geminiTest": [
+  {
+   "status": 200,
+   "json": {},
+   "ok": true,
+   "message": "연결 성공 (gemini-test-model, 0ms)",
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "확인. \"OK\"라고만 답해."
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "maxOutputTokens": 5,
+     "thinkingConfig": {
+      "thinkingLevel": "minimal"
+     }
+    }
+   }
+  },
+  {
+   "status": 400,
+   "json": {
+    "error": {
+     "message": "API key not valid"
+    }
+   },
+   "ok": false,
+   "message": "API 키가 올바르지 않습니다. 키를 다시 확인하세요.",
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "확인. \"OK\"라고만 답해."
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "maxOutputTokens": 5,
+     "thinkingConfig": {
+      "thinkingLevel": "minimal"
+     }
+    }
+   }
+  },
+  {
+   "status": 400,
+   "json": {
+    "error": {
+     "message": "other"
+    }
+   },
+   "ok": false,
+   "message": "오류 400: other",
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "확인. \"OK\"라고만 답해."
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "maxOutputTokens": 5,
+     "thinkingConfig": {
+      "thinkingLevel": "minimal"
+     }
+    }
+   }
+  },
+  {
+   "status": 403,
+   "json": {},
+   "ok": false,
+   "message": "이 키로는 사용할 수 없습니다(권한 또는 결제 설정 확인).",
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "확인. \"OK\"라고만 답해."
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "maxOutputTokens": 5,
+     "thinkingConfig": {
+      "thinkingLevel": "minimal"
+     }
+    }
+   }
+  },
+  {
+   "status": 404,
+   "json": {},
+   "ok": false,
+   "message": "모델을 찾을 수 없습니다: gemini-test-model",
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "확인. \"OK\"라고만 답해."
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "maxOutputTokens": 5,
+     "thinkingConfig": {
+      "thinkingLevel": "minimal"
+     }
+    }
+   }
+  },
+  {
+   "status": 429,
+   "json": {},
+   "ok": false,
+   "message": "사용 한도를 넘었습니다. 잠시 후 다시 시도하거나 다른 모델을 고르세요.",
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "확인. \"OK\"라고만 답해."
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "maxOutputTokens": 5,
+     "thinkingConfig": {
+      "thinkingLevel": "minimal"
+     }
+    }
+   }
+  },
+  {
+   "status": 503,
+   "json": {
+    "error": {
+     "message": "busy"
+    }
+   },
+   "ok": false,
+   "message": "오류 503: busy",
+   "body": {
+    "contents": [
+     {
+      "role": "user",
+      "parts": [
+       {
+        "text": "확인. \"OK\"라고만 답해."
+       }
+      ]
+     }
+    ],
+    "generationConfig": {
+     "maxOutputTokens": 5,
+     "thinkingConfig": {
+      "thinkingLevel": "minimal"
+     }
+    }
+   }
+  }
+ ],
+ "openrouterBody": [
+  {
+   "model": "m1",
+   "system": "시스템",
+   "messages": [
+    {
+     "role": "user",
+     "content": "첫 질문"
+    },
+    {
+     "role": "assistant",
+     "content": "{\"a\":1}"
+    },
+    {
+     "role": "user",
+     "content": "둘째"
+    }
+   ],
+   "body": {
+    "model": "m1",
+    "temperature": 0.3,
+    "messages": [
+     {
+      "role": "system",
+      "content": "시스템"
+     },
+     {
+      "role": "user",
+      "content": "첫 질문"
+     },
+     {
+      "role": "assistant",
+      "content": "{\"a\":1}"
+     },
+     {
+      "role": "user",
+      "content": "둘째"
+     }
+    ]
+   },
+   "headers": {
+    "content-type": "application/json",
+    "authorization": "Bearer K",
+    "HTTP-Referer": "https://github.com/hahadark/sermon-shorts",
+    "X-Title": "SermonShorts"
+   }
+  },
+  {
+   "model": "openrouter/free",
+   "system": "",
+   "messages": [
+    {
+     "role": "user",
+     "content": "첫 질문"
+    }
+   ],
+   "body": {
+    "model": "openrouter/free",
+    "temperature": 0.3,
+    "messages": [
+     {
+      "role": "user",
+      "content": "첫 질문"
+     }
+    ]
+   },
+   "headers": {
+    "content-type": "application/json",
+    "authorization": "Bearer K",
+    "HTTP-Referer": "https://github.com/hahadark/sermon-shorts",
+    "X-Title": "SermonShorts"
+   }
+  }
+ ],
+ "openrouterErr": [
+  {
+   "status": 401,
+   "json": {},
+   "out": {
+    "err": "auth",
+    "msg": "오픈라우터 키가 올바르지 않습니다. [AI 연결]에서 다시 입력해 주세요."
+   }
+  },
+  {
+   "status": 403,
+   "json": {},
+   "out": {
+    "err": "auth",
+    "msg": "오픈라우터 키가 올바르지 않습니다. [AI 연결]에서 다시 입력해 주세요."
+   }
+  },
+  {
+   "status": 402,
+   "json": {
+    "error": {
+     "message": "pay"
+    }
+   },
+   "out": {
+    "err": "usage_limit",
+    "msg": "오픈라우터 계정의 무료 사용 조건이 막혔습니다. openrouter.ai 에서 계정 상태를 확인해 주세요."
+   }
+  },
+  {
+   "status": 200,
+   "json": {
+    "error": {
+     "code": 401,
+     "message": "no auth"
+    }
+   },
+   "out": {
+    "err": "auth",
+    "msg": "오픈라우터 키가 올바르지 않습니다. [AI 연결]에서 다시 입력해 주세요."
+   }
+  },
+  {
+   "status": 200,
+   "json": {
+    "error": {
+     "message": "no code"
+    }
+   },
+   "out": {
+    "err": "api",
+    "msg": "오픈라우터 오류 500: no code"
+   }
+  },
+  {
+   "status": 400,
+   "json": {
+    "error": {
+     "message": "bad"
+    }
+   },
+   "out": {
+    "err": "api",
+    "msg": "오픈라우터 오류 400: bad"
+   }
+  }
+ ],
+ "freeModels": {
+  "in": {
+   "data": [
+    {
+     "id": "a/big:free",
+     "pricing": {
+      "prompt": "0",
+      "completion": "0"
+     },
+     "context_length": 200000
+    },
+    {
+     "id": "b/small:free",
+     "pricing": {
+      "prompt": "0",
+      "completion": "0"
+     },
+     "context_length": 32000
+    },
+    {
+     "id": "c/paid",
+     "pricing": {
+      "prompt": "0.1",
+      "completion": "0.2"
+     },
+     "context_length": 300000
+    },
+    {
+     "id": "d/guard:free",
+     "pricing": {
+      "prompt": "0",
+      "completion": "0"
+     },
+     "context_length": 100000
+    },
+    {
+     "id": "e/img:free",
+     "pricing": {
+      "prompt": 0,
+      "completion": 0
+     },
+     "context_length": 100000,
+     "architecture": {
+      "output_modalities": [
+       "image"
+      ]
+     }
+    },
+    {
+     "id": "f/mid:free",
+     "pricing": {
+      "prompt": 0,
+      "completion": "0"
+     },
+     "context_length": 128000,
+     "architecture": {
+      "output_modalities": [
+       "text"
+      ]
+     }
+    },
+    {
+     "id": "g/nopricing:free",
+     "context_length": 999999
+    }
+   ]
+  },
+  "out": [
+   "a/big:free",
+   "f/mid:free"
+  ]
+ },
+ "claudeConvo": {
+  "messages": [
+   {
+    "role": "user",
+    "content": "첫 질문"
+   },
+   {
+    "role": "assistant",
+    "content": "{\"a\":1}"
+   },
+   {
+    "role": "user",
+    "content": "둘째"
+   }
+  ],
+  "out": "[사용자]\n첫 질문\n\n[편집자(이전 답)]\n{\"a\":1}\n\n[사용자]\n둘째"
+ }
+}

@@ -1,0 +1,13 @@
+/target
+
+# 비밀 (구글 OAuth 클라이언트): 배포 때 빌드에서 넣는다
+/assets/google-client.json
+
+# 실제 설교 자막으로 만든 시험 자료는 공개 저장소에 넣지 않는다 (tests/gen_*.js 로 이 PC에서 다시 만든다)
+/tests/fixtures/caption_edit.json
+/tests/fixtures/caption_split_cases.json
+/tests/fixtures/edl_cases.json
+/tests/fixtures/electron_order.sshorts
+/tests/fixtures/electron_project.sshorts
+/tests/fixtures/source_fetch_cases.json
+/tests/fixtures/tidy_cases.json

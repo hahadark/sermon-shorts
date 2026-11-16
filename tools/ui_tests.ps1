@@ -1,0 +1,24 @@
+﻿# Rust 편집기 화면 시험 묶음: 편집 흐름·칸 순서·자동 정리·재생 끊김
+param([string[]]$Only = @())
+Set-Location $PSScriptRoot\..
+$tmp = Join-Path $PSScriptRoot '..\target\uitests'; New-Item -ItemType Directory -Force $tmp | Out-Null
+$env:SS_TEST_MUTE = '1'
+$env:SS_TEST_YTFAKE = '1'   # 업로드는 언제나 가짜로 (실제 채널에 올리지 않음)
+$cases = @(@('editflow','electron_order'), @('reorder','electron_project'), @('tidyflow','electron_project'), @('splitflow','electron_project'), @('trimflow','electron_project'), @('skipgap',''), @('exportflow','electron_project'), @('ytimport','-'), @('recoverflow','-'), @('autosaveflow','electron_project'), @('prefsflow','-'), @('voiceflow','electron_project'), @('bgmflow','electron_project'), @('bgmmgr','-'), @('clickflow','electron_project'), @('followflow','electron_project'), @('waveflow','electron_project'), @('backdropflow','electron_project'), @('menuflow','electron_project'), @('aiflow','electron_project'))
+foreach ($tc in $cases) {
+  if ($Only.Count -and -not ($Only -contains $tc[0])) { continue }
+  $rep = Join-Path $tmp "$($tc[0]).json"; Remove-Item $rep -ErrorAction SilentlyContinue
+  if ($tc[1] -eq '-') { $a = @() }
+  elseif ($tc[1]) { Copy-Item "tests\fixtures\$($tc[1]).sshorts" "target\t_$($tc[0]).sshorts" -Force; $a = @('--project', (Resolve-Path "target\t_$($tc[0]).sshorts").Path) }
+  else { $a = @('--open', 'F:\aside\sermon-shorts-app\cache\yt\uSE5pZB3gtQ\part_4955_5100.mp4', '--transcript', 'F:\aside\sermon-shorts-app\cache\theme_check\words_4955.json') }
+  if ($tc[0] -in @('autosaveflow','prefsflow')) { $ud = Join-Path $tmp 'ud_asv'; Remove-Item $ud -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory $ud | Out-Null; $env:SS_USER_DATA_DIR = $ud } else { Remove-Item Env:SS_USER_DATA_DIR -ErrorAction SilentlyContinue }
+  # AI 연결: 진짜 설정·로그인 파일·잠금 키를 임시 폴더로 복사해서 (사용자 설정은 건드리지 않음). 돈 드는 호출 없음
+  if ($tc[0] -eq 'aiflow') { $ud = Join-Path $tmp 'ud_ai'; Remove-Item $ud -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory "$ud\llm" -Force | Out-Null; $real = Join-Path $env:APPDATA 'SermonShorts'; Copy-Item "$real\settings.json", "$real\Local State" $ud; if (Test-Path "$real\llm\chatgpt.json") { Copy-Item "$real\llm\chatgpt.json" "$ud\llm\" }; $env:SS_USER_DATA_DIR = $ud }
+  if ($tc[0] -eq 'bgmmgr') { $lib = Join-Path $tmp 'bgmlib'; Remove-Item $lib -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory $lib | Out-Null; $env:SS_BGM_LIBRARY = $lib } else { Remove-Item Env:SS_BGM_LIBRARY -ErrorAction SilentlyContinue }
+  $p = Start-Process target\release\sermon_shorts.exe -ArgumentList ($a + @('--test', $tc[0], '--report', $rep)) -PassThru
+  if (-not $p.WaitForExit(300000)) { $p | Stop-Process -Force; "$($tc[0]): 시간 초과"; continue }
+  $j = Get-Content $rep -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+  if ($tc[0] -eq 'skipgap') { "skipgap: fps $($j.fps) 보통 $([math]::Round($j.frameGapMs.median))ms p95 $([math]::Round($j.frameGapMs.p95))ms 최대 $([math]::Round($j.frameGapMs.max))ms 소리끊김 $($j.underruns)" }
+  elseif ($tc[0] -eq 'tidyflow') { "tidyflow: pass=$($j.pass) 길이 $([math]::Round($j.durBefore,2))→$([math]::Round($j.durAfter,2))초 공백컷 $($j.gapCuts) 군말 $($j.fillers) 구간 $($j.segsBefore)→ 되돌리기 $($j.undo) ($([math]::Round($j.secs,1))초)" }
+  else { "$($tc[0]): pass=$($j.pass)" }
+}

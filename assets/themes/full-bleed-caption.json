@@ -1,0 +1,117 @@
+{
+  "id": "full-bleed-caption",
+  "name": "꽉 찬 영상 + 큰 강조 자막",
+  "source": [
+    "https://www.youtube.com/shorts/C4BI3alHiFk"
+  ],
+  "note": "영상이 화면 전체를 채움. 맨 위에 교회·설교자 한 줄, 화면 중간 아래에 연두색 큰 자막(검은 외곽선) 왼쪽 정렬. 하단 220px은 유튜브 UI에 가려지므로 비워 둠.",
+  "canvas": {
+    "background": "#000000"
+  },
+  "title": {
+    "show": false,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 300,
+    "font": "Do Hyeon",
+    "weight": 400,
+    "size": 80,
+    "color": "#FFFFFF",
+    "stroke": 5,
+    "strokeColor": "#000000",
+    "shadow": null,
+    "maxLines": 2
+  },
+  "verse": {
+    "show": false,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 380,
+    "font": "Noto Sans KR",
+    "weight": 500,
+    "size": 44,
+    "color": "#FFFFFF",
+    "band": null
+  },
+  "video": {
+    "show": true,
+    "x": 0,
+    "y": 0,
+    "width": 1080,
+    "height": 1920,
+    "fit": "cover",
+    "radius": 0,
+    "border": null,
+    "fade": null
+  },
+  "subtitle": {
+    "show": true,
+    "align": "left",
+    "x": 40,
+    "width": 1000,
+    "y": 1120,
+    "font": "Do Hyeon",
+    "weight": 400,
+    "size": 96,
+    "color": "#C8F59A",
+    "stroke": 6,
+    "strokeColor": "#1A1A1A",
+    "box": null,
+    "maxChars": 10,
+    "lineGap": 1.35,
+    "highlightColor": null
+  },
+  "churchName": {
+    "show": false,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 96,
+    "font": "Noto Sans KR",
+    "size": 56,
+    "color": "#FFFFFF",
+    "letterSpacing": 0,
+    "text": ""
+  },
+  "speaker": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 96,
+    "font": "Noto Sans KR",
+    "weight": 500,
+    "size": 58,
+    "color": "#FFFFFF",
+    "stroke": 0,
+    "shadow": {
+      "color": "#000000AA",
+      "blur": 8,
+      "offsetY": 3
+    },
+    "text": "",
+    "format": "{church} {speaker}"
+  },
+  "logo": {
+    "show": false,
+    "x": 540,
+    "y": 1600,
+    "height": 100,
+    "path": ""
+  },
+  "fadeInSec": 0,
+  "fonts": [
+    {
+      "name": "Do Hyeon",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Do+Hyeon"
+    },
+    {
+      "name": "Noto Sans KR",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Noto+Sans+KR"
+    }
+  ]
+}

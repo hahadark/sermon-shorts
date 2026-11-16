@@ -1,0 +1,118 @@
+{
+  "id": "dark-band-handwriting",
+  "name": "짙은 띠 + 손글씨 제목",
+  "source": [
+    "https://www.youtube.com/watch?v=T_FTpdJV_0A"
+  ],
+  "note": "위아래 짙은 단색 띠, 가운데 설교 영상. 위 띠에 날짜와 로고, 아래 띠에 손글씨 제목.",
+  "canvas": {
+    "background": "#2E3B42"
+  },
+  "title": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1665,
+    "font": "Nanum Pen Script",
+    "weight": 400,
+    "size": 110,
+    "color": "#FFFFFF",
+    "stroke": 0,
+    "strokeColor": null,
+    "shadow": {
+      "color": "#00000088",
+      "blur": 8,
+      "offsetY": 4
+    },
+    "maxLines": 1
+  },
+  "verse": {
+    "show": true,
+    "align": "center",
+    "x": 260,
+    "width": 400,
+    "y": 160,
+    "font": "Noto Sans KR",
+    "weight": 400,
+    "size": 64,
+    "color": "#F2F2F2",
+    "band": null,
+    "shadow": {
+      "color": "#00000066",
+      "blur": 6,
+      "offsetY": 3
+    }
+  },
+  "video": {
+    "show": true,
+    "x": 0,
+    "y": 420,
+    "width": 1080,
+    "height": 1080,
+    "fit": "cover",
+    "radius": 0,
+    "border": null,
+    "fade": null
+  },
+  "subtitle": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1400,
+    "font": "Noto Sans KR",
+    "weight": 700,
+    "size": 56,
+    "color": "#FFFFFF",
+    "stroke": 4,
+    "strokeColor": "#1E272C",
+    "box": null,
+    "maxChars": 14,
+    "highlightColor": null
+  },
+  "churchName": {
+    "show": true,
+    "align": "center",
+    "x": 840,
+    "width": 400,
+    "y": 160,
+    "font": "Noto Sans KR",
+    "weight": 800,
+    "size": 58,
+    "color": "#FFFFFF",
+    "letterSpacing": 0,
+    "text": ""
+  },
+  "speaker": {
+    "show": false,
+    "align": "center",
+    "x": 840,
+    "width": 400,
+    "y": 1790,
+    "font": "Noto Sans KR",
+    "size": 40,
+    "color": "#D0D6D9",
+    "text": ""
+  },
+  "logo": {
+    "show": true,
+    "x": 840,
+    "y": 105,
+    "height": 110,
+    "path": ""
+  },
+  "fadeInSec": 0.6,
+  "fonts": [
+    {
+      "name": "Nanum Pen Script",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Nanum+Pen+Script"
+    },
+    {
+      "name": "Noto Sans KR",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Noto+Sans+KR"
+    }
+  ]
+}

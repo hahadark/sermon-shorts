@@ -1,0 +1,102 @@
+{
+  "id": "basic-blank",
+  "name": "기본 (배포용)",
+  "distributionDefault": true,
+  "source": [],
+  "note": "다른 교회 배포 시 첫 실행 기본값. 교회명·설교자·로고는 비워 둠.",
+  "canvas": {
+    "background": "#000000"
+  },
+  "title": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 190,
+    "font": "Noto Sans KR",
+    "weight": 800,
+    "size": 72,
+    "color": "#FFFFFF",
+    "stroke": 0,
+    "strokeColor": null,
+    "shadow": null,
+    "maxLines": 2
+  },
+  "verse": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 290,
+    "font": "Noto Sans KR",
+    "weight": 500,
+    "size": 44,
+    "color": "#D9D9D9",
+    "band": null
+  },
+  "video": {
+    "show": true,
+    "x": 0,
+    "y": 353,
+    "width": 1080,
+    "height": 958,
+    "fit": "cover",
+    "radius": 0,
+    "border": null,
+    "fade": null
+  },
+  "subtitle": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1400,
+    "font": "Noto Sans KR",
+    "weight": 700,
+    "size": 60,
+    "color": "#FFFFFF",
+    "stroke": 4,
+    "strokeColor": "#000000",
+    "box": null,
+    "maxChars": 14,
+    "highlightColor": null
+  },
+  "churchName": {
+    "show": false,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1700,
+    "font": "Noto Sans KR",
+    "size": 40,
+    "color": "#FFFFFF",
+    "letterSpacing": 0.2,
+    "text": ""
+  },
+  "speaker": {
+    "show": false,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1770,
+    "font": "Noto Sans KR",
+    "size": 44,
+    "color": "#FFFFFF",
+    "text": ""
+  },
+  "logo": {
+    "show": false,
+    "x": 540,
+    "y": 1620,
+    "height": 120,
+    "path": ""
+  },
+  "fadeInSec": 1,
+  "fonts": [
+    {
+      "name": "Noto Sans KR",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Noto+Sans+KR"
+    }
+  ]
+}

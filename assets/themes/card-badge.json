@@ -1,0 +1,143 @@
+{
+  "id": "card-badge",
+  "name": "둥근 영상 카드 + 이름표",
+  "source": [
+    "https://www.youtube.com/shorts/gOCHbtqMxt8",
+    "https://www.youtube.com/shorts/SPmZR-i8aYc"
+  ],
+  "note": "밝은 바탕에 모서리가 둥근 큰 영상 카드(그림자), 카드 오른쪽 위에 설교자 이름표, 카드 아래쪽에 왼쪽 정렬 기울임 자막, 카드 밑에 제목과 구절.",
+  "canvas": {
+    "background": "#E9E1D8",
+    "mode": "gradient",
+    "gradient": {
+      "from": "#F1EBE4",
+      "to": "#D5C8BA",
+      "angle": 180
+    }
+  },
+  "title": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1555,
+    "anchor": "top",
+    "font": "Noto Sans KR",
+    "weight": 800,
+    "size": 56,
+    "color": "#3B3026",
+    "stroke": 0,
+    "strokeColor": null,
+    "shadow": null,
+    "maxLines": 1
+  },
+  "verse": {
+    "show": true,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1630,
+    "font": "Noto Sans KR",
+    "weight": 500,
+    "size": 36,
+    "color": "#7A6A5A",
+    "band": null
+  },
+  "video": {
+    "show": true,
+    "x": 40,
+    "y": 140,
+    "width": 1000,
+    "height": 1320,
+    "fit": "cover",
+    "radius": 40,
+    "border": null,
+    "fade": null,
+    "shadow": {
+      "color": "#00000059",
+      "blur": 40,
+      "offsetX": 0,
+      "offsetY": 14
+    }
+  },
+  "subtitle": {
+    "show": true,
+    "align": "left",
+    "x": 90,
+    "width": 900,
+    "y": 1400,
+    "anchor": "bottom",
+    "font": "Noto Sans KR",
+    "weight": 700,
+    "size": 64,
+    "italic": true,
+    "color": "#FFFFFF",
+    "stroke": 0,
+    "strokeColor": "#000000",
+    "shadow": {
+      "color": "#000000CC",
+      "blur": 14,
+      "offsetX": 0,
+      "offsetY": 3
+    },
+    "box": null,
+    "maxChars": 14,
+    "maxLines": 3,
+    "lineGap": 1.28,
+    "highlightColor": "#FFD54A"
+  },
+  "badge": {
+    "show": true,
+    "text": "{speaker}",
+    "align": "right",
+    "x": 1010,
+    "y": 200,
+    "font": "Noto Sans KR",
+    "size": 32,
+    "weight": 700,
+    "color": "#FFFFFF",
+    "bg": "#E2416B",
+    "radius": 12,
+    "padX": 18,
+    "padY": 8
+  },
+  "churchName": {
+    "show": false,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1700,
+    "font": "Noto Sans KR",
+    "size": 40,
+    "color": "#FFFFFF",
+    "letterSpacing": 0,
+    "text": ""
+  },
+  "speaker": {
+    "show": false,
+    "align": "center",
+    "x": 540,
+    "width": 1000,
+    "y": 1770,
+    "font": "Noto Sans KR",
+    "size": 44,
+    "color": "#FFFFFF",
+    "text": "",
+    "format": "{speaker}"
+  },
+  "logo": {
+    "show": false,
+    "x": 540,
+    "y": 1620,
+    "height": 120,
+    "path": ""
+  },
+  "fadeInSec": 0.4,
+  "fonts": [
+    {
+      "name": "Noto Sans KR",
+      "license": "OFL 1.1",
+      "url": "https://fonts.google.com/specimen/Noto+Sans+KR"
+    }
+  ]
+}
