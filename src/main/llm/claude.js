@@ -74,11 +74,29 @@ async function status() {
 }
 
 /** 공식 설치 명령을 새 터미널 창에서 실행 (사용자가 창에서 진행 상황을 본다) */
+// Windows 터미널(wt.exe) 경로. 옛 명령 창(conhost)에서는 클로드 로그인 화면에 코드를 붙여 넣을 수 없는 경우가 있어
+// 터미널이 있으면 그 창으로 연다 (Ctrl+V·마우스 오른쪽 클릭 붙여넣기). 없으면 예전처럼 명령 창.
+function windowsTerminal() {
+  if (process.platform !== 'win32' || !process.env.LOCALAPPDATA) return null;
+  const p = path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WindowsApps', 'wt.exe');
+  try { fs.lstatSync(p); return p; } catch (_) { return null; } // 앱 실행 별칭이라 stat 이 실패해도 lstat 은 된다
+}
+/** PowerShell 명령을 새 창에서 (UTF-16 Base64 로 넘겨 따옴표·세미콜론을 터미널이 해석하지 않게) */
+function openPowerShellWindow(title, script) {
+  const enc = Buffer.from(script, 'utf16le').toString('base64');
+  const args = ['-NoExit', '-NoProfile', '-EncodedCommand', enc];
+  const wt = windowsTerminal();
+  if (wt) {
+    try { spawn(wt, ['-w', 'new', 'new-tab', '--title', title, 'powershell.exe', ...args], { detached: true, windowsHide: false, shell: false }).unref(); return 'wt'; } catch (_) { /* 아래 명령 창으로 */ }
+  }
+  spawn('cmd.exe', ['/c', 'start', `"${title}"`, 'powershell.exe', ...args], { detached: true, windowsHide: false, shell: false }).unref();
+  return 'conhost';
+}
+const psQuote = (s) => "'" + String(s).replace(/'/g, "''") + "'";
+
 function openInstall() {
   if (process.platform === 'win32') {
-    spawn('cmd.exe', ['/c', 'start', '"Claude Code 설치"', 'powershell.exe', '-NoExit', '-NoProfile', '-Command',
-      `Write-Host 'Claude Code 공식 설치를 시작합니다...'; ${INSTALL.win32}; Write-Host ''; Write-Host '설치가 끝났습니다. 이 창을 닫고 SermonShorts에서 [다시 확인]을 누르세요.'`],
-    { detached: true, windowsHide: false, shell: false }).unref();
+    openPowerShellWindow('Claude Code 설치', `Write-Host 'Claude Code 공식 설치를 시작합니다...'; ${INSTALL.win32}; Write-Host ''; Write-Host '설치가 끝났습니다. 이 창을 닫고 SermonShorts에서 [다시 확인]을 누르세요.'`);
   } else if (process.platform === 'darwin') {
     const script = `tell application "Terminal" to do script "${INSTALL.other}; echo; echo 설치가 끝났습니다. SermonShorts에서 [다시 확인]을 누르세요."`;
     execFile('osascript', ['-e', script, '-e', 'tell application "Terminal" to activate']);
@@ -93,8 +111,7 @@ function openLogin() {
   const bin = findClaude();
   if (!bin) throw new Error('Claude Code 가 설치되어 있지 않습니다. 먼저 설치해 주세요.');
   if (process.platform === 'win32') {
-    spawn('cmd.exe', ['/c', 'start', '"Claude 로그인"', 'cmd.exe', '/k', `"${bin}" auth login && echo. && echo 로그인이 끝났습니다. 이 창을 닫고 SermonShorts에서 [다시 확인]을 누르세요.`],
-      { detached: true, windowsHide: false, windowsVerbatimArguments: true }).unref();
+    openPowerShellWindow('Claude 로그인', `Write-Host '브라우저에서 클로드 계정으로 로그인하세요. 코드를 붙여 넣으라고 하면 Ctrl+V 또는 마우스 오른쪽 클릭으로 붙여 넣습니다.'; Write-Host ''; & ${psQuote(bin)} auth login; Write-Host ''; Write-Host '로그인이 끝났습니다. 이 창을 닫고 SermonShorts에서 [다시 확인]을 누르세요.'`);
   } else if (process.platform === 'darwin') {
     const script = `tell application "Terminal" to do script "'${bin.replace(/'/g, "'\\''")}' auth login"`;
     execFile('osascript', ['-e', script, '-e', 'tell application "Terminal" to activate']);
@@ -166,4 +183,4 @@ async function completeOnce({ system, messages, model, onStage, onDelta, signal 
   }
 }
 
-module.exports = { status, openInstall, openLogin, complete, findClaude, INSTALL };
+module.exports = { status, openInstall, openLogin, complete, findClaude, INSTALL, windowsTerminal, openPowerShellWindow };
