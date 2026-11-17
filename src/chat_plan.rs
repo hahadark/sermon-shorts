@@ -84,7 +84,7 @@ pub fn js_string(v: Option<&Value>) -> String {
 }
 /// UTF-16 길이 (JS .length)
 pub fn js_len(s: &str) -> usize { s.encode_utf16().count() }
-fn js_slice(s: &str, a: usize, b: usize) -> String { let u: Vec<u16> = s.encode_utf16().collect(); String::from_utf16_lossy(&u[a.min(u.len())..b.min(u.len())]) }
+pub fn js_slice(s: &str, a: usize, b: usize) -> String { let u: Vec<u16> = s.encode_utf16().collect(); String::from_utf16_lossy(&u[a.min(u.len())..b.min(u.len())]) }
 fn js_tail(s: &str, n: usize) -> String { let u: Vec<u16> = s.encode_utf16().collect(); String::from_utf16_lossy(&u[u.len().saturating_sub(n)..]) }
 /// JS toFixed(1) (딱 반이면 올림)
 fn to_fixed1(x: f64) -> String {
@@ -188,7 +188,7 @@ pub fn build_user_message(request: &str, current: Option<&Current>, duration_sec
     parts.join("\n\n")
 }
 
-fn js_ws(c: char) -> bool { c.is_whitespace() || c == '\u{feff}' }
+pub fn js_ws(c: char) -> bool { c.is_whitespace() || c == '\u{feff}' }
 
 /// 조금 어긋난 JSON 고치기: 문자열 안의 줄바꿈·탭, 끝에 남은 쉼표, // 주석, 똑똑한 따옴표
 pub fn repair_json(s: &str) -> String {
@@ -242,7 +242,7 @@ pub struct Plan {
     pub sermon: Option<(f64, f64)>,
 }
 
-fn js_trim(s: &str) -> &str { s.trim_matches(js_ws) }
+pub fn js_trim(s: &str) -> &str { s.trim_matches(js_ws) }
 
 /// AI 답에서 JSON 꺼내기 (코드 블록·앞뒤 글이 붙어도)
 pub fn parse_plan(text: &str) -> Result<Plan, PlanErr> {

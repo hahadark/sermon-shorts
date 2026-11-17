@@ -657,3 +657,11 @@ pub fn js_runtime() -> Option<(String, PathBuf, String)> {
 }
 /// 지금 쓰는 yt-dlp 판 (없으면 빈 글)
 pub fn ytdlp_version() -> String { version_of(&ytdlp_path()) }
+/// 지금 시각 (UTC, JS toISOString 모양)
+pub fn now_iso() -> String {
+    let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0);
+    let (secs, msr) = (ms.div_euclid(1000), ms.rem_euclid(1000));
+    let (y, m, d) = civil_from_days(secs.div_euclid(86400));
+    let r = secs.rem_euclid(86400);
+    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}.{msr:03}Z", r / 3600, (r % 3600) / 60, r % 60)
+}

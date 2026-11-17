@@ -33,6 +33,7 @@ pub fn assets_dir() -> std::path::PathBuf {
 pub mod chat_plan;
 pub mod chat;
 pub mod ai;
+pub mod materials;
 pub mod updater;
 pub mod source_fetch;
 pub mod autosave;
