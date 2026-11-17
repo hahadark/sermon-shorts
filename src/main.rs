@@ -538,6 +538,7 @@ impl eframe::App for App {
                 Page::Theme => self.theme_page(ui),
                 Page::Ai => self.ai_page(ui),
                 Page::Settings => self.settings_page(ui),
+                Page::Guide => { self.page = Page::Editor; self.open_guide(); }
                 p => self.placeholder(ui, p),
             }
         });
@@ -597,6 +598,13 @@ impl App {
     }
 
     /// 아직 Rust 판에 옮기지 않은 화면
+    /// 사용 설명서: 앱 안에 PDF 가 있으면 그것을, 없으면 GitHub 의 최신 설명서(그림 포함)를 연다 (기존 app:openGuide)
+    pub(crate) fn open_guide(&mut self) {
+        let pdf = sermon_shorts::assets_dir().join("docs").join("USER_GUIDE.pdf");
+        if pdf.exists() { sermon_shorts::open_folder(&pdf); return; }
+        sermon_shorts::ytupload::open_url("https://github.com/hahadark/sermon-shorts/blob/main/docs/USER_GUIDE.md");
+        self.toast("사용 설명서를 웹 브라우저에서 열었습니다");
+    }
     pub(crate) fn placeholder(&mut self, ui: &mut egui::Ui, p: Page) {
         let name = match p { Page::Materials => "교인 자료", Page::Music => "배경음악", Page::Theme => "테마", Page::Ai => "AI 연결", Page::Guide => "사용 설명서", Page::Settings => "설정", Page::Editor => "쇼츠 편집" };
         style::card().show(ui, |ui| {
