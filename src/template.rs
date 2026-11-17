@@ -18,6 +18,7 @@ pub const H: u32 = 1920;
 struct FaceFile { family: String, data: &'static [u8], variable: bool }
 
 pub struct FontBook { faces: Vec<FaceFile> }
+static BOOK: std::sync::atomic::AtomicPtr<FontBook> = std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
 /// 기존 앱 theme-storage.js 의 이름표 (그 밖에는 파일 이름이 글꼴 이름)
 fn known_family(file: &str) -> Option<&'static str> {
@@ -53,7 +54,16 @@ impl FontBook {
         }
         FontBook { faces }
     }
-    pub fn global() -> &'static FontBook { static B: OnceLock<FontBook> = OnceLock::new(); B.get_or_init(FontBook::load) }
+    /// 지금 글꼴 목록. reload() 뒤에는 새 목록 (앞 목록도 그대로 살아 있어 이미 받아 간 참조는 안전하다)
+    pub fn global() -> &'static FontBook {
+        use std::sync::atomic::Ordering;
+        let p = BOOK.load(Ordering::Acquire);
+        if !p.is_null() { return unsafe { &*p }; }
+        let fresh = Box::into_raw(Box::new(FontBook::load()));
+        match BOOK.compare_exchange(std::ptr::null_mut(), fresh, Ordering::AcqRel, Ordering::Acquire) { Ok(_) => unsafe { &*fresh }, Err(cur) => unsafe { &*cur } }
+    }
+    /// 글꼴을 더한 뒤 다시 읽기 (테마 편집기 [글꼴 추가])
+    pub fn reload() { BOOK.store(Box::into_raw(Box::new(FontBook::load())), std::sync::atomic::Ordering::Release); }
     pub fn families(&self) -> Vec<String> { self.faces.iter().map(|f| f.family.clone()).collect() }
     fn find(&self, family: &str) -> Option<&FaceFile> { self.faces.iter().find(|f| f.family == family) }
 }
@@ -504,12 +514,31 @@ fn draw_badge(pm: &mut Pixmap, book: &FontBook, b: &Value, vals: &HashMap<&str, 
     if truthy(&b["bg"]) {
         if let Some(p) = round_rect(x0 as f32, (by - bh / 2.0) as f32, bw as f32, bh as f32, nn(&b["radius"], bh / 2.0) as f32) { pm.fill_path(&p, &paint(parse_color(s(&b["bg"], "#000"))), FillRule::Winding, Transform::identity(), None); }
     }
+    add_hit("badge", (x0, by - bh / 2.0, x0 + bw, by + bh / 2.0), None);
     let c = parse_color(s(&b["color"], "#FFFFFF"));
     let (p, bold) = font.path(&text, (x0 + pad_x) as f32, by as f32 + font.middle_offset());
     if let Some(p) = p {
         pm.fill_path(&p, &paint(c), FillRule::Winding, Transform::identity(), None);
         if bold > 0.0 { pm.stroke_path(&p, &paint(c), &Stroke { width: bold, ..Default::default() }, Transform::identity(), None); }
     }
+}
+
+// ---------------------------------------------------------------- 미리보기 직접 편집용 요소 상자 (기존 addHit·SS.previewHits)
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Hit { pub key: String, pub x0: f64, pub y0: f64, pub x1: f64, pub y1: f64, pub mode: Option<&'static str> }
+thread_local! { static SINK: std::cell::RefCell<Option<Vec<Hit>>> = const { std::cell::RefCell::new(None) }; }
+fn add_hit(key: &str, r: (f64, f64, f64, f64), mode: Option<&'static str>) {
+    SINK.with(|s| if let Some(v) = s.borrow_mut().as_mut() { v.push(Hit { key: key.into(), x0: r.0, y0: r.1, x1: r.2, y1: r.3, mode }) });
+}
+/// draw_text 의 (top, bottom, left, right) → (x0, y0, x1, y1)
+fn tb(r: (f64, f64, f64, f64)) -> (f64, f64, f64, f64) { (r.2, r.0, r.3, r.1) }
+/// 층을 그리면서 요소 상자도 모은다
+pub fn render_hits(layers: &[&str], p: &OwnedParams) -> (Pixmap, Vec<Hit>) {
+    SINK.with(|s| *s.borrow_mut() = Some(vec![]));
+    let pm = render(layers, p);
+    let hits = SINK.with(|s| s.borrow_mut().take().unwrap_or_default());
+    (pm, hits)
 }
 
 // ---------------------------------------------------------------- 층 그리기
@@ -592,12 +621,12 @@ pub fn draw_template(pm: &mut Pixmap, layers: &[&str], p: &Params) {
         let fg = TextOpts { groups: None, karaoke: None, part: Part::Fg };
         if !title_text.is_empty() { draw_text(pm, book, &t["title"], &title_text, t, &bg); }
         if !p.verse.is_empty() { draw_text(pm, book, &t["verse"], &p.verse, t, &bg); }
-        if !title_text.is_empty() { draw_text(pm, book, &t["title"], &title_text, t, &fg); }
-        if !p.verse.is_empty() { draw_text(pm, book, &t["verse"], &p.verse, t, &fg); }
+        if !title_text.is_empty() { if let Some(r) = draw_text(pm, book, &t["title"], &title_text, t, &fg) { add_hit("title", tb(r), None); } }
+        if !p.verse.is_empty() { if let Some(r) = draw_text(pm, book, &t["verse"], &p.verse, t, &fg) { add_hit("verse", tb(r), None); } }
         draw_badge(pm, book, &t["badge"], &vals, t);
     }
     if has("subtitle") && !p.subtitle_text.is_empty() && truthy(&t["subtitle"]) && truthy(&t["subtitle"]["show"]) {
-        draw_text(pm, book, &t["subtitle"], &p.subtitle_text, t, &TextOpts { groups: p.subtitle_groups.as_deref(), karaoke: p.karaoke_index, part: Part::All });
+        if let Some(r) = draw_text(pm, book, &t["subtitle"], &p.subtitle_text, t, &TextOpts { groups: p.subtitle_groups.as_deref(), karaoke: p.karaoke_index, part: Part::All }) { add_hit("subtitle", tb(r), None); }
     }
     if has("footer") {
         let (cn, sp, lg) = (&t["churchName"], &t["speaker"], &t["logo"]);
@@ -619,20 +648,22 @@ pub fn draw_template(pm: &mut Pixmap, layers: &[&str], p: &Params) {
             let total = crest_w + gap + block_w;
             let start_x = (lx - total / 2.0).min(1050.0 - total).max(30.0);
             draw_image(pm, img, start_x as f32, ly as f32, crest_w as f32, lh as f32);
+            add_hit("logo", (start_x, ly, start_x + crest_w, ly + lh), Some("group"));
             let cx = start_x + crest_w + gap + block_w / 2.0;
-            if has_church { draw_text(pm, book, &with(cn, json!({ "x": cx, "y": ly + or(&cn["size"], 16.0) / 2.0 + 5.0, "maxLines": 1, "wrap": false })), &church, t, &all); }
-            if has_speaker { draw_text(pm, book, &with(sp, json!({ "x": cx, "y": ly + lh - or(&sp["size"], 16.0) / 2.0, "maxLines": 1, "wrap": false })), &spk_text, t, &all); }
+            if has_church { if let Some(r) = draw_text(pm, book, &with(cn, json!({ "x": cx, "y": ly + or(&cn["size"], 16.0) / 2.0 + 5.0, "maxLines": 1, "wrap": false })), &church, t, &all) { add_hit("churchName", tb(r), Some("group")); } }
+            if has_speaker { if let Some(r) = draw_text(pm, book, &with(sp, json!({ "x": cx, "y": ly + lh - or(&sp["size"], 16.0) / 2.0, "maxLines": 1, "wrap": false })), &spk_text, t, &all) { add_hit("speaker", tb(r), Some("group")); } }
         } else if !truthy(&lg["free"]) && logo.is_some() && truthy(&lg["inline"]) {
             let img = logo.unwrap();
             let w = lh * img.width() as f64 / img.height() as f64;
             draw_image(pm, img, lx as f32, ly as f32, w as f32, lh as f32);
+            add_hit("logo", (lx, ly, lx + w, ly + lh), Some("inline"));
             let tx = lx + w + 18.0;
-            if has_church { draw_text(pm, book, &with(cn, json!({ "align": "left", "x": tx, "y": if has_speaker { ly + lh * 0.3 } else { ly + lh / 2.0 }, "maxLines": 1, "wrap": false })), &church, t, &all); }
-            if has_speaker { draw_text(pm, book, &with(sp, json!({ "align": "left", "x": tx, "y": if has_church { ly + lh * 0.76 } else { ly + lh / 2.0 }, "maxLines": 1, "wrap": false })), &spk_text, t, &all); }
+            if has_church { if let Some(r) = draw_text(pm, book, &with(cn, json!({ "align": "left", "x": tx, "y": if has_speaker { ly + lh * 0.3 } else { ly + lh / 2.0 }, "maxLines": 1, "wrap": false })), &church, t, &all) { add_hit("churchName", tb(r), Some("inline")); } }
+            if has_speaker { if let Some(r) = draw_text(pm, book, &with(sp, json!({ "align": "left", "x": tx, "y": if has_church { ly + lh * 0.76 } else { ly + lh / 2.0 }, "maxLines": 1, "wrap": false })), &spk_text, t, &all) { add_hit("speaker", tb(r), Some("inline")); } }
         } else {
-            if let Some(img) = logo { let w = lh * img.width() as f64 / img.height() as f64; draw_image(pm, img, (lx - w / 2.0) as f32, ly as f32, w as f32, lh as f32); }
-            if has_church { draw_text(pm, book, &with(cn, json!({ "maxLines": 1, "wrap": false })), &church, t, &all); }
-            if has_speaker { draw_text(pm, book, &with(sp, json!({ "maxLines": 1, "wrap": false })), &spk_text, t, &all); }
+            if let Some(img) = logo { let w = lh * img.width() as f64 / img.height() as f64; draw_image(pm, img, (lx - w / 2.0) as f32, ly as f32, w as f32, lh as f32); add_hit("logo", (lx - w / 2.0, ly, lx + w / 2.0, ly + lh), None); }
+            if has_church { if let Some(r) = draw_text(pm, book, &with(cn, json!({ "maxLines": 1, "wrap": false })), &church, t, &all) { add_hit("churchName", tb(r), None); } }
+            if has_speaker { if let Some(r) = draw_text(pm, book, &with(sp, json!({ "maxLines": 1, "wrap": false })), &spk_text, t, &all) { add_hit("speaker", tb(r), None); } }
         }
     }
 }

@@ -887,6 +887,153 @@ impl App {
                 t.step = 2; t.t0 = Instant::now();
             }
             ("updflow", 2) if t.t0.elapsed().as_secs_f64() > 1.0 => { ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 3; }
+            // 테마 편집기: 열기 → 그림 → 제목 끌기(아래로 100) → Ctrl+Z → 저장(기본 테마 → 복제 이름 묻기 → Enter) → 이 테마 사용
+            ("themeflow", 0) if t.t0.elapsed().as_secs_f64() > 1.0 => { self.cmd_edit_theme(); t.step = 1; t.t0 = Instant::now(); }
+            ("themeflow", 1) if self.theme_ed.ed.as_ref().is_some_and(|e| e.rendered) && t.t0.elapsed().as_secs_f64() > 1.0 => {
+                let e = self.theme_ed.ed.as_ref().unwrap().clone_view();
+                let canvas = e.rects.iter().find(|x| x.0 == "canvas").map(|x| x.1);
+                let (tx, ty, tw) = (e.theme["title"]["x"].as_f64().unwrap_or(0.0), e.theme["title"]["y"].as_f64().unwrap_or(0.0), e.theme["title"]["width"].as_f64().unwrap_or(0.0));
+                let info = json!({ "id0": e.theme["id"], "y0": ty, "align": e.theme["title"]["align"] });
+                let Some(c) = self.t_stable("te-canvas", canvas) else { return self.test = Some(test) };
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                let s = c.width() / 1080.0;
+                let left = if e.theme["title"]["align"].as_str() == Some("center") { tx - tw / 2.0 } else { tx };
+                let p0 = egui::pos2(c.left() + ((left + tw * 0.5) as f32) * s, c.top() + (ty as f32) * s);
+                let n = egui::Modifiers::NONE;
+                self.t_queue(vec![egui::Event::PointerMoved(p0)], n);
+                self.t_press(p0, n, true);
+                for k in 1..=10 { self.t_queue(vec![egui::Event::PointerMoved(p0 + egui::vec2(0.0, 100.0 * s * k as f32 / 10.0))], n); }
+                self.t_press(p0 + egui::vec2(0.0, 100.0 * s), n, false);
+                self.t_queue(vec![], n);
+                self.test_words = info.to_string();
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("themeflow", 2) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let e = self.theme_ed.ed.as_ref().unwrap();
+                info["y1"] = e.theme["title"]["y"].clone(); info["dirty1"] = json!(e.dirty);
+                self.test_words = info.to_string();
+                self.t_key(egui::Key::Z, egui::Modifiers::COMMAND);
+                t.step = 3; t.t0 = Instant::now();
+            }
+            ("themeflow", 3) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["yUndo"] = self.theme_ed.ed.as_ref().unwrap().theme["title"]["y"].clone();
+                self.t_key(egui::Key::Z, egui::Modifiers::COMMAND | egui::Modifiers::SHIFT);
+                self.test_words = info.to_string();
+                t.step = 4; t.t0 = Instant::now();
+            }
+            ("themeflow", 4) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let r = self.theme_ed.ed.as_ref().and_then(|e| e.rects.iter().find(|x| x.0 == "save").map(|x| x.1));
+                let Some(r) = self.t_stable("te-save", r) else { return self.test = Some(test) };
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["yRedo"] = self.theme_ed.ed.as_ref().unwrap().theme["title"]["y"].clone();
+                self.test_words = info.to_string();
+                self.t_click(r.center(), egui::Modifiers::NONE);
+                t.step = 5; t.t0 = Instant::now();
+            }
+            // 이름 묻는 창에서 Enter
+            ("themeflow", 5) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => { self.t_key(egui::Key::Enter, egui::Modifiers::NONE); t.step = 6; t.t0 = Instant::now(); }
+            ("themeflow", 6) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let r = self.theme_ed.ed.as_ref().and_then(|e| e.rects.iter().find(|x| x.0 == "apply").map(|x| x.1));
+                let Some(r) = self.t_stable("te-apply", r) else { return self.test = Some(test) };
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let e = self.theme_ed.ed.as_ref().unwrap();
+                info["id1"] = e.theme["id"].clone(); info["name1"] = e.theme["name"].clone(); info["dirtyAfterSave"] = json!(e.dirty);
+                let id = e.theme["id"].as_str().unwrap_or("").to_string();
+                info["fileSaved"] = json!(sermon_shorts::theme::user_data_dir().join("themes").join(format!("{id}.json")).exists());
+                self.test_words = info.to_string();
+                self.t_click(r.center(), egui::Modifiers::NONE);
+                t.step = 7; t.t0 = Instant::now();
+            }
+            ("themeflow", 7) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 1.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["activeId"] = self.theme["id"].clone();
+                info["savedActive"] = sermon_shorts::settings::load()["activeThemeId"].clone();
+                info["activeTitleY"] = self.theme["title"]["y"].clone();
+                shot(ctx, std::env::var("SS_SHOT3").ok().map(PathBuf::from), false);
+                let y0 = info["y0"].as_f64().unwrap_or(0.0);
+                info["pass"] = json!((info["y1"].as_f64().unwrap_or(0.0) - y0 - 100.0).abs() < 3.0 && info["yUndo"].as_f64() == Some(y0) && (info["yRedo"].as_f64().unwrap_or(0.0) - y0 - 100.0).abs() < 3.0
+                    && info["id1"].as_str().unwrap_or("").starts_with("user-") && info["fileSaved"] == true && info["dirtyAfterSave"] == false
+                    && info["activeId"] == info["id1"] && info["savedActive"] == info["id1"] && (info["activeTitleY"].as_f64().unwrap_or(0.0) - y0 - 100.0).abs() < 3.0);
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+            // 미리보기 직접 편집: 켜기 → 제목 아래로 100 끌기 → Shift+→ 10 → 되돌리기 두 번(테마도) → 교회 이름 끌기(묶음 → 개별 좌표)
+            ("peflow", 0) if t.t0.elapsed().as_secs_f64() > 2.0 => {
+                self.title = "시험 제목".into(); self.verse = "마태복음 6:13".into();
+                // 로고·교회 이름 묶음이 보이는 기본 테마 (설정은 바꾸지 않음)
+                if let Some(e) = self.themes.iter().find(|e| e.id == "dark-band-handwriting") { let mut th = sermon_shorts::theme::normalize(Some(&e.json)); th["id"] = json!(e.id); th["name"] = json!(e.name); self.theme = th; self.project_theme = false; self.theme_changed(); }
+                self.cmd_preview_edit(); t.step = 1; t.t0 = Instant::now(); }
+            ("peflow", 1) if self.pe.stage.is_some() && self.pe_hits().iter().any(|h| h.key == "title") && t.t0.elapsed().as_secs_f64() > 1.5 => {
+                let (st, k) = self.pe.stage.unwrap();
+                let h = self.pe_hits().into_iter().find(|h| h.key == "title").unwrap();
+                let info = json!({ "keys": self.pe_hits().iter().map(|h| h.key.clone()).collect::<Vec<_>>(), "y0": self.theme["title"]["y"], "x0": self.theme["title"]["x"], "proj0": self.project_theme, "logoFree0": self.theme["logo"]["free"] });
+                let p0 = egui::pos2(st.left() + ((h.x0 + h.x1) / 2.0) as f32 * k, st.top() + ((h.y0 + h.y1) / 2.0) as f32 * k);
+                let n = egui::Modifiers::NONE;
+                self.t_queue(vec![egui::Event::PointerMoved(p0)], n);
+                self.t_press(p0, n, true);
+                for i in 1..=10 { self.t_queue(vec![egui::Event::PointerMoved(p0 + egui::vec2(0.0, 100.0 * k * i as f32 / 10.0))], n); }
+                self.t_press(p0 + egui::vec2(0.0, 100.0 * k), n, false);
+                self.t_queue(vec![], n);
+                self.test_words = info.to_string();
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("peflow", 2) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 1.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["y1"] = self.theme["title"]["y"].clone(); info["sel"] = json!(self.pe.sel); info["proj1"] = json!(self.project_theme);
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                self.t_key(egui::Key::ArrowRight, egui::Modifiers::SHIFT);
+                self.test_words = info.to_string();
+                t.step = 3; t.t0 = Instant::now();
+            }
+            ("peflow", 3) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 1.2 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["x2"] = self.theme["title"]["x"].clone();
+                self.t_key(egui::Key::Z, egui::Modifiers::COMMAND);
+                self.test_words = info.to_string();
+                t.step = 4; t.t0 = Instant::now();
+            }
+            ("peflow", 4) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["xUndo1"] = self.theme["title"]["x"].clone(); info["yUndo1"] = self.theme["title"]["y"].clone();
+                self.t_key(egui::Key::Z, egui::Modifiers::COMMAND);
+                self.test_words = info.to_string();
+                t.step = 5; t.t0 = Instant::now();
+            }
+            ("peflow", 5) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 1.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["yUndo2"] = self.theme["title"]["y"].clone(); info["projUndo2"] = json!(self.project_theme);
+                let (st, k) = self.pe.stage.unwrap();
+                match self.pe_hits().into_iter().find(|h| h.key == "churchName") {
+                    Some(h) => {
+                        info["churchMode"] = json!(h.mode);
+                        let p0 = egui::pos2(st.left() + ((h.x0 + h.x1) / 2.0) as f32 * k, st.top() + ((h.y0 + h.y1) / 2.0) as f32 * k);
+                        let n = egui::Modifiers::NONE;
+                        self.t_queue(vec![egui::Event::PointerMoved(p0)], n);
+                        self.t_press(p0, n, true);
+                        for i in 1..=6 { self.t_queue(vec![egui::Event::PointerMoved(p0 + egui::vec2(0.0, -60.0 * k * i as f32 / 6.0))], n); }
+                        self.t_press(p0 + egui::vec2(0.0, -60.0 * k), n, false);
+                        self.t_queue(vec![], n);
+                    }
+                    None => { info["noChurch"] = json!(true); }
+                }
+                self.test_words = info.to_string();
+                t.step = 6; t.t0 = Instant::now();
+            }
+            ("peflow", 6) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 1.2 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["logoFree"] = self.theme["logo"]["free"].clone();
+                info["churchAlign"] = self.theme["churchName"]["align"].clone();
+                shot(ctx, std::env::var("SS_SHOT3").ok().map(PathBuf::from), false);
+                let y0 = info["y0"].as_f64().unwrap_or(0.0);
+                info["pass"] = json!(info["keys"].as_array().is_some_and(|a| a.iter().any(|k| k == "title") && a.iter().any(|k| k == "subtitle") && a.iter().any(|k| k == "video"))
+                    && info["proj0"] == false && (info["y1"].as_f64().unwrap_or(0.0) - y0 - 100.0).abs() < 3.0 && info["sel"] == "title" && info["proj1"] == true
+                    && info["x2"].as_f64() == info["x0"].as_f64().map(|x| x + 10.0) && info["xUndo1"] == info["x0"] && (info["yUndo1"].as_f64().unwrap_or(0.0) - y0 - 100.0).abs() < 3.0
+                    && info["yUndo2"].as_f64() == Some(y0) && info["projUndo2"] == info["proj0"] && info["logoFree"] == true);
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
             ("aiflow", 0) if t.t0.elapsed().as_secs_f64() > 2.0 => {
                 self.t_click(egui::pos2(44.0, 460.0), egui::Modifiers::NONE);
                 t.step = 1; t.t0 = Instant::now();

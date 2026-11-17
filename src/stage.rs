@@ -11,10 +11,10 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 pub enum Kind { Base = 0, Over = 1, Sub = 2 }
 
 struct Job { kind: Kind, key: u64, params: OwnedParams }
-struct Done { kind: Kind, key: u64, img: Option<ColorImage>, rect: Rect }
+struct Done { kind: Kind, key: u64, img: Option<ColorImage>, rect: Rect, hits: Vec<template::Hit> }
 
 #[derive(Clone)]
-pub struct Layer { pub key: u64, pub tex: Option<TextureHandle>, pub rect: Rect }
+pub struct Layer { pub key: u64, pub tex: Option<TextureHandle>, pub rect: Rect, pub hits: Vec<template::Hit> }
 
 pub fn hkey(s: &str) -> u64 { let mut h = DefaultHasher::new(); s.hash(&mut h); h.finish() }
 
@@ -46,7 +46,7 @@ impl Stage {
                 while let Ok(j) = jrx.try_recv() { let k = j.kind as usize; latest[k] = Some(j); }
                 for j in latest.into_iter().flatten() {
                     let layers: &[&str] = match j.kind { Kind::Base => &["background", "under"], Kind::Over => &["top", "footer"], Kind::Sub => &["subtitle"] };
-                    let pm = template::render(layers, &j.params);
+                    let (pm, hits) = template::render_hits(layers, &j.params);
                     let (w, h) = (template::W, template::H);
                     let bbox = if j.kind == Kind::Base { Some((0, 0, w - 1, h - 1)) } else { template::alpha_bbox(&pm) };
                     let (img, rect) = match bbox {
@@ -59,7 +59,7 @@ impl Stage {
                             (Some(ColorImage::from_rgba_premultiplied([cw as usize, ch as usize], &buf)), Rect::from_min_max(Pos2::new(x0 as f32, y0 as f32), Pos2::new((x1 + 1) as f32, (y1 + 1) as f32)))
                         }
                     };
-                    if dtx.send(Done { kind: j.kind, key: j.key, img, rect }).is_err() { return; }
+                    if dtx.send(Done { kind: j.kind, key: j.key, img, rect, hits }).is_err() { return; }
                     ctx2.request_repaint();
                 }
             }
@@ -92,7 +92,7 @@ impl Stage {
             let k = d.kind as usize;
             if self.pending[k] == Some(d.key) { self.pending[k] = None; }
             let tex = d.img.map(|img| ctx.load_texture(format!("stage{k}"), img, tex_options()));
-            let layer = Layer { key: d.key, tex, rect: d.rect };
+            let layer = Layer { key: d.key, tex, rect: d.rect, hits: d.hits };
             if d.kind == Kind::Sub {
                 self.sub_cache.retain(|l| l.key != d.key);
                 self.sub_cache.push(layer.clone());

@@ -18,6 +18,7 @@ mod ui_keys;
 mod ui_syscheck;
 mod ui_ai_rec;
 mod ui_update;
+mod ui_preview_edit;
 mod ui_import;
 mod ui_autosave;
 mod ui_bgm;
@@ -83,7 +84,7 @@ fn main() -> eframe::Result<()> {
 
 #[derive(Clone)]
 /// 되돌리기 한 칸 (기존 pushHistory: 단어·미세 조정·순서·목소리·배경음악)
-pub(crate) struct Snap { words: Vec<Word>, overrides: Overrides, order: Option<Vec<i64>>, voice: Option<Value>, bgm: Option<Value> }
+pub(crate) struct Snap { words: Vec<Word>, overrides: Overrides, order: Option<Vec<i64>>, voice: Option<Value>, bgm: Option<Value>, theme: Option<(Value, bool)> }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub(crate) enum Page { #[default] Editor, Materials, Music, Theme, Ai, Guide, Settings }
@@ -198,6 +199,7 @@ pub(crate) struct App {
     pub chat: ui_chat::ChatState,
     pub rec: ui_ai_rec::RecState,
     pub upd: ui_update::UpdState,
+    pub pe: ui_preview_edit::PeState,
     pub test_stable: std::collections::HashMap<String, egui::Rect>,
     pub sys_queue_after_refresh: bool,
     pub asv: ui_autosave::State,
@@ -231,7 +233,7 @@ impl App {
             title: String::new(), verse: String::new(),
             speaker_pick: def.clone().unwrap_or_else(|| SPEAKER_CUSTOM.into()), speaker_custom: if def.is_none() { String::new() } else { String::new() },
             church, church_save_at: None, crop: export::Crop::default(), crop_drag: None, stage: stage::Stage::new(ctx),
-            import: Default::default(), audio: Default::default(), bgm: Default::default(), ai: Default::default(), prefs: Default::default(), sys: Default::default(), sys_queue_after_refresh: false, chat: Default::default(), rec: Default::default(), upd: ui_update::UpdState::new(true), test_stable: Default::default(), asv: Default::default(), theme_ed: Default::default(), materials: Default::default(),
+            import: Default::default(), audio: Default::default(), bgm: Default::default(), ai: Default::default(), prefs: Default::default(), sys: Default::default(), sys_queue_after_refresh: false, chat: Default::default(), rec: Default::default(), upd: ui_update::UpdState::new(true), pe: Default::default(), test_stable: Default::default(), asv: Default::default(), theme_ed: Default::default(), materials: Default::default(),
             export: None, export_result: None, export_error: None, export_view: None, bg_uploads: vec![], uploaded: HashMap::new(),
         };
         app.theme_changed();
@@ -403,11 +405,11 @@ impl App {
     }
 
     // ---------------- 되돌리기 ----------------
-    fn snap(&self) -> Snap { Snap { words: self.project.words.clone(), overrides: self.project.overrides.clone(), order: self.project.order.clone(), voice: self.project.rest.get("voice").cloned(), bgm: self.project.rest.get("bgm").cloned() } }
+    fn snap(&self) -> Snap { Snap { words: self.project.words.clone(), overrides: self.project.overrides.clone(), order: self.project.order.clone(), voice: self.project.rest.get("voice").cloned(), bgm: self.project.rest.get("bgm").cloned(), theme: Some((self.theme.clone(), self.project_theme)) } }
     pub fn push_undo(&mut self) {
         let s = self.snap();
         self.history.truncate(self.hist_at.min(self.history.len()));
-        if let Some(last) = self.history.last() { if serde_json::to_string(&last.words).ok() == serde_json::to_string(&s.words).ok() && last.overrides == s.overrides && last.order == s.order && last.voice == s.voice && last.bgm == s.bgm { return; } }
+        if let Some(last) = self.history.last() { if serde_json::to_string(&last.words).ok() == serde_json::to_string(&s.words).ok() && last.overrides == s.overrides && last.order == s.order && last.voice == s.voice && last.theme == s.theme && last.bgm == s.bgm { return; } }
         self.history.push(s);
         self.hist_at = self.history.len();
     }
@@ -417,6 +419,9 @@ impl App {
         let s = self.history[k].clone();
         self.project.words = s.words; self.project.overrides = s.overrides; self.project.order = s.order;
         for (k, v) in [("voice", s.voice), ("bgm", s.bgm)] { match v { Some(v) => { self.project.rest.insert(k.into(), v); } None => { self.project.rest.remove(k); } } }
+        // 미리보기 편집으로 고친 프로젝트 테마도 되돌린다 (기록에 없으면 설정의 테마로)
+        // (기존 editor.js 처럼 기록마다 테마를 넣고 되돌린다)
+        if let Some((t, proj)) = s.theme { if t != self.theme || proj != self.project_theme { self.theme = t; self.project_theme = proj; self.theme_changed(); } }
         self.hist_at = k + 1; self.dirty = true; self.unsaved = true; self.cap_buf.clear();
     }
     pub fn undo(&mut self) { if self.hist_at >= 2 { self.restore(self.hist_at - 2); } }
@@ -512,6 +517,8 @@ impl eframe::App for App {
         self.run_test(&ctx);
         self.tick_trim_loop();
         let modal = self.dialog_open();
+        // 미리보기 편집 중에는 Esc·화살표를 먼저 가져간다 (기존 preview-edit.js 의 capture 단계 keydown)
+        self.pe_keys(&ctx);
         self.caret_follow();
         if self.page == Page::Editor && !modal { self.trim_keys(&ctx); }
         // 편집 단축키를 먼저 (Shift+Space 처럼 겹치는 키를 가져간다), 그다음 전역 단축키

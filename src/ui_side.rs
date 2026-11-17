@@ -12,10 +12,12 @@ impl App {
             let w = ui.available_width();
             let tabs_h = 318.0f32.min(full_h * 0.44);
             let ctrl_h = 78.0;
-            let stage_h = (full_h - tabs_h - ctrl_h - 10.0).max(180.0);
+            let pe_h = if self.pe.active { 150.0 } else { 0.0 };
+            let stage_h = (full_h - tabs_h - ctrl_h - pe_h - 10.0).max(180.0);
             let stage_w = (stage_h * 9.0 / 16.0).min(w);
             let stage_h = stage_w * 16.0 / 9.0;
             ui.vertical_centered(|ui| self.stage_ui(ui, egui::vec2(stage_w, stage_h)));
+            if self.pe.active { ui.add_space(6.0); self.pe_panel(ui); }
             ui.add_space(10.0);
             self.play_controls(ui);
             ui.add_space(10.0);
@@ -36,7 +38,9 @@ impl App {
         let over_key = hkey(&format!("over{tk}|{}|{}|{}|{}|{}", self.title, self.verse, self.speaker(), self.church, self.logo_path()));
         if self.stage.want(Kind::Over, over_key) { let p = self.draw_params(); self.stage.send(Kind::Over, over_key, p); }
         let out = edl::src_to_out(&self.segs, self.player.src_now());
-        let cap = if self.project.words.is_empty() { None } else { self.caption_at(out) };
+        let mut cap = if self.project.words.is_empty() { None } else { self.caption_at(out) };
+        // 직접 편집 모드면 자막이 없는 장면에도 예시 자막을 보여 위치·크기를 조정할 수 있게 한다
+        if self.pe.active && cap.as_ref().is_none_or(|c| c.0.is_empty()) { cap = Some(("자막 위치 예시".into(), None, None)); }
         let sub_key = hkey(&format!("sub{tk}|{:?}", cap));
         if self.stage.want(Kind::Sub, sub_key) {
             let mut p = self.draw_params();
@@ -84,7 +88,7 @@ impl App {
         // 영상 위치·확대: 영상 상자 안에서 끌기·휠
         let vscreen = to_screen(vbox);
         let over_video = resp.hover_pos().is_some_and(|p| vscreen.contains(p));
-        if vshow && self.tex.is_some() {
+        if vshow && self.tex.is_some() && !self.pe.active {
             if over_video {
                 let d = ui.input(|i| i.smooth_scroll_delta().y);
                 if d != 0.0 { self.crop.scale = (self.crop.scale + d as f64 * 0.001).clamp(1.0, 3.0); self.crop_changed(); }
@@ -193,7 +197,8 @@ impl App {
                 for (id, name) in &themes { if ui.selectable_label(*id == cur_id, name).clicked() { pick = Some(id.clone()); } }
             });
             if style::tool(ui, "pencil", if short { "" } else { "편집" }).on_hover_text("테마 편집기").clicked() { edit_theme = true; }
-            if style::tool(ui, "pencil-line", if short { "" } else { "미리보기 편집" }).on_hover_text("미리보기 편집: 미리보기에서 글자·영상 위치를 끌어 바꾸기").clicked() { preview_edit = true; }
+            let pe_label = if short { "" } else if self.pe.active { "✓ 미리보기 편집" } else { "미리보기 편집" };
+            if style::tool(ui, "pencil-line", pe_label).on_hover_text("미리보기에서 제목·자막·로고 등을 끌어 옮기고 크기·색을 바꿉니다 (이 프로젝트에만 적용)").clicked() { preview_edit = true; }
         });
         if let Some(id) = pick { self.pick_theme(&id); }
         if edit_theme { self.cmd_edit_theme(); }
