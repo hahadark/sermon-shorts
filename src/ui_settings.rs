@@ -92,7 +92,7 @@ impl App {
             tab,
             recent_max: n(&s["recentYoutubeMax"], 5.0), recent: sermon_shorts::youtube::recent_list(&s).into_iter().map(|(u, t, _)| (u, t)).collect(), source_missing: s["sourceMissing"].as_str().unwrap_or("auto").into(),
             asv_on: asv["enabled"] != false, asv_every: n(&asv["everyMin"], 2.0), asv_versions: n(&asv["maxVersions"], 30.0), asv_videos: n(&asv["maxVideos"], 40.0), asv_days: n(&asv["keepDays"], 60.0),
-            auto_update: s["autoUpdate"] != false, upd: format!("지금 버전 {} · 개발 실행 중이라 확인하지 않습니다", env!("CARGO_PKG_VERSION")), bgm_dir: bgm_dir(&s),
+            auto_update: s["autoUpdate"] != false, upd: crate::ui_update::status_text(&self.upd.u.status()), bgm_dir: bgm_dir(&s),
             ed_max: n(&ed["maxLineChars"], 14.0), ed_semantic: ed["semanticBreaks"] != false, ed_split: ed["splitLongWords"] != false, preview_proxy: s["previewProxy"] != false,
             ed_pad_b: n(&ed["padBefore"], 0.1), ed_pad_a: n(&ed["padAfter"], 0.15), ed_fade: n(&ed["fadeMs"], 10.0), ed_tidy: ed["autoTidy"] != false, apply_now: false,
             chat_len: (sermon_shorts::chat_plan::js_num(self.chat.prefs.get("length")) as i64).to_string(), chat_count: sermon_shorts::chat_plan::count_of(&self.chat.prefs).to_string(), chat_aud: self.chat.prefs["audience"].as_str().unwrap_or("all").into(),
@@ -207,7 +207,7 @@ impl App {
         row_label(ui, "앱 업데이트");
         check(ui, &mut p.auto_update, "새 버전을 자동으로 확인하고 받아 두기");
         ui.horizontal(|ui| { ui.add_space(24.0); note(ui, "끄면 아래 [지금 확인]을 눌렀을 때만 확인합니다."); });
-        ui.horizontal(|ui| { if sm_btn(ui, "지금 확인").clicked() { p.upd = format!("지금 버전 {} · 개발 실행 중이라 확인하지 않습니다", env!("CARGO_PKG_VERSION")); } note(ui, &p.upd); });
+        ui.horizontal(|ui| { if sm_btn(ui, "지금 확인").clicked() { self.update_check_now(); } p.upd = crate::ui_update::status_text(&self.upd.u.status()); note(ui, &p.upd); });
         row_label(ui, "폴더");
         ui.horizontal(|ui| {
             ui.label(RichText::new("배경음악 보관함").size(13.0));

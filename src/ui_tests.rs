@@ -871,6 +871,22 @@ impl App {
                 if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
+            // 자동 업데이트: [업데이트 확인] → 받기·해시·풀기 → 위쪽 알림 줄 → 창 닫기 → 바꿔 끼우기 (로컬 가짜 릴리스, tools\update_e2e.ps1 -PrepareOnly)
+            ("updflow", 0) if t.t0.elapsed().as_secs_f64() > 1.0 => {
+                self.test_words = json!({ "before": format!("{:?}", self.upd.u.status()) }).to_string();
+                self.cmd_update_check();
+                t.step = 1; t.t0 = Instant::now();
+            }
+            ("updflow", 1) if !self.upd.u.busy() && t.t0.elapsed().as_secs_f64() > 1.0 || t.step == 1 && t.t0.elapsed().as_secs_f64() > 60.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["status"] = json!(format!("{:?}", self.upd.u.status()));
+                info["toast"] = json!(self.toast.as_ref().map(|x| x.0.clone()));
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                info["pass"] = json!(info["status"].as_str().unwrap_or("").starts_with("Ready") && info["toast"].as_str().unwrap_or("").contains("준비됨"));
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("updflow", 2) if t.t0.elapsed().as_secs_f64() > 1.0 => { ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 3; }
             ("aiflow", 0) if t.t0.elapsed().as_secs_f64() > 2.0 => {
                 self.t_click(egui::pos2(44.0, 460.0), egui::Modifiers::NONE);
                 t.step = 1; t.t0 = Instant::now();

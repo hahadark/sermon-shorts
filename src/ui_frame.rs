@@ -86,7 +86,7 @@ impl App {
             ui.painter().text(full.center(), egui::Align2::CENTER_CENTER, name, egui::FontId::new(15.0, style::semi()), style::TEXT2);
         }
         // 오른쪽: 내보내기
-        let r = egui::Rect::from_min_max(egui::pos2(full.right() - 330.0, full.top()), full.max);
+        let r = egui::Rect::from_min_max(egui::pos2(full.right() - if matches!(self.upd.u.status(), sermon_shorts::updater::St::Downloading { .. } | sermon_shorts::updater::St::Ready { .. } | sermon_shorts::updater::St::Portable { .. }) { 760.0 } else { 330.0 }, full.top()), full.max);
         ui.scope_builder(egui::UiBuilder::new().max_rect(r).layout(egui::Layout::right_to_left(egui::Align::Center)), |ui| {
             let busy = self.export.as_ref().map(|j| j.label());
             let can = self.player.path.is_some() && self.project.words.iter().any(|w| !w.del);
@@ -97,6 +97,7 @@ impl App {
                     if r.clicked() { self.start_export(); }
                 }
             }
+            self.update_bar(ui);
             if let Some(st) = self.autosave_status() { ui.add(crate::icons::img("history", 15.0, style::MUTED)); ui.label(RichText::new(st).color(style::MUTED).size(13.0)); }
             else if self.unsaved && self.has_project { ui.label(RichText::new("저장 안 함").color(style::WARN).size(13.0)); }
         });
@@ -144,7 +145,7 @@ impl App {
             if item(ui, "book-open", "사용 설명서", "") { ui.close(); self.page = Page::Guide; }
             if item(ui, "keyboard", "단축키", "F1") { ui.close(); self.toast("Space 재생 · Ctrl+Z/Y 되돌리기·다시 · Ctrl+S 저장 · Ctrl+E 내보내기 · H 지운 부분 숨기기 · Alt+↑↓ 칸 옮기기"); }
             if item(ui, "stethoscope", "시스템 점검", "") { ui.close(); self.open_syscheck(); }
-            if item(ui, "refresh-cw", "업데이트 확인", "") { ui.close(); soon(self, "업데이트 확인"); }
+            if item(ui, "refresh-cw", "업데이트 확인", "") { ui.close(); self.cmd_update_check(); }
             ui.separator();
             if item(ui, "settings", "설정", "Ctrl+,") { ui.close(); self.open_settings("general"); }
         });
