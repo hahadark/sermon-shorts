@@ -487,6 +487,73 @@
   }
 
   // ---------------- 영상 불러오기 ----------------
+  // ---------------- 편집기에 연 영상으로 대화하기 (파일 → 유튜브에서 가져오기로 연 영상) ----------------
+  let applyingPlan = false;
+  /** 편집기의 지금 영상·자막으로 대화를 시작한다. 받아 둔 구간 안에서 편집하므로 영상을 다시 받지 않는다 */
+  async function useEditorVideo() {
+    const st = SS.state, src = st && st.source;
+    if (!src || !src.path || !src.url || !Array.isArray(st.words) || !st.words.length) return false;
+    const off = Number(src.offset) || 0;
+    const words = st.words.map((w) => ({ text: w.sttText || w.text, start: w.start + off, end: w.end + off }));
+    const lastEnd = words.reduce((m, w) => Math.max(m, w.end), 0);
+    const fileDur = (SS.preview && Number.isFinite(SS.preview.duration) && SS.preview.duration > 0) ? SS.preview.duration : lastEnd - off + 1;
+    try {
+      const v = await (stub && stub.useWords ? stub.useWords(src.url, src.title || '', src.duration || 0, words) : api.chatUseWords(src.url, src.title || '', src.duration || 0, words));
+      video = v; video.edited = false; video.fromEditor = true; lastRanges = null;
+      lastFetch = { url: src.url, path: src.path, map: [{ src0: off, src1: off + fileDur, file0: 0 }] };
+    } catch (e) { SS.toast && SS.toast('대화에 불러오지 못했습니다: ' + cleanErr(e), 6000); return false; }
+    $('chatBody').querySelectorAll('.chat-start').forEach((x) => x.remove());
+    const r = src.range && Number.isFinite(src.range.start) ? ` (${SS.fmtTime ? SS.fmtTime(src.range.start) : Math.round(src.range.start) + '초'} ~ ${SS.fmtTime ? SS.fmtTime(src.range.end) : Math.round(src.range.end) + '초'})` : '';
+    addMsg('sys', esc(`편집기에 불러온 「${video.title || '설교 영상'}」${r} 자막 ${video.words.length.toLocaleString()}단어로 AI 대화를 합니다. 받아 둔 구간 안에서 편집합니다.`));
+    addMsg('ai', '어떤 쇼츠를 만들까요? 아래 버튼으로 길이와 다듬기 조건을 고른 뒤 [구간 3곳 추천받기]를 누르거나, 원하는 내용을 말씀해 주세요.');
+    renderQuick(); setCompose(true);
+    if (!status || !status.active) addMsg('sys', '먼저 위의 [AI 연결]을 눌러 AI 를 연결해 주세요.');
+    return true;
+  }
+  SS.chatUseEditorVideo = useEditorVideo;
+  window.addEventListener('ss:transcript-ready', () => {
+    if (applyingPlan) return;
+    setTimeout(() => {
+      const src = SS.state && SS.state.source;
+      if (!src || !src.url || busy) return;
+      if (video && video.url === src.url) return;   // 이미 이 영상으로 대화 중
+      if (!video) { useEditorVideo(); return; }
+      // 다른 영상으로 대화 중이면 바꿀지 단추로 묻는다
+      const el = addMsg('sys', esc(`편집기에 「${src.title || '새 영상'}」을(를) 불러왔습니다. `) + '<button class="cq-btn act" data-use-editor="1">이 영상으로 대화하기</button>');
+      const b = el && el.querySelector('[data-use-editor]');
+      if (b) b.addEventListener('click', async () => { if (busy) return; b.disabled = true; if (video) await resetChat(); useEditorVideo(); });
+    }, 0);
+  });
+  /** 유튜브 자막이 없을 때: 위스퍼로 만들지 묻고, 만들면 대화에 쓸 영상 정보를 돌려준다 (안 하면 null) */
+  async function whisperFallback(url, info) {
+    const name = info.title ? `「${info.title}」` : '이 영상';
+    if (info.live) { addMsg('sys', esc(`${name}은(는) 라이브가 아직 진행 중이라 자막을 만들 수 없습니다. 방송이 끝난 뒤 다시 불러와 주세요.`)); return null; }
+    if (!info.engineReady) { addMsg('sys', esc(`${name}에는 유튜브 자막이 없습니다. 위스퍼(자막 엔진)가 설치되어 있지 않아 자막을 만들 수 없습니다. 도움말 → 시스템 점검에서 [엔진 설치]를 한 뒤 다시 불러와 주세요.`)); return null; }
+    const mins = info.duration ? Math.round(info.duration / 60) : 0;
+    const len = mins >= 60 ? `${Math.floor(mins / 60)}시간 ${mins % 60}분` : `${mins}분`;
+    const ok = (stub && stub.confirm ? stub.confirm : window.confirm)(`${name}에는 유튜브 자막이 아직 없습니다.\n\n이 PC에 설치된 위스퍼(음성 인식)로 자막을 만들어 이어서 편집할까요?\n\n· 영상 길이 ${mins ? len : '알 수 없음'}: 소리 전체를 받아 자막을 만듭니다.\n· 컴퓨터 성능에 따라 몇 분에서 수십 분 걸릴 수 있습니다(그래픽카드가 있으면 빠릅니다).\n· 한 번 만들면 다음부터는 이 영상을 바로 불러옵니다.`);
+    if (!ok) { addMsg('sys', esc(`${name}에는 유튜브 자막이 없어 불러오지 않았습니다. 나중에 다시 불러오면 위스퍼로 만들 수 있습니다.`)); return null; }
+    let stop = false;
+    const pg = progressCard({
+      title: '위스퍼로 자막 만드는 중',
+      steps: [{ k: 'download', label: '영상 소리 받기' }, { k: 'transcribe', label: '위스퍼로 자막 만들기' }],
+      hints: (s) => [s < 60 ? '영상이 길면 시간이 걸립니다. 다른 일을 하셔도 됩니다.' : '아직 만드는 중입니다. 끝나면 이 대화에 알려 드립니다.', ''],
+      onStop: () => { stop = true; api.chatCancelWhisper(); },
+    });
+    pg.step('download', { sub: '0%' }); pg.pct(0);
+    const off = api.onProgress((p) => {
+      if (p.task !== 'chat-whisper') return;
+      const pct = Number.isFinite(p.pct) ? Math.round(p.pct) : null;
+      if (p.stage === 'download') { pg.step('download'); pg.sub('download', pct != null ? pct + '%' : ''); pg.pct(pct); }
+      else if (p.stage === 'transcribe') { pg.step('transcribe'); pg.sub('download', '받음'); pg.sub('transcribe', pct != null ? pct + '%' : ''); pg.pct(pct); }
+    });
+    try {
+      return await (stub && stub.loadWhisper ? stub.loadWhisper(url) : api.chatLoadWhisper(url));
+    } catch (e) {
+      addMsg('sys', esc(stop ? '자막 만들기를 멈췄습니다.' : '위스퍼로 자막을 만들지 못했습니다: ' + cleanErr(e)));
+      return null;
+    } finally { off(); pg.done(); }
+  }
   async function loadVideo(urlArg) {
     const url = (typeof urlArg === 'string' && urlArg ? urlArg : ($('chatUrl') && $('chatUrl').value || '')).trim();
     if (!url) { SS.toast && SS.toast('유튜브 주소를 넣어 주세요'); return false; }
@@ -497,6 +564,12 @@
     try {
       const prev = lastVideo;
       try { video = await (stub && stub.load ? stub.load(url) : api.chatLoad(url)); } finally { pgL.done(); }
+      // 유튜브 자막이 없는 영상: 이 PC 의 위스퍼로 자막을 만들지 묻는다
+      if (video && video.noSubs) {
+        const nv = await whisperFallback(url, video);
+        if (!nv) { video = null; btn.disabled = false; btn.textContent = '불러오기'; return false; }
+        video = nv;
+      }
       // 같은 영상을 다시 불러오면 앞의 대화·편집을 이어간다
       const resumed = !!(video.resumed && prev && prev.url === url);
       video.edited = resumed ? !!(prev.edited || video.hasPlan) : false;
@@ -508,7 +581,7 @@
         renderQuick(); setCompose(true); $('chatText').focus();
         return true;
       }
-      addMsg('sys', esc(`「${video.title || '설교 영상'}」 자막 ${video.words.length.toLocaleString()}단어를 불러왔습니다.`));
+      addMsg('sys', esc(`「${video.title || '설교 영상'}」 자막 ${video.words.length.toLocaleString()}단어를 불러왔습니다.${video.whisper ? ' (유튜브 자막이 없어 위스퍼로 만든 자막)' : ''}`));
       addMsg('ai', '어떤 쇼츠를 만들까요? 아래 버튼으로 길이와 다듬기 조건을 고른 뒤 [구간 3곳 추천받기]를 누르거나, 원하는 내용을 말씀해 주세요.\n예: "결론 부분으로", "기도에 대한 부분으로"');
       renderQuick();
       setCompose(true);
@@ -726,7 +799,8 @@
       ew.push({ text, sttText: w.text, start: fs0, end: Math.max(fs0 + 0.05, fe0), score: 1, del: !kept[i], br: false, cutBefore: !!starts[i] || !!jump, _src: w.start });
     }
     ew.forEach((w) => { delete w._src; });
-    window.dispatchEvent(new CustomEvent('ss:transcript-ready', { detail: { path: lastFetch.path, offset: 0, words: ew } }));
+    applyingPlan = true;   // 대화가 직접 넣은 자막은 '편집기 영상으로 대화하기' 대상이 아니다
+    try { window.dispatchEvent(new CustomEvent('ss:transcript-ready', { detail: { path: lastFetch.path, offset: 0, words: ew } })); } finally { applyingPlan = false; }
     const st = SS.state;
     st.settings = st.settings || {};
     const ed = (SS.appSettings && SS.appSettings.editDefaults) || {};   // 설정 [편집]의 컷 여백
@@ -1008,7 +1082,7 @@
       const ask = async (text, shot) => {
         const t0 = Date.now();
         const before = $('chatBody').children.length;
-        $('chatText').value = text; send();
+      $('chatText').value = text; send();
         await waitFor(() => !busy && $('chatBody').children.length > before + 1, 600000, 'reply ' + text);
         await waitFor(() => !/반영하는 중|받는 중/.test($('chatBody').textContent.slice(-200)), 300000, 'apply');
         await sleep(2500);
@@ -1118,6 +1192,89 @@
     }
   });
 
+  // ---------- 테스트 훅: SS_TEST_SCRIPT=chateditor (자막 없는 영상 → 위스퍼로 만들지 묻기 / 파일→유튜브 가져오기로 연 영상으로 대화 편집) ----------
+  window.addEventListener('ss:run-test-script', async (e) => {
+    if (e.detail !== 'chateditor') return;
+    const tr = (m) => console.log('[SermonShorts] chateditor: ' + m);
+    tr('시작');
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const waitFor = async (fn, ms, what) => { const t0 = Date.now(); while (!fn()) { if (Date.now() - t0 > ms) throw new Error('timeout: ' + what); await sleep(200); } };
+    const report = {};
+    try {
+      const launch = await api.getLaunchInfo();
+      const dir = launch.cache + '/chat_editor'; await api.mkdir(dir);
+      const j3 = await api.readJson(launch.cache + '/yt/uSE5pZB3gtQ/uSE5pZB3gtQ.ko.json3');
+      const side = await api.readJson(launch.cache + '/yt/uSE5pZB3gtQ/part_4955_5100.json');
+      const all = CP().wordsFromJson3(j3).words;
+      const part = all.filter((w) => w.start >= side.offset + 0.5 && w.end <= side.end - 0.5);
+      stub = { status: { active: 'claude', claude: { loggedIn: true } } };
+      status = stub.status; prefs = Object.assign({}, DEFAULT_PREFS);
+      // 1) 자막 없는 영상: 묻고(거절) → 묻고(승인) 위스퍼 단어로 대화
+      let asked = 0, whisperCalls = 0;
+      stub.load = async (url) => ({ noSubs: true, url, title: '자막 없는 라이브', duration: 4991, live: false, engineReady: true });
+      stub.confirm = () => { asked++; return asked > 1; };
+      stub.loadWhisper = async (url) => { whisperCalls++; await sleep(300); return { url, title: '자막 없는 라이브', duration: 4991, whisper: true, words: all.slice(0, 400).map((w) => ({ text: w.text, start: w.start, end: w.end })) }; };
+      $('chatBody').innerHTML = ''; video = null;
+      tr('const r1   await loadVideo');
+      const r1 = await loadVideo('https://www.youtube.com/live/NoSubsTest01');
+      report.declined = { returned: r1, asked, whisperCalls, video: !!video, msg: /불러오지 않았습니다/.test($('chatBody').textContent) };
+      tr('const r2   await loadVideo');
+      const r2 = await loadVideo('https://www.youtube.com/live/NoSubsTest01');
+      report.accepted = { returned: r2, asked, whisperCalls, words: video && video.words.length, msg: /위스퍼로 만든 자막/.test($('chatBody').textContent) };
+      tr('await SS testShot  cache chat ');
+      await SS.testShot('cache/chat_editor/1_whisper.png');
+      // 2) 엔진이 없거나 라이브 진행 중이면 묻지 않고 안내만
+      await resetChat();
+      stub.load = async (url) => ({ noSubs: true, url, title: '진행 중', duration: 0, live: true, engineReady: true });
+      tr('const r3   await loadVideo');
+      const r3 = await loadVideo('https://www.youtube.com/live/NoSubsTest02');
+      report.live = { returned: r3, asked, msg: /라이브가 아직 진행 중/.test($('chatBody').textContent) };
+      await resetChat(); video = null;
+      // 3) 파일 → 유튜브에서 가져오기로 연 영상 (구간 + 위스퍼 자막) → 대화가 저절로 그 영상으로
+      delete stub.load;
+      let fetched = 0, sent = 0;
+      stub.fetchClips = async () => { fetched++; throw new Error('다시 받으면 안 됨'); };
+      const detail = { path: launch.cache + '/yt/uSE5pZB3gtQ/part_4955_5100.mp4', offset: side.offset, url: 'https://www.youtube.com/live/uSE5pZB3gtQ', title: '가져온 설교', duration: 6000, range: { start: side.start, end: side.end }, fetch: { kind: 'part', start: side.start, end: side.end } };
+      tr('window dispatchEvent new Custo');
+      window.dispatchEvent(new CustomEvent('ss:source-loaded', { detail }));
+      if (!(await detail.done)) throw new Error('영상을 열지 못함');
+      const fileWords = part.map((w, i) => ({ id: i, text: w.text, sttText: w.text, start: w.start - side.offset, end: w.end - side.offset, score: 1, del: false }));
+      window.dispatchEvent(new CustomEvent('ss:transcript-ready', { detail: { path: detail.path, offset: side.offset, words: fileWords } }));
+      tr('await waitFor       video    v');
+      await waitFor(() => video && video.fromEditor, 15000, 'chat uses editor video');
+      report.editor = { words: video.words.length, partWords: part.length, firstSrc: +video.words[0].start.toFixed(3), wantFirstSrc: +part[0].start.toFixed(3), msg: /편집기에 불러온 「가져온 설교」/.test($('chatBody').textContent) };
+      const n = video.words.length;
+      stub.send = async () => { sent++; await sleep(200); const ranges = [{ from: 5, to: 40 }, { from: 60, to: Math.min(n - 5, 110) }];
+        return { reply: '만들었습니다.', title: '가져온 구간\n쇼츠', verse: '', tighten: 'normal', ranges, corrections: [], warnings: [], candidates: [], questions: [], durationSec: 30 }; };
+      tr('chatText   value');
+      $('chatText').value = '결론 위주로 30초'; $('chatSend').click();
+      await waitFor(() => !busy && /편집기에 반영했습니다/.test($('chatBody').textContent), 60000, 'apply');
+      const kept = SS.state.words.filter((w) => !w.del);
+      report.applied = { sent, fetched, editorWords: SS.state.words.length, kept: kept.length, path: SS.state.source && SS.state.source.path === detail.path, firstKept: kept[0] && kept[0].text, want: part[5].text };
+      await sleep(800);
+      tr('await SS testShot  cache chat ');
+      await SS.testShot('cache/chat_editor/2_editor_chat.png');
+      // 4) 다른 영상으로 대화 중일 때는 단추로만
+      const d2 = Object.assign({}, detail, { path: launch.cache + '/yt/uSE5pZB3gtQ/part_3127_3294.mp4', offset: 0, url: 'https://www.youtube.com/watch?v=OtherVideo01', title: '다른 영상', range: null }); delete d2.done;
+      window.dispatchEvent(new CustomEvent('ss:source-loaded', { detail: d2 })); await d2.done;
+      await sleep(1500);
+      window.dispatchEvent(new CustomEvent('ss:transcript-ready', { detail: { path: d2.path, offset: 0, words: fileWords.slice(0, 30).map((w) => ({ ...w, start: w.start - fileWords[0].start, end: w.end - fileWords[0].start })) } }));
+      await sleep(800);
+      report.other = { button: !!document.querySelector('[data-use-editor]'), stillOld: video && video.url === detail.url };
+      report.pass = report.declined.returned === false && report.declined.whisperCalls === 0 && report.declined.msg && report.accepted.returned === true && report.accepted.words === 400 && report.accepted.msg
+        && report.live.returned === false && report.live.asked === 2 && report.live.msg
+        && report.editor.words === part.length && Math.abs(report.editor.firstSrc - report.editor.wantFirstSrc) < 0.002 && report.editor.msg
+        && report.applied.sent === 1 && report.applied.fetched === 0 && report.applied.path && report.applied.kept > 20 && report.applied.firstKept === report.applied.want
+        && report.other.button && report.other.stillOld;
+      await api.writeText(dir + '/report.json', JSON.stringify(report, null, 2));
+      stub = null;
+      api.notifyTestReady({ ok: report.pass });
+    } catch (err) {
+      console.error(err);
+      try { const l = await api.getLaunchInfo(); await api.writeText(l.cache + '/chat_editor/report.json', JSON.stringify(Object.assign(report, { error: String(err && err.stack || err) }), null, 2)); } catch (_) { /* */ }
+      api.notifyTestError(err && err.stack || err);
+    }
+  });
   // ---------- 테스트 훅: SS_TEST_SCRIPT=chathistory ([새로]를 눌러도 기록·편집이 남는지, 같은 영상 이어서, 다시 켜도 기록) ----------
   window.addEventListener('ss:run-test-script', async (e) => {
     if (e.detail !== 'chathistory') return;

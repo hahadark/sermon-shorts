@@ -571,6 +571,8 @@
     try {
       launch = await api.getLaunchInfo();
       if (!launch) return;
+      // 시험 스크립트는 모든 화면 스크립트(뒤에 읽히는 chat-ui.js 등)가 듣기 시작한 뒤에 보낸다
+      if (launch.testScript && document.readyState !== 'complete') await new Promise((r) => window.addEventListener('load', r, { once: true }));
 
       // Dispatch early for scripts that don't need full video/peaks loading
       if (launch.testScript === 'themeedit' || launch.testScript === 'template') {

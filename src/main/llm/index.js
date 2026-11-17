@@ -7,6 +7,9 @@ const claude = require('./claude');
 const gemini = require('./gemini');
 const openrouter = require('./openrouter');
 const chatPlan = require('../../shared/chat-plan');
+const fs = require('fs');
+const path = require('path');
+const tools = require('../tools');
 
 let chatgpt = null;
 function getChatGPT() {
@@ -68,8 +71,15 @@ async function loadVideo(url) {
       words: session.words.map((w) => ({ text: w.text, start: w.start, end: w.end })),
     };
   }
-  const subs = await youtube.fetchAutoSubs(url, { raw: true });
-  if (!subs || !subs.raw) throw new Error('이 영상에서 한국어 자막을 찾지 못했습니다. 올린 직후라면 몇 시간 뒤 다시 해 주세요. (영상은 공개 또는 일부공개여야 합니다)');
+  // 자막을 받다가 실패한 경우(번역 자막 429 등)도 '자막 없음'으로 보고 위스퍼를 고를 수 있게 한다. 영상 자체가 없으면 아래 fetchInfo 에서 오류
+  const subs = await youtube.fetchAutoSubs(url, { raw: true }).catch((e) => { if (/subtitle|자막/i.test(String(e && e.message))) return null; throw e; });
+  if (!subs || !subs.raw) {
+    // 유튜브 자막이 없다: 전에 위스퍼로 만든 것이 있으면 그것으로, 없으면 위스퍼로 만들지 물어볼 수 있게 알린다
+    const info = await youtube.fetchInfo(url);
+    const cached = readWhisperCache(info.id);
+    if (cached) return startSession(url, info, cached.words, cached.lines, { whisper: true });
+    return { noSubs: true, url, title: info.title || '', duration: info.duration || 0, live: liveNow(info), engineReady: fs.existsSync(tools.python) };
+  }
   const { words, lines } = chatPlan.wordsFromJson3(subs.raw);
   if (words.length < 20) throw new Error('자막이 너무 짧습니다. 다른 영상을 넣어 주세요.');
   const info = subs.info || {};
@@ -80,6 +90,53 @@ async function loadVideo(url) {
   };
 }
 
+// ---- 유튜브 자막이 없는 영상: 이 PC 의 위스퍼(자막 엔진)로 영상 전체 소리에서 자막을 만든다 ----
+const liveNow = (info) => info.liveStatus === 'is_live' || info.liveStatus === 'is_upcoming';
+function whisperCacheFile(id) { return path.join(tools.ensureDir(path.join(tools.cache, 'chat')), `whisper_${String(id).replace(/[^\w-]/g, '_')}.json`); }
+function readWhisperCache(id) {
+  try { const j = JSON.parse(fs.readFileSync(whisperCacheFile(id), 'utf8')); return Array.isArray(j.words) && j.words.length && Array.isArray(j.lines) ? j : null; } catch (_) { return null; }
+}
+/** 위스퍼 단어 → 대화용 단어·줄 (줄: 문장 끝·0.7초 넘는 쉼·16단어마다 끊는다. 줄 모양은 wordsFromJson3 과 같다) */
+function whisperWordsToLines(raw) {
+  const words = [], lines = [];
+  for (const w of raw || []) {
+    const text = String(w.text || '').replace(/\s+/g, ' ').trim();
+    if (!text || !Number.isFinite(w.start) || !Number.isFinite(w.end)) continue;
+    words.push({ id: words.length, text, start: w.start, end: Math.max(w.end, w.start + 0.05) });
+  }
+  let from = 0;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i], next = words[i + 1];
+    const brk = !next || /[.?!。？！]$/.test(w.text) || next.start - w.end > 0.7 || i - from + 1 >= 16;
+    if (brk) { lines.push({ start: words[from].start, from, to: i }); from = i + 1; }
+  }
+  return { words, lines };
+}
+function startSession(url, info, words, lines, extra = {}) {
+  session = { url, info: { title: info.title, duration: info.duration }, words, lines, history: [], plan: null, sermon: null };
+  return { url, title: info.title || '', duration: info.duration || 0, ...extra, words: words.map((w) => ({ text: w.text, start: w.start, end: w.end })) };
+}
+let whisperStop = null;
+/** 영상 소리를 받아(이미 받았으면 그대로) 위스퍼로 자막을 만든다. onProgress({stage:'download'|'transcribe', pct}) */
+async function loadVideoWhisper(url, onProgress) {
+  const engine = require('../engine');
+  const info = await youtube.fetchInfo(url);
+  if (liveNow(info)) throw new Error('라이브가 아직 진행 중이라 소리를 받을 수 없습니다. 방송이 끝난 뒤 다시 해 주세요.');
+  if (!fs.existsSync(tools.python)) throw new Error('위스퍼(자막 엔진)가 설치되어 있지 않습니다. 도움말 → 시스템 점검에서 [엔진 설치]를 한 뒤 다시 불러와 주세요.');
+  let stopped = false;
+  whisperStop = () => { stopped = true; engine.cancelTask(); };
+  try {
+    const dir = tools.ensureDir(path.join(tools.cache, 'yt', String(info.id)));
+    const a = await youtube.downloadAudio(url, dir, (p) => onProgress && onProgress({ stage: 'download', pct: p }));
+    if (stopped) throw Object.assign(new Error('요청을 멈췄습니다.'), { code: 'cancelled' });
+    const res = await engine.transcribe(a.file, {}, (m) => { if (onProgress && m && m.stage !== 'warn') onProgress({ stage: 'transcribe', pct: Number.isFinite(m.pct) ? m.pct : null, message: m.message || '' }); });
+    if (stopped) throw Object.assign(new Error('요청을 멈췄습니다.'), { code: 'cancelled' });
+    const { words, lines } = whisperWordsToLines(res && res.words);
+    if (words.length < 20) throw new Error('위스퍼가 알아들은 말이 너무 적습니다. 다른 영상을 넣어 주세요.');
+    fs.writeFileSync(whisperCacheFile(info.id), JSON.stringify({ url, title: info.title || '', words, lines }), 'utf8');
+    return startSession(url, info, words, lines, { whisper: true });
+  } finally { whisperStop = null; }
+}
 function transcriptRange() {
   if (!session.sermon) return null;
   const w = session.words;
@@ -194,6 +251,16 @@ function initLlm() {
     if (!event.sender.isDestroyed()) event.sender.send('chat:stage', s);
   }));
   ipcMain.handle('chat:cancel', () => cancel());
+  ipcMain.handle('chat:loadWhisper', (event, url) => loadVideoWhisper(url, (p) => {
+    if (!event.sender.isDestroyed()) event.sender.send('progress', { task: 'chat-whisper', ...p });
+  }));
+  // 편집기에 연 영상(파일 → 유튜브에서 가져오기 등)의 자막으로 대화하기: 단어는 원본 영상 시각
+  ipcMain.handle('chat:useWords', (_e, url, title, duration, raw) => {
+    const { words, lines } = whisperWordsToLines(raw);
+    if (words.length < 5) throw new Error('편집기의 자막이 너무 짧습니다.');
+    return startSession(url, { title, duration }, words, lines, { fromEditor: true });
+  });
+  ipcMain.handle('chat:cancelWhisper', () => { if (whisperStop) { whisperStop(); return true; } return false; });
   ipcMain.handle('chat:reset', () => { session = null; return true; });
   ipcMain.handle('chat:fetchClips', (event, url, spans) => require('./clips').fetchClips(url, spans, (info) => {
     if (!event.sender.isDestroyed()) event.sender.send('progress', { ...info, task: 'youtube' });
@@ -209,4 +276,4 @@ function sermonSource() {
   return { url: session.url, title: (session.info && session.info.title) || '', whole: !session.sermon, words: w.slice(a, b + 1).map((x) => ({ text: x.text, start: x.start, end: x.end })) };
 }
 
-module.exports = { initLlm, LINKS, complete, activeProvider, sermonSource };
+module.exports = { initLlm, LINKS, complete, activeProvider, sermonSource, whisperWordsToLines, _test: { loadVideo, loadVideoWhisper } };

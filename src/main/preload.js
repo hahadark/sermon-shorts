@@ -131,6 +131,9 @@ contextBridge.exposeInMainWorld('api', {
   chatLoad: (url) => ipcRenderer.invoke('chat:load', url),
   chatSend: (text) => ipcRenderer.invoke('chat:send', text),
   chatCancel: () => ipcRenderer.invoke('chat:cancel'),
+  chatLoadWhisper: (url) => ipcRenderer.invoke('chat:loadWhisper', url),
+  chatUseWords: (url, title, duration, words) => ipcRenderer.invoke('chat:useWords', url, title, duration, words),
+  chatCancelWhisper: () => ipcRenderer.invoke('chat:cancelWhisper'),
   onChatStage: (callback) => {
     const listener = (_event, info) => callback(info);
     ipcRenderer.on('chat:stage', listener);

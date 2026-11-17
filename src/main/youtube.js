@@ -106,6 +106,7 @@ function fetchInfoOnce(url) {
           title: info.title,
           duration: info.duration,
           uploadDate: info.upload_date,
+          liveStatus: info.live_status || '',
           description: info.description
         });
       } catch (e) {
