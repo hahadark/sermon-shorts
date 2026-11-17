@@ -273,7 +273,7 @@
     $('#btnOpenAsvDir').onclick = () => api.openAppPath('autosave');
     $('#btnOpenUserData').onclick = () => api.openAppPath('userData');
     // ---- 일반: 업데이트 ----
-    const UPD = { idle: '확인 전', checking: '확인 중…', latest: '최신 버전입니다', downloading: '새 버전 받는 중', ready: '새 버전이 준비됐습니다 (닫을 때 설치)', portable: '새 버전이 나왔습니다', error: '확인하지 못했습니다', off: '개발 실행 중이라 확인하지 않습니다' };
+    const UPD = { idle: '확인 전', checking: '확인 중…', latest: '최신 버전입니다', downloading: '새 버전 받는 중', ready: '새 버전이 준비됐습니다 (닫을 때 설치)', portable: '새 버전이 나왔습니다', rust: '새 판(정식)이 나왔습니다:', error: '확인하지 못했습니다', off: '개발 실행 중이라 확인하지 않습니다' };
     const showUpd = (st) => { if (!st || !modal) return; $('#updState').textContent = `지금 버전 ${st.current || ''} · ${UPD[st.state] || st.state}${st.version ? ' ' + st.version : ''}${st.percent && st.state === 'downloading' ? ' ' + st.percent + '%' : ''}${st.state === 'error' && st.message ? ' (' + st.message + ')' : ''}`; };
     api.updateGet().then(showUpd).catch(() => {});
     offUpdate = api.onUpdateStatus ? api.onUpdateStatus(showUpd) : null;

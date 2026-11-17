@@ -11,6 +11,23 @@ const { app, ipcMain, shell } = require('electron');
 
 const FEED = { provider: 'github', owner: 'hahadark', repo: 'sermon-shorts' };
 const RELEASES_URL = 'https://github.com/hahadark/sermon-shorts/releases/latest';
+const RELEASES_API = 'https://api.github.com/repos/hahadark/sermon-shorts/releases?per_page=30';
+
+/** 새 Rust판 정식(사전 공개 아님) 릴리스가 있으면 { version, url }. 그때부터는 이 판(Electron)을 더 올리지 않고 새 판을 안내한다 */
+function pickRust(list) {
+  for (const r of Array.isArray(list) ? list : []) {
+    if (!r || r.draft || r.prerelease) continue;
+    const m = /^rust-v(\d+\.\d+\.\d+)$/.exec(String(r.tag_name || ''));
+    if (m) return { version: m[1], url: r.html_url || RELEASES_URL };
+  }
+  return null;
+}
+async function rustRelease() {
+  if (process.env.SS_RUST_FEED) return pickRust(JSON.parse(fs.readFileSync(process.env.SS_RUST_FEED, 'utf8')));
+  const res = await require('electron').net.fetch(RELEASES_API, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'SermonShorts' } });
+  if (!res.ok) return null;
+  return pickRust(await res.json());
+}
 const FIRST_CHECK_DELAY = 15 * 1000;
 const CHECK_EVERY = 6 * 3600 * 1000;
 
@@ -20,7 +37,7 @@ let mac = null;     // Mac 업데이트 (updater-mac.js)
 function autoOn() { try { return require('./settings').loadSettings().autoUpdate !== false; } catch (_) { return true; } }
 function schedule() {
   setTimeout(() => { if (autoOn()) check(); }, FIRST_CHECK_DELAY).unref();
-  setInterval(() => { if (autoOn() && status.state !== 'ready' && status.state !== 'downloading') check(); }, CHECK_EVERY).unref();
+  setInterval(() => { if (autoOn() && status.state !== 'ready' && status.state !== 'downloading' && status.state !== 'rust') check(); }, CHECK_EVERY).unref();
 }
 let getWindow = () => null;
 let log = () => {};
@@ -38,7 +55,11 @@ function setStatus(next) {
   if (win && !win.isDestroyed()) win.webContents.send('update:status', status);
 }
 
-function check() {
+async function check() {
+  // 새 판(Rust) 정식이 나왔으면 업데이트 대신 새 판을 안내한다 (최신 릴리스가 Rust 판이어도 오류가 나지 않게)
+  if (require('electron').app.isPackaged || process.env.SS_RUST_FEED) {
+    try { const r = await rustRelease(); if (r) { setStatus({ state: 'rust', version: r.version, url: r.url }); return status; } } catch (_) { /* 인터넷이 안 되면 평소대로 */ }
+  }
   if (mac) return mac.check();
   if (!updater) return Promise.resolve(status);
   return updater.checkForUpdates().then(() => status).catch((e) => {
@@ -61,7 +82,7 @@ function initUpdater(opts = {}) {
     setImmediate(() => updater.quitAndInstall(true, true));
     return true;
   });
-  ipcMain.handle('update:openPage', () => shell.openExternal(RELEASES_URL));
+  ipcMain.handle('update:openPage', () => shell.openExternal(status.state === 'rust' && status.url ? status.url : RELEASES_URL));
 
   if (!app.isPackaged || opts.disabled || process.env.SS_NO_UPDATE) return;
   if (process.platform === 'darwin') {
@@ -92,4 +113,4 @@ function initUpdater(opts = {}) {
   schedule();
 }
 
-module.exports = { initUpdater, isInstalled };
+module.exports = { initUpdater, isInstalled, pickRust };

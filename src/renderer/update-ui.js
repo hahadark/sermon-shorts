@@ -28,6 +28,8 @@
         if (!confirm('저장하지 않은 편집은 사라집니다. 지금 다시 시작해 새 버전을 설치할까요?')) return;
         api.updateInstall();
       });
+    } else if (s.state === 'rust') {
+      show(`새 설교 쇼츠 ${s.version} 정식판이 나왔습니다 · 더 가볍고 빠르며, 지금 쓰는 프로젝트·설정·테마를 그대로 씁니다`, '새 판 내려받기', () => api.updateOpenPage());
     } else if (s.state === 'portable') {
       // Mac: 스스로 바꿀 수 없는 까닭(DMG 안에서 실행·앱 관리 권한 등)이 있으면 함께 보인다
       show(`새 버전 ${s.version} 이 나왔습니다` + (s.reason ? ` · ${s.reason}` : ''), '내려받기 페이지', () => api.updateOpenPage());

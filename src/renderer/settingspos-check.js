@@ -9,5 +9,5 @@ try{const l=await A.getLaunchInfo();dir=l.cache+'/settingspos';await A.mkdir(dir
  document.querySelector('.settings-overlay .settings-tab').click();await sleep(100);
  const close=document.querySelector('.settings-overlay .modal-close, .settings-overlay [data-close], .settings-overlay #btnSettingsCancel')||[...document.querySelectorAll('.settings-overlay button')].find(b=>/^(닫기|취소)$/.test(b.textContent.trim()));if(close)close.click();await sleep(200);
  const item=document.querySelector('.menu-item[data-cmd="update-check"]');item.click();await sleep(1500);const toast=(document.getElementById('toast')||{}).textContent||'';
- const r={success:same&&!!item&&/버전|확인/.test(toast),same,rows,menu:!!item,toast};await A.writeText(dir+'/report.json',JSON.stringify(r,null,2));if(r.success)A.notifyTestReady({success:true});else A.notifyTestError('설정 창 위치 또는 업데이트 메뉴 실패');
+ const r={success:same&&!!item&&/버전|확인|정식판/.test(toast),same,rows,menu:!!item,toast};await A.writeText(dir+'/report.json',JSON.stringify(r,null,2));if(r.success)A.notifyTestReady({success:true});else A.notifyTestError('설정 창 위치 또는 업데이트 메뉴 실패');
 }catch(err){if(dir)await A.writeText(dir+'/report.json',JSON.stringify({success:false,error:err.stack},null,2));A.notifyTestError(err.stack);}});})();
