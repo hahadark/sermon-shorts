@@ -719,6 +719,53 @@ impl App {
                 if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }            // AI 연결: 왼쪽 [AI 연결] 누르기 → 상태 카드 → 제미나이에 틀린 키 저장(돈 안 드는 오류 확인) → 챗GPT [이 AI 로 대화하기] → 닫기 (임시 SS_USER_DATA_DIR 복사본)
+            // 시스템 점검: 메뉴 → 점검 창 → (빈 런타임 폴더라 엔진 없음) [엔진 설치] → 실제 설치 스크립트를 -DryRun 으로 돌린 진행·완료 글 → 닫기
+            ("sysflow", 0) if t.t0.elapsed().as_secs_f64() > 1.5 => {
+                self.open_syscheck();
+                t.step = 1; t.t0 = Instant::now();
+            }
+            ("sysflow", 1) if !self.sys.rows.is_empty() && self.sys.rects.iter().any(|x| x.0.ends_with(":install-engine")) && t.t0.elapsed().as_secs_f64() > 0.8 || t.step == 1 && t.t0.elapsed().as_secs_f64() > 40.0 => {
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                let rows: Vec<Value> = self.sys.rows.iter().map(sermon_shorts::syscheck::row_json).collect();
+                let mut info = json!({ "open": self.sys.open, "rows": rows, "progress": [] });
+                let clip = self.sys.rects.iter().find(|x| x.0 == "clip").map(|x| x.1).unwrap_or(egui::Rect::EVERYTHING);
+                match self.sys.rects.iter().find(|x| x.0.ends_with(":install-engine")).map(|x| x.1) {
+                    Some(r) if !clip.contains_rect(r) && t.t0.elapsed().as_secs_f64() < 20.0 => {
+                        self.t_queue(vec![egui::Event::PointerMoved(clip.center()), egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: egui::vec2(0.0, -120.0), phase: egui::TouchPhase::Move, source: egui::MouseWheelSource::Wheel, modifiers: egui::Modifiers::NONE }], egui::Modifiers::NONE);
+                        self.t_queue(vec![], egui::Modifiers::NONE);
+                        return self.test = Some(test);
+                    }
+                    Some(r) => self.t_click(r.center(), egui::Modifiers::NONE),
+                    None => { info["noInstallBtn"] = json!(true); }
+                }
+                self.test_words = info.to_string();
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("sysflow", 2) => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let id = self.sys.rows.iter().find(|r| r.actions.iter().any(|a| a.contains("engine"))).map(|r| r.id.to_string()).unwrap_or_else(|| "python".into());
+                if let Some((None, m)) = self.sys.results.get(&id) { let p = info["progress"].as_array_mut().unwrap(); if p.last().and_then(|x| x.as_str()) != Some(m.as_str()) { p.push(json!(m)); } }
+                info["installingSeen"] = json!(info["installingSeen"].as_bool().unwrap_or(false) || self.sys.installing);
+                let done = matches!(self.sys.results.get(&id), Some((Some(_), _))) && !self.sys.installing && self.sys.rx.is_none();
+                if done && info["doneSeen"] != true { info["doneSeen"] = json!(true); t.t0 = Instant::now(); }
+                if done && info["doneSeen"] == true && t.t0.elapsed().as_secs_f64() > 0.8 && !self.sys.rows.is_empty() || t.t0.elapsed().as_secs_f64() > 90.0 {
+                    info["result"] = json!(self.sys.results.get(&id).map(|r| json!([r.0, r.1])));
+                    shot(ctx, std::env::var("SS_SHOT3").ok().map(PathBuf::from), false);
+                    if let Some(r) = self.sys.rects.iter().find(|x| x.0 == "close").map(|x| x.1) { self.t_click(r.center(), egui::Modifiers::NONE); }
+                    t.step = 3; t.t0 = Instant::now();
+                }
+                self.test_words = info.to_string();
+            }
+            ("sysflow", 3) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["closed"] = json!(!self.sys.open);
+                let eng = info["rows"].as_array().and_then(|a| a.iter().find(|r| r["actions"].as_array().is_some_and(|x| x.iter().any(|y| y == "install-engine")))).cloned().unwrap_or(json!(null));
+                info["pass"] = json!(info["open"] == true && eng["status"] != "ok" && info["installingSeen"] == true
+                    && info["result"][0] == true && info["result"][1].as_str().unwrap_or("").contains("DryRun")
+                    && info["progress"].as_array().is_some_and(|p| !p.is_empty()) && info["closed"] == true);
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
             ("aiflow", 0) if t.t0.elapsed().as_secs_f64() > 2.0 => {
                 self.t_click(egui::pos2(44.0, 460.0), egui::Modifiers::NONE);
                 t.step = 1; t.t0 = Instant::now();

@@ -143,7 +143,7 @@ impl App {
         ui.menu_button(RichText::new("도움말").size(15.0).color(style::TEXT2), |ui| {
             if item(ui, "book-open", "사용 설명서", "") { ui.close(); self.page = Page::Guide; }
             if item(ui, "keyboard", "단축키", "F1") { ui.close(); self.toast("Space 재생 · Ctrl+Z/Y 되돌리기·다시 · Ctrl+S 저장 · Ctrl+E 내보내기 · H 지운 부분 숨기기 · Alt+↑↓ 칸 옮기기"); }
-            if item(ui, "stethoscope", "시스템 점검", "") { ui.close(); soon(self, "시스템 점검"); }
+            if item(ui, "stethoscope", "시스템 점검", "") { ui.close(); self.open_syscheck(); }
             if item(ui, "refresh-cw", "업데이트 확인", "") { ui.close(); soon(self, "업데이트 확인"); }
             ui.separator();
             if item(ui, "settings", "설정", "Ctrl+,") { ui.close(); self.open_settings("general"); }

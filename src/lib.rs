@@ -38,6 +38,7 @@ pub mod voice;
 pub mod vox_dsp;
 pub mod bgm;
 pub mod llm;
+pub mod syscheck;
 
 /// 사용자 홈 폴더 (Windows: USERPROFILE, 맥: HOME)
 pub fn home_dir() -> std::path::PathBuf {

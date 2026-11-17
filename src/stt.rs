@@ -1,4 +1,4 @@
-//! 자막 만들기 (기존 src/main/engine.js): Electron 설치본이 깔아 둔 음성 인식 엔진(파이썬 + faster-whisper)을 그대로 부른다.
+//! 자막 만들기 (기존 src/main/engine.js): 시스템 점검에서 설치한 음성 인식 엔진(파이썬 + faster-whisper, Electron 판과 같은 곳)을 부른다.
 //! 같은 영상·같은 구간이면 Electron 판과 같은 캐시(runtime/cache/<md5>/transcript_*.json)를 함께 쓴다.
 use crate::youtube::{cache_dir, runtime_dir};
 use md5::Digest;
@@ -35,7 +35,7 @@ pub fn transcribe(input: &Path, start: Option<f64>, end: Option<f64>, terms: &st
     }
     if let Some(d) = out.parent() { std::fs::create_dir_all(d)?; }
     let py = python();
-    if !py.exists() { anyhow::bail!("자막 엔진(Python)이 설치되지 않았습니다. Electron 판 [점검] 창에서 [엔진 설치]를 누르세요."); }
+    if !py.exists() { anyhow::bail!("자막 엔진(Python)이 설치되지 않았습니다. 도움말 → 시스템 점검에서 [엔진 설치]를 누르세요."); }
     let mut cmd = crate::media::command_path(&py);
     cmd.arg(script()).arg("--input").arg(input).arg("--out").arg(&out).arg("--ffmpeg").arg(crate::media::find_tool("ffmpeg"));
     if !terms.trim().is_empty() { cmd.args(["--terms", terms.trim()]); }

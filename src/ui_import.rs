@@ -118,7 +118,7 @@ fn when(at_ms: f64) -> String {
 
 impl App {
     /// 창이 떠 있으면 편집 화면 단축키를 막는다 (기존 SS.state.dialogOpen)
-    pub(crate) fn dialog_open(&self) -> bool { self.import.dlg.is_some() || self.export_view.is_some() || self.asv.browser.is_some() || self.prefs.open.is_some() || self.bgm.lib.is_some() || self.bgm.mgr.is_some() || self.help_open }
+    pub(crate) fn dialog_open(&self) -> bool { self.import.dlg.is_some() || self.export_view.is_some() || self.asv.browser.is_some() || self.prefs.open.is_some() || self.bgm.lib.is_some() || self.bgm.mgr.is_some() || self.help_open || self.sys.open || self.ai.open }
 
     /// 파일 → 유튜브에서 가져오기 (Ctrl+U)
     pub(crate) fn cmd_youtube(&mut self) {

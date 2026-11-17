@@ -15,6 +15,7 @@ mod ui_ai;
 mod ui_audio;
 mod ui_frame;
 mod ui_keys;
+mod ui_syscheck;
 mod ui_import;
 mod ui_autosave;
 mod ui_bgm;
@@ -191,6 +192,8 @@ pub(crate) struct App {
     pub bgm: ui_bgm::State,
     pub ai: ui_ai::State,
     pub prefs: ui_settings::State,
+    pub sys: ui_syscheck::State,
+    pub sys_queue_after_refresh: bool,
     pub asv: ui_autosave::State,
     pub theme_ed: ui_theme_editor::State,
     pub materials: ui_materials::State,
@@ -222,7 +225,7 @@ impl App {
             title: String::new(), verse: String::new(),
             speaker_pick: def.clone().unwrap_or_else(|| SPEAKER_CUSTOM.into()), speaker_custom: if def.is_none() { String::new() } else { String::new() },
             church, church_save_at: None, crop: export::Crop::default(), crop_drag: None, stage: stage::Stage::new(ctx),
-            import: Default::default(), audio: Default::default(), bgm: Default::default(), ai: Default::default(), prefs: Default::default(), asv: Default::default(), theme_ed: Default::default(), materials: Default::default(),
+            import: Default::default(), audio: Default::default(), bgm: Default::default(), ai: Default::default(), prefs: Default::default(), sys: Default::default(), sys_queue_after_refresh: false, asv: Default::default(), theme_ed: Default::default(), materials: Default::default(),
             export: None, export_result: None, export_error: None, export_view: None, bg_uploads: vec![], uploaded: HashMap::new(),
         };
         app.theme_changed();
@@ -531,6 +534,7 @@ impl eframe::App for App {
         self.bgm_tick(&ctx);
         self.ai_ui(&ctx);
         self.settings_ui(&ctx);
+        self.syscheck_ui(&ctx);
         self.shortcuts_ui(&ctx);
         self.autosave_ui(&ctx);
         self.theme_editor_ui(&ctx);

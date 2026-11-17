@@ -638,3 +638,20 @@ pub fn list_playlist(url: &str, max: usize) -> Result<Vec<(String, String, Strin
     let j: Value = serde_json::from_str(&out).map_err(|_| "재생목록을 읽지 못했습니다.".to_string())?;
     Ok(j["entries"].as_array().into_iter().flatten().filter_map(|x| { let id = x["id"].as_str()?; Some((format!("https://www.youtube.com/watch?v={id}"), x["title"].as_str().unwrap_or("").to_string(), id.to_string())) }).take(max).collect())
 }
+
+/// 유튜브용 JS 런타임 (종류, 경로, 판) — 시스템 점검용
+pub fn js_runtime() -> Option<(String, PathBuf, String)> {
+    let _ = js_runtime_args();
+    let node = crate::media::find_tool("node");
+    if node.exists() {
+        if let Ok(o) = crate::media::command_path(&node).args(["-e", "process.stdout.write(process.version)"]).output() { if o.status.success() { return Some(("node".into(), node, String::from_utf8_lossy(&o.stdout).trim().to_string())); } }
+    }
+    let deno = runtime_dir().join("bin").join(exe("deno"));
+    if deno.exists() {
+        let v = crate::media::command_path(&deno).arg("--version").output().ok().map(|o| String::from_utf8_lossy(&o.stdout).lines().next().unwrap_or("").to_string()).unwrap_or_default();
+        return Some(("deno".into(), deno, v));
+    }
+    None
+}
+/// 지금 쓰는 yt-dlp 판 (없으면 빈 글)
+pub fn ytdlp_version() -> String { version_of(&ytdlp_path()) }
