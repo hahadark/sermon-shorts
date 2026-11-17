@@ -430,12 +430,13 @@
       if (window.SS.pushUndo) window.SS.pushUndo();
       
       const changeMap = new Map();
-      correctedChunks.forEach(c => changeMap.set(c.id, c.text));
+      // 제미나이는 id 를 글자("12")로 돌려준다: 단어 id(숫자)와 맞추려면 글자로 비교
+      correctedChunks.forEach(c => changeMap.set(String(c.id), c.text));
 
       let changeCount = 0;
       for (const w of window.SS.state.words) {
-        if (!w.del && changeMap.has(w.id)) {
-          const newText = changeMap.get(w.id);
+        if (!w.del && changeMap.has(String(w.id))) {
+          const newText = changeMap.get(String(w.id));
           if (w.text !== newText) {
             w._oldText = w.text;
             w.text = newText;
