@@ -736,6 +736,8 @@ pub mod chatgpt {
     fn do_refresh(store: &mut Value) -> Result<(), LlmErr> {
         let (rt, cid) = (store["refresh_token"].as_str().unwrap_or("").to_string(), store["client_id"].as_str().unwrap_or("").to_string());
         if rt.is_empty() || cid.is_empty() { return Err(e("auth", "ChatGPT 로그인이 필요합니다.")); }
+        // 시험용 사용자 폴더(SS_USER_DATA_DIR)에 복사한 로그인으로 갱신하면 갱신 토큰이 바뀌어 진짜 로그인이 끊긴다 → 시험에서는 갱신하지 않는다
+        if std::env::var("SS_USER_DATA_DIR").is_ok() && std::env::var("SS_ALLOW_TOKEN_REFRESH").is_err() { return Err(e("auth", "시험용 사용자 폴더에서는 챗GPT 로그인을 갱신하지 않습니다 (진짜 로그인을 지키기 위해).")); }
         let (st, j) = post_form(&token_url(), &refresh_form(&cid, &rt))?;
         if !(200..300).contains(&st) || j["access_token"].as_str().is_none_or(|s| s.is_empty()) {
             if st == 400 || st == 401 {
