@@ -34,6 +34,7 @@ pub mod chat_plan;
 pub mod chat;
 pub mod ai;
 pub mod materials;
+pub mod matrender;
 pub mod updater;
 pub mod source_fetch;
 pub mod autosave;
