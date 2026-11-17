@@ -118,7 +118,7 @@ fn when(at_ms: f64) -> String {
 
 impl App {
     /// 창이 떠 있으면 편집 화면 단축키를 막는다 (기존 SS.state.dialogOpen)
-    pub(crate) fn dialog_open(&self) -> bool { self.import.dlg.is_some() || self.export_view.is_some() || self.asv.browser.is_some() || self.prefs.open.is_some() || self.bgm.lib.is_some() || self.bgm.mgr.is_some() || self.help_open || self.sys.open || self.ai.open }
+    pub(crate) fn dialog_open(&self) -> bool { self.import.dlg.is_some() || self.export_view.is_some() || self.asv.browser.is_some() || self.prefs.open.is_some() || self.bgm.lib.is_some() || self.bgm.mgr.is_some() || self.help_open || self.sys.open || self.ai.open || self.rec.open }
 
     /// 파일 → 유튜브에서 가져오기 (Ctrl+U)
     pub(crate) fn cmd_youtube(&mut self) {
@@ -389,7 +389,7 @@ impl App {
         Some(Dlg::Picker(p))
     }
 
-    fn start_fetch(&mut self, url: String, start: f64, end: f64, full: bool, src_title: String, src_dur: f64) -> FetchDlg {
+    pub(crate) fn start_fetch(&mut self, url: String, start: f64, end: f64, full: bool, src_title: String, src_dur: f64) -> FetchDlg {
         let prog: Shared<(f64, String)> = Arc::new(Mutex::new((0.0, "준비 중…".into())));
         let (tx, rx) = std::sync::mpsc::channel();
         let (u, p2) = (url.clone(), prog.clone());
@@ -500,6 +500,8 @@ impl App {
         if self.settings["editDefaults"]["autoTidy"].as_bool() != Some(false) && !self.project.words.is_empty() { self.cmd_tidy(); }
         // 유튜브에서 가져온 영상이면 대화 칸에서도 편집할 수 있게 (기존 ss:transcript-ready → useEditorVideo)
         self.chat_on_transcript();
+        // AI 쇼츠 추천에서 고른 후보면 그 구간만 남긴다
+        self.rec_on_transcript();
     }
     /// 설정 [편집]의 기본값을 지금 편집에 (기존 SS.applyEditDefaults)
     pub(crate) fn apply_edit_defaults(&mut self) {

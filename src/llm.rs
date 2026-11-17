@@ -192,6 +192,13 @@ pub mod gemini {
         Ok(text_of(&data))
     }
 
+    /// 요청 본문 그대로 보내기 (AI 쇼츠 추천·용어 교정) → (HTTP 상태, 응답 JSON)
+    pub fn generate(key: &str, model: &str, body: &Value) -> Result<(u16, Value), String> {
+        let req = ureq::post(&format!("{}/{model}:generateContent", api())).set("content-type", "application/json").set("x-goog-api-key", key).timeout(timeout(600));
+        let (st, text) = http(req, Some(&body.to_string())).map_err(|m| format!("인터넷 연결을 확인하세요. ({m})"))?;
+        Ok((st, serde_json::from_str(&text).unwrap_or(json!({}))))
+    }
+
     /// 설정의 [연결 확인] (기존 ai.js testConnection): (성공?, 사람이 읽는 글)
     pub fn test_connection(key: &str, model: &str) -> (bool, String) {
         if key.is_empty() { return (false, "API 키가 없습니다. 설정에서 Gemini API 키를 입력하세요.".into()); }

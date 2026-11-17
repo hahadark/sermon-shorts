@@ -830,6 +830,47 @@ impl App {
                 if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
+            // AI 쇼츠 추천·용어 교정: 추천 창 → [분석](실제 유튜브 정보·자막 + 가짜 제미나이 답) → 후보 [이 구간으로 만들기](구간 받기·자막) → 제목·본문·구간 → [용어 교정](가짜 답)
+            ("recflow", 0) if t.t0.elapsed().as_secs_f64() > 1.5 => {
+                if !self.rec.open { self.cmd_ai_recommend(); self.rec.url = "https://www.youtube.com/watch?v=9Tmjg3ESEyc".into(); return self.test = Some(test); }
+                let ar = self.rec.rects.iter().find(|x| x.0 == "analyze").map(|x| x.1); if let Some(r) = self.t_stable("analyze", ar) { self.t_click(r.center(), egui::Modifiers::NONE); t.step = 1; t.t0 = Instant::now(); }
+            }
+            ("recflow", 1) if self.rec.result.is_some() && t.t0.elapsed().as_secs_f64() > 1.0 || t.step == 1 && t.t0.elapsed().as_secs_f64() > 120.0 => {
+                let res = self.rec.result.clone().unwrap_or(json!({}));
+                let cands = res["candidates"].as_array().cloned().unwrap_or_default();
+                let idx = cands.iter().position(|c| c["shortsTitle"] == "시험 후보");
+                let mut info = json!({ "cands": cands.len(), "order": cands.iter().map(|c| c["score"].clone()).collect::<Vec<_>>(), "idx": idx, "sermon": res["sermon"]["title"], "video": res["videoTitle"] });
+                let sent = std::fs::read_to_string(std::env::temp_dir().join("ss_gemini_sent0.json")).unwrap_or_default();
+                info["promptOk"] = json!(sent.contains("[추천 조건]") && sent.contains("- 길이: 각 60~90초") && sent.contains("responseSchema"));
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                let sr = idx.and_then(|i| self.rec.rects.iter().find(|x| x.0 == format!("select:{i}")).map(|x| x.1));
+                match self.t_stable("select", sr) { Some(r) => self.t_click(r.center(), egui::Modifiers::NONE), None if t.t0.elapsed().as_secs_f64() < 20.0 => return self.test = Some(test), None => { info["noSelect"] = json!(true); } }
+                self.test_words = info.to_string();
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("recflow", 2) if self.import.dlg.is_none() && self.rec.pending.is_none() && !self.project.words.is_empty() && t.t0.elapsed().as_secs_f64() > 2.0 || t.step == 2 && t.t0.elapsed().as_secs_f64() > 300.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["title"] = json!(self.title); info["verse"] = json!(self.verse);
+                info["words"] = json!(self.project.words.len()); info["kept"] = json!(self.project.words.iter().filter(|w| !w.del).count());
+                info["srcUrl"] = self.project.rest.get("source").map(|s| s["url"].clone()).unwrap_or(Value::Null);
+                self.cmd_ai_correct();
+                self.test_words = info.to_string();
+                t.step = 3; t.t0 = Instant::now();
+            }
+            ("recflow", 3) if self.ai_can_correct() && t.t0.elapsed().as_secs_f64() > 1.0 || t.step == 3 && t.t0.elapsed().as_secs_f64() > 30.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let w = &self.project.words;
+                info["corrected"] = json!(w.iter().filter(|x| x.text == "교정됨").count());
+                info["delCorrected"] = json!(w.iter().filter(|x| x.del && x.text == "교정됨").count());
+                info["toast"] = json!(self.toast.as_ref().map(|x| x.0.clone()));
+                shot(ctx, std::env::var("SS_SHOT3").ok().map(PathBuf::from), false);
+                let kept = info["kept"].as_u64().unwrap_or(0);
+                info["pass"] = json!(info["cands"] == 2 && info["order"] == json!([9, 7]) && info["promptOk"] == true && info["title"] == "시험 후보" && info["verse"] == "행 5:27-32"
+                    && kept > 20 && info["srcUrl"] == "https://www.youtube.com/watch?v=9Tmjg3ESEyc" && info["corrected"].as_u64().unwrap_or(0) > 0 && info["delCorrected"] == 0
+                    && info["toast"].as_str().unwrap_or("").starts_with("교정 완료"));
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
             ("aiflow", 0) if t.t0.elapsed().as_secs_f64() > 2.0 => {
                 self.t_click(egui::pos2(44.0, 460.0), egui::Modifiers::NONE);
                 t.step = 1; t.t0 = Instant::now();
@@ -1013,6 +1054,11 @@ impl App {
         let key = format!("stable:{name}");
         let prev = self.test_stable.get(&key).copied();
         self.test_stable.insert(key, r);
+        (prev == Some(r)).then_some(r)
+    }    /// 아무 단추 자리: 직전 화면과 같을 때만 (창이 처음 크기를 잡는 중에는 누르지 않는다)
+    pub(crate) fn t_stable(&mut self, key: &str, r: Option<egui::Rect>) -> Option<egui::Rect> {
+        let r = r?;
+        let prev = self.test_stable.insert(format!("s2:{key}"), r);
         (prev == Some(r)).then_some(r)
     }    pub(crate) fn t_text(&mut self, s: &str) { self.t_queue(vec![egui::Event::Text(s.into())], egui::Modifiers::NONE); }
     fn t_word(&self, i: usize) -> Option<egui::Rect> { self.word_rects.iter().find(|(j, _)| *j == i).map(|x| x.1) }

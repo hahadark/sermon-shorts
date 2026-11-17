@@ -80,12 +80,6 @@ impl App {
 
     /// 왼쪽 메뉴 [AI 연결] 화면 (기존: 페이지가 아니라 연결 창을 연다)
     pub(crate) fn ai_page(&mut self, _ui: &mut egui::Ui) { self.page = Page::Editor; self.open_ai_connect(); }
-    /// 자막 도구 [용어 교정] 을 쓸 수 있는지
-    pub(crate) fn ai_can_correct(&self) -> bool { false }
-    /// 자막 → AI 용어 교정
-    pub(crate) fn cmd_ai_correct(&mut self) { self.toast("AI 용어 교정: Rust 판으로 옮기는 중입니다"); }
-    /// AI → AI 쇼츠 추천
-    pub(crate) fn cmd_ai_recommend(&mut self) { self.toast("AI 쇼츠 추천: Rust 판으로 옮기는 중입니다"); }
 
     /// 연결 창의 단추 하나 (기존 act_): 화면 밖에서 하고, 끝나면 상태를 다시 묻고 하나만 준비됐으면 그것을 고른다
     fn ai_act(&mut self, what: &'static str) {
