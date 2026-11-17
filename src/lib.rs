@@ -31,6 +31,7 @@ pub fn assets_dir() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets")
 }
 pub mod chat_plan;
+pub mod chat;
 pub mod source_fetch;
 pub mod autosave;
 pub mod settings;

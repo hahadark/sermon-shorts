@@ -498,6 +498,8 @@ impl App {
         let first = self.project.words.iter().find(|w| !w.del).map(|w| w.start);
         if let Some(t) = first { self.player.seek_src(t); }
         if self.settings["editDefaults"]["autoTidy"].as_bool() != Some(false) && !self.project.words.is_empty() { self.cmd_tidy(); }
+        // 유튜브에서 가져온 영상이면 대화 칸에서도 편집할 수 있게 (기존 ss:transcript-ready → useEditorVideo)
+        self.chat_on_transcript();
     }
     /// 설정 [편집]의 기본값을 지금 편집에 (기존 SS.applyEditDefaults)
     pub(crate) fn apply_edit_defaults(&mut self) {

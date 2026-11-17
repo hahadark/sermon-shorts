@@ -5,7 +5,7 @@ use sermon_shorts::{settings as st, ytupload};
 use std::sync::mpsc::Receiver as Rx;
 
 const MODELS: [(&str, &str); 2] = [("gemini-3.5-flash", "gemini-3.5-flash (빠르고 저렴, 추천)"), ("gemini-3.1-pro-preview", "gemini-3.1-pro-preview (더 정확, 느림)")];
-const TABS: [(&str, &str); 6] = [("general", "일반"), ("edit", "편집"), ("ai", "AI"), ("church", "교회 정보"), ("design", "디자인"), ("youtube", "유튜브")];
+const TABS: [(&str, &str); 7] = [("general", "일반"), ("edit", "편집"), ("chat", "AI 대화"), ("ai", "AI"), ("church", "교회 정보"), ("design", "디자인"), ("youtube", "유튜브")];
 const ERR: Color32 = Color32::from_rgb(0xb9, 0x1c, 0x1c);
 
 #[derive(Default)]
@@ -18,6 +18,8 @@ pub(crate) struct Prefs {
     asv_on: bool, asv_every: f64, asv_versions: f64, asv_videos: f64, asv_days: f64, auto_update: bool, upd: String, bgm_dir: String,
     // 편집
     ed_max: f64, ed_semantic: bool, ed_split: bool, preview_proxy: bool, ed_pad_b: f64, ed_pad_a: f64, ed_fade: f64, ed_tidy: bool, apply_now: bool,
+    // AI 대화 (편집 조건 기본값)
+    chat_len: String, chat_count: String, chat_aud: String, chat_styles: Vec<bool>,
     // AI
     gemini_key: String, key_state: String, model: String, ai_msg: Option<(bool, String)>, ai_rx: Option<Rx<(bool, String)>>,
     // 교회
@@ -93,6 +95,8 @@ impl App {
             auto_update: s["autoUpdate"] != false, upd: format!("지금 버전 {} · 개발 실행 중이라 확인하지 않습니다", env!("CARGO_PKG_VERSION")), bgm_dir: bgm_dir(&s),
             ed_max: n(&ed["maxLineChars"], 14.0), ed_semantic: ed["semanticBreaks"] != false, ed_split: ed["splitLongWords"] != false, preview_proxy: s["previewProxy"] != false,
             ed_pad_b: n(&ed["padBefore"], 0.1), ed_pad_a: n(&ed["padAfter"], 0.15), ed_fade: n(&ed["fadeMs"], 10.0), ed_tidy: ed["autoTidy"] != false, apply_now: false,
+            chat_len: (sermon_shorts::chat_plan::js_num(self.chat.prefs.get("length")) as i64).to_string(), chat_count: sermon_shorts::chat_plan::count_of(&self.chat.prefs).to_string(), chat_aud: self.chat.prefs["audience"].as_str().unwrap_or("all").into(),
+            chat_styles: sermon_shorts::chat_plan::STYLES.iter().map(|s| self.chat.prefs[s.0] != false).collect(),
             gemini_key: String::new(), key_state, model: t["aiModel"].as_str().unwrap_or(MODELS[0].0).into(), ai_msg: None, ai_rx: None,
             church: t["churchName"].as_str().unwrap_or("").into(), logo_path: t["logoPath"].as_str().unwrap_or("").into(), speakers, default_speaker, terms: s["churchTerms"].as_str().unwrap_or("").into(), focus_speaker: None,
             theme_id: s["activeThemeId"].as_str().unwrap_or("").into(),
@@ -147,6 +151,7 @@ impl App {
                 match p.tab {
                     "general" => self.pane_general(ui, &mut p),
                     "edit" => Self::pane_edit(ui, &mut p),
+            "chat" => Self::pane_chat(ui, &mut p),
                     "ai" => self.pane_ai(ui, &mut p),
                     "church" => self.pane_church(ui, &mut p),
                     "design" => { if self.pane_design(ui, &mut p) { edit_theme = true; } }
@@ -218,6 +223,21 @@ impl App {
         });
         ui.add_space(6.0);
         if sm_btn(ui, "설정·데이터 폴더 열기").clicked() { open_dir(&theme::user_data_dir()); }
+    }
+
+    /// AI 대화: 편집 조건 기본값 (대화 화면 버튼과 같은 값)
+    fn pane_chat(ui: &mut egui::Ui, p: &mut Prefs) {
+        use sermon_shorts::chat_plan as cp;
+        ui.add_space(6.0);
+        note(ui, "AI 편집 대화의 [편집 조건] 기본값입니다. 대화 화면에서 버튼으로 바꾸면 여기에도 그대로 반영됩니다.");
+        row_label(ui, "쇼츠 길이");
+        combo(ui, "chat-len", &mut p.chat_len, &cp::LENGTHS.iter().map(|(v, l)| (v.to_string(), l.to_string())).collect::<Vec<_>>(), 160.0);
+        row_label(ui, "추천받을 후보 수");
+        combo(ui, "chat-count", &mut p.chat_count, &cp::COUNTS.iter().map(|v| (v.to_string(), format!("{v}곳"))).collect::<Vec<_>>(), 160.0);
+        row_label(ui, "보는 사람");
+        combo(ui, "chat-aud", &mut p.chat_aud, &cp::AUDIENCES.iter().map(|(v, l)| (v.to_string(), l.to_string())).collect::<Vec<_>>(), 160.0);
+        row_label(ui, "다듬기 (켜 둔 것은 매번 지킵니다)");
+        for (i, (_, l, _)) in cp::STYLES.iter().enumerate() { check(ui, &mut p.chat_styles[i], l); }
     }
 
     fn pane_edit(ui: &mut egui::Ui, p: &mut Prefs) {
@@ -397,6 +417,12 @@ impl App {
             "editDefaults": { "maxLineChars": p.ed_max, "semanticBreaks": p.ed_semantic, "splitLongWords": p.ed_split, "padBefore": p.ed_pad_b, "padAfter": p.ed_pad_a, "fadeMs": p.ed_fade, "autoTidy": p.ed_tidy },
         });
         if !p.gemini_key.trim().is_empty() { patch["geminiApiKey"] = json!(p.gemini_key.trim()); }
+        // AI 대화 기본 조건 (이 PC 에 기억)
+        self.chat.prefs["length"] = json!(p.chat_len.parse::<i64>().unwrap_or(120));
+        self.chat.prefs["count"] = json!(p.chat_count.parse::<i64>().unwrap_or(3));
+        self.chat.prefs["audience"] = json!(p.chat_aud);
+        for (i, s) in sermon_shorts::chat_plan::STYLES.iter().enumerate() { self.chat.prefs[s.0] = json!(p.chat_styles[i]); }
+        self.chat_save_prefs();
         match st::save(&patch) {
             Ok(s) => {
                 self.settings = s;

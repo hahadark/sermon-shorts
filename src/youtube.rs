@@ -203,12 +203,14 @@ pub fn with_update_retry<T>(f: impl Fn() -> Result<T, YtErr>) -> Result<T, Strin
 // ---------------------------------------------------------------- 정보·자동 자막
 
 #[derive(Clone, Debug, Default)]
-pub struct Info { pub id: String, pub title: String, pub duration: f64, pub upload_date: String, pub description: String, pub uploader: String }
+pub struct Info { pub id: String, pub title: String, pub duration: f64, pub upload_date: String, pub description: String, pub uploader: String, pub live_status: String }
+impl Info { /// 라이브가 아직 진행 중이거나 예정 (소리를 받을 수 없다)
+    pub fn live_now(&self) -> bool { self.live_status == "is_live" || self.live_status == "is_upcoming" } }
 
 pub fn fetch_info(url: &str) -> Result<Info, String> {
     let out = with_update_retry(|| run_ytdlp_once(&["-J".into(), "--no-playlist".into(), "--".into(), url.into()]))?;
     let j: Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
-    Ok(Info { id: j["id"].as_str().unwrap_or("").into(), title: j["title"].as_str().unwrap_or("").into(), duration: j["duration"].as_f64().unwrap_or(0.0), upload_date: j["upload_date"].as_str().unwrap_or("").into(), description: j["description"].as_str().unwrap_or("").into(), uploader: j["uploader"].as_str().or(j["channel"].as_str()).unwrap_or("").into() })
+    Ok(Info { id: j["id"].as_str().unwrap_or("").into(), title: j["title"].as_str().unwrap_or("").into(), duration: j["duration"].as_f64().unwrap_or(0.0), upload_date: j["upload_date"].as_str().unwrap_or("").into(), description: j["description"].as_str().unwrap_or("").into(), uploader: j["uploader"].as_str().or(j["channel"].as_str()).unwrap_or("").into(), live_status: j["live_status"].as_str().unwrap_or("").into() })
 }
 
 #[derive(Clone, Debug)]

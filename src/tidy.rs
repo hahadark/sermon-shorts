@@ -183,3 +183,21 @@ pub fn summary(words: &[Word], segs: &[Segment]) -> (usize, usize, f64) {
     }
     (fillers, gaps, sec)
 }
+
+/// 군말·바로 되풀이한 말 지우기 + 긴 틈에 컷 (기존 edl.js autoClean). fillers 가 None 이면 기본 군말
+pub fn auto_clean(words: &mut [Word], max_gap: f64, fillers: Option<&[&str]>) {
+    const DEF: [&str; 6] = ["어", "음", "아", "으", "에", "엄"];
+    let fl: &[&str] = fillers.unwrap_or(&DEF);
+    let strip = |t: &str| -> String { t.chars().filter(|c| !".?!。？！,、\"'”’」』)\\".contains(*c)).collect::<String>().trim().to_string() };
+    for w in words.iter_mut() { if !w.del && fl.contains(&strip(&w.text).as_str()) { w.del = true; } }
+    let mut prev: Option<usize> = None;
+    for i in 0..words.len() {
+        if words[i].del { continue; }
+        if let Some(p) = prev {
+            let (a, b) = (strip(&words[i].text), strip(&words[p].text));
+            if a == b && !a.is_empty() { words[p].del = true; prev = Some(i); continue; }
+            if words[i].start - words[p].end > max_gap { words[i].cut_before = true; }
+        }
+        prev = Some(i);
+    }
+}
