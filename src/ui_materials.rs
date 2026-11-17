@@ -49,7 +49,26 @@ pub(crate) struct State {
     dl_ran: bool,
     pub rects: Vec<(String, egui::Rect)>,
     opened: bool,
+    pub sp: Speech,
 }
+
+/// 음성으로 듣기 칸
+#[derive(Default)]
+pub(crate) struct Speech {
+    pub open: bool,
+    pub part: Option<usize>,
+    pub voice: String,
+    pub rate: i32,
+    pub voices: Option<Result<Vec<sermon_shorts::speech::Voice>, String>>,
+    voices_rx: Option<Receiver<Result<Vec<sermon_shorts::speech::Voice>, String>>>,
+    pub make_rx: Option<Receiver<Result<PathBuf, String>>>,
+    pub wav: Option<PathBuf>,
+    pub player: Option<Player>,
+    pub status: String,
+    pub rects: Vec<(String, egui::Rect)>,
+    key: u64,
+}
+
 
 fn last_sunday() -> String {
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0) + sermon_shorts::youtube::local_offset_secs();
@@ -450,6 +469,7 @@ impl App {
                 let h = ui.available_height() - if footer { 92.0 } else { 0.0 };
                 egui::ScrollArea::vertical().id_salt(("mat-main", self.materials.page as u8)).max_height(h).auto_shrink([false, false]).show(ui, |ui| {
                     ui.set_width(ui.available_width());
+                    self.mat_sample_banner(ui);
                     match self.materials.page {
                         MPage::Make => self.mat_make_ui(ui, &mut rects),
                         MPage::Results => self.mat_results_ui(ui, &mut rects),
@@ -650,7 +670,7 @@ impl App {
             }
             Value::Object(o) => {
                 // 자료의 흐름대로 (제목 → 본문 → 내용 → 적용·기도)
-                const ORDER: [&str; 44] = ["title", "subtitle", "verse", "ref", "theme", "goal", "summary", "icebreaker", "prepare", "opening", "story", "day", "passage", "headline", "heading", "q", "part", "minutes", "guide", "intent", "expected", "followup", "note", "meditation", "keyline", "question", "choices", "answer", "explain", "body", "lines", "highlight", "source", "points", "questions", "days", "items", "cards", "slides", "flow", "activity", "application", "action", "prayer"];
+                const ORDER: [&str; 44] = ["title", "subtitle", "verse", "theme", "goal", "summary", "icebreaker", "prepare", "opening", "story", "day", "passage", "headline", "heading", "q", "part", "minutes", "guide", "intent", "expected", "followup", "note", "meditation", "keyline", "question", "choices", "answer", "explain", "body", "lines", "highlight", "source", "ref", "points", "questions", "days", "items", "cards", "slides", "flow", "activity", "application", "action", "prayer"];
                 let rank = |k: &str| ORDER.iter().position(|x| *x == k).unwrap_or(ORDER.len());
                 let mut keys: Vec<String> = o.keys().cloned().collect();
                 keys.sort_by_key(|k| (rank(k), k.clone()));
@@ -726,7 +746,7 @@ impl App {
             if btn(ui, "refresh-cw", "다시 만들기", false).clicked() { act = Some("again"); }
         });
         let made = s(&r["made"]);
-        ui.label(RichText::new(format!("{}{}", if r["provider"].is_string() { format!("AI: {} · ", sermon_shorts::llm::name_ko(&s(&r["provider"]))) } else { String::new() }, made.get(..16).unwrap_or(&made).replace('T', " "))).size(11.5).color(style::FAINT));
+        ui.label(RichText::new(format!("{}{}", if r["provider"].is_string() { format!("AI: {} · ", sermon_shorts::llm::name_ko(&s(&r["provider"]))) } else { String::new() }, local_time(&made))).size(11.5).color(style::FAINT));
         if !self.materials.busy_label.is_empty() { ui.horizontal(|ui| { ui.add(egui::Spinner::new()); ui.label(RichText::new(&self.materials.busy_label).size(12.5).color(style::MUTED)); }); }
         // 설교와 대조 결과
         let ck = &r["check"];
@@ -744,6 +764,7 @@ impl App {
             if let Some(iss) = ck["issues"].as_array() { for (i, it) in iss.iter().enumerate() { ui.add(egui::Label::new(RichText::new(format!("{}. “{}” — {}{}", i + 1, s(&it["quote"]), s(&it["problem"]), if s(&it["fix"]).is_empty() { String::new() } else { format!(" (제안: {})", s(&it["fix"])) })).size(12.0).color(style::TEXT2)).wrap()); } }
         });
         ui.add_space(8.0);
+        self.mat_speech_ui(ui);
         // 미리보기 | 고칠 칸
         self.mat_preview();
         let avail = ui.available_width();
@@ -931,7 +952,7 @@ impl App {
 
     // ---------------- 나머지 (다음 단계에서 채움) ----------------
     /// 설교 PPT 로 저장 (글자를 고칠 수 있는 .pptx)
-    fn mat_pptx(&mut self) {
+    pub(crate) fn mat_pptx(&mut self) {
         let cur = self.materials.current.clone();
         let Some(r) = self.mstore()["results"].get(cur.as_str()).cloned() else { return };
         let mut md = r["meta"].clone();
@@ -949,9 +970,207 @@ impl App {
             let _ = tx.send(match r { Ok(()) => Job::Toast("PPT 를 저장했습니다. 파워포인트에서 글자를 고칠 수 있습니다.".into(), Some(p)), Err(e) => Job::Toast(format!("실패: {e}"), None) });
         });
     }
-    fn mat_listen(&mut self) { self.toast("음성으로 듣기는 곧 됩니다."); }
-    fn mat_bundle(&mut self) { self.toast("홈페이지 묶음 보내기는 곧 됩니다."); }
-    fn mat_sample_toggle(&mut self) { self.toast("샘플 설교 체험은 곧 됩니다."); }
+    // ---------------- 음성으로 듣기 (요약·QT) ----------------
+    pub(crate) fn mat_listen(&mut self) {
+        let sp = &mut self.materials.sp;
+        sp.open = true;
+        if sp.voices.is_none() && sp.voices_rx.is_none() {
+            let (tx, rx) = channel();
+            std::thread::spawn(move || { let _ = tx.send(sermon_shorts::speech::list_voices()); });
+            sp.voices_rx = Some(rx);
+        }
+    }
+    /// 읽을 글 (QT 는 하루만 고를 수 있다)
+    fn sp_text(&mut self) -> String {
+        let cur = self.materials.current.clone();
+        let Some(r) = self.mstore()["results"].get(cur.as_str()).cloned() else { return String::new() };
+        let mut md = r["meta"].clone();
+        let cm = self.mmeta();
+        if let (Some(a), Some(b)) = (md.as_object_mut(), cm.as_object()) { for (k, v) in b { a.insert(k.clone(), v.clone()); } }
+        let mut d = r["data"].clone();
+        if cur == "qt" { if let Some(i) = self.materials.sp.part { if let Some(day) = d["days"].get(i).cloned() { d["days"] = json!([day]); } } }
+        mat::to_text(&cur, &d, &md)
+    }
+    fn mat_speech_ui(&mut self, ui: &mut egui::Ui) {
+        let cur = self.materials.current.clone();
+        if !self.materials.sp.open || (cur != "summary" && cur != "qt") { return; }
+        if let Some(rx) = &self.materials.sp.voices_rx { if let Ok(v) = rx.try_recv() { self.materials.sp.voices = Some(v); self.materials.sp.voices_rx = None; } else { ui.ctx().request_repaint_after(std::time::Duration::from_millis(200)); } }
+        if let Some(rx) = &self.materials.sp.make_rx {
+            if let Ok(r) = rx.try_recv() {
+                self.materials.sp.make_rx = None;
+                match r {
+                    Ok(p) => { if let Some(old) = self.materials.sp.wav.replace(p) { let _ = std::fs::remove_file(old); } self.materials.sp.status = "음성을 만들었습니다. 재생 단추로 들어 보세요.".into(); }
+                    Err(e) => self.materials.sp.status = e,
+                }
+            } else { ui.ctx().request_repaint_after(std::time::Duration::from_millis(200)); }
+        }
+        // 글·읽을 자료·속도가 바뀌면 다시 만들어야 한다
+        let key = self.sp_key();
+        if self.materials.sp.wav.is_some() && self.materials.sp.make_rx.is_none() && self.materials.sp.key != key { self.sp_stop(); if let Some(old) = self.materials.sp.wav.take() { let _ = std::fs::remove_file(old); } self.materials.sp.status = "자료의 글이 바뀌었습니다. 음성을 다시 만들어 주세요.".into(); }
+        if let Some(p) = &mut self.materials.sp.player { p.tick(); if p.playing() { ui.ctx().request_repaint(); } }
+        let days: Vec<String> = if cur == "qt" { self.mstore()["results"]["qt"]["data"]["days"].as_array().map(|a| a.iter().map(|d| format!("{}일 · {}", d["day"], s(&d["title"]))).collect()).unwrap_or_default() } else { vec![] };
+        let mut close = false;
+        let mut make = false;
+        let mut save = false;
+        let mut toggle = false;
+        let mut rects = vec![];
+        Self::mcard(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("음성으로 듣기").size(15.0).family(style::bold()));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| { if ui.small_button("닫기").clicked() { close = true; } });
+            });
+            ui.horizontal_wrapped(|ui| {
+                let sp = &mut self.materials.sp;
+                let all = if cur == "summary" { "설교 요약 전체" } else { "QT 전체" };
+                egui::ComboBox::from_id_salt("sp-part").width(170.0).selected_text(sp.part.and_then(|i| days.get(i).cloned()).unwrap_or(all.into())).show_ui(ui, |ui| {
+                    if ui.selectable_label(sp.part.is_none(), all).clicked() { sp.part = None; }
+                    for (i, d) in days.iter().enumerate() { if ui.selectable_label(sp.part == Some(i), d).clicked() { sp.part = Some(i); } }
+                });
+                let ko: Vec<sermon_shorts::speech::Voice> = match &sp.voices { Some(Ok(v)) => v.iter().filter(|x| sermon_shorts::speech::is_korean(&x.lang)).cloned().collect(), _ => vec![] };
+                let vl = if sp.voices.is_none() { "음성 찾는 중…".to_string() } else if ko.is_empty() { "한국어 음성이 없습니다".into() } else if sp.voice.is_empty() { "기본 한국어 음성".into() } else { sp.voice.clone() };
+                egui::ComboBox::from_id_salt("sp-voice").width(220.0).selected_text(vl).show_ui(ui, |ui| {
+                    if ui.selectable_label(sp.voice.is_empty(), "기본 한국어 음성").clicked() { sp.voice.clear(); }
+                    for v in &ko { if ui.selectable_label(sp.voice == v.id, &v.name).clicked() { sp.voice = v.id.clone(); } }
+                });
+                let rates = [(-2, "조금 느리게"), (0, "보통"), (2, "조금 빠르게")];
+                egui::ComboBox::from_id_salt("sp-rate").width(110.0).selected_text(rates.iter().find(|r| r.0 == sp.rate).map(|r| r.1).unwrap_or("보통")).show_ui(ui, |ui| {
+                    for (r, l) in rates { if ui.selectable_label(sp.rate == r, l).clicked() { sp.rate = r; } }
+                });
+                let mk = ui.add_enabled(sp.make_rx.is_none(), egui::Button::new(RichText::new("음성 만들기").color(Color32::WHITE)).fill(style::PRIMARY));
+                rects.push(("sp-make".to_string(), mk.rect));
+                if mk.clicked() { make = true; }
+                let has = sp.wav.is_some();
+                let playing = sp.player.as_ref().is_some_and(|p| p.playing());
+                let pl = ui.add_enabled(has, egui::Button::new(if playing { "■ 멈춤" } else { "▶ 재생" }));
+                rects.push(("sp-play".to_string(), pl.rect));
+                if pl.clicked() { toggle = true; }
+                let sv = ui.add_enabled(has, egui::Button::new("MP3·WAV 저장"));
+                rects.push(("sp-save".to_string(), sv.rect));
+                if sv.clicked() { save = true; }
+                if sp.make_rx.is_some() { ui.add(egui::Spinner::new()); }
+            });
+            let st = if self.materials.sp.status.is_empty() { "컴퓨터에 설치된 한국어 음성을 무료로 사용합니다. 글을 고치거나 읽을 자료·속도를 바꾸면 음성을 다시 만드세요.".to_string() } else { self.materials.sp.status.clone() };
+            ui.add(egui::Label::new(RichText::new(st).size(12.0).color(style::MUTED)).wrap());
+            if let Some(Err(e)) = &self.materials.sp.voices { ui.add(egui::Label::new(RichText::new(e).size(12.0).color(style::DANGER)).wrap()); }
+        });
+        self.materials.sp.rects = rects;
+        if close { self.sp_stop(); self.materials.sp.open = false; }
+        if make { self.sp_make(); }
+        if toggle { self.sp_toggle(); }
+        if save { self.sp_save(); }
+    }
+    fn sp_key(&mut self) -> u64 { let cur = self.materials.current.clone(); crate::stage::hkey(&format!("{}|{}|{}|{}", self.sp_text(), self.materials.sp.voice, self.materials.sp.rate, cur)) }
+    pub(crate) fn sp_make(&mut self) {
+        let key = self.sp_key();
+        self.sp_stop();
+        let (text, voice, rate) = (self.sp_text(), self.materials.sp.voice.clone(), self.materials.sp.rate);
+        self.materials.sp.key = key;
+        self.materials.sp.status = "한국어 음성을 만드는 중입니다. 원고는 외부로 보내지 않습니다.".into();
+        let (tx, rx) = channel();
+        std::thread::spawn(move || { let _ = tx.send(sermon_shorts::speech::synthesize(&text, &voice, rate)); });
+        self.materials.sp.make_rx = Some(rx);
+    }
+    pub(crate) fn sp_toggle(&mut self) {
+        let playing = self.materials.sp.player.as_ref().is_some_and(|p| p.playing());
+        if playing { self.sp_stop(); return; }
+        let Some(w) = self.materials.sp.wav.clone() else { return };
+        self.player.stop();
+        let mut p = Player::default();
+        match p.open(&w) { Ok(()) => { p.seek(0.0); p.play(); self.materials.sp.player = Some(p); } Err(e) => self.materials.sp.status = format!("재생하지 못했습니다: {e}"), }
+    }
+    pub(crate) fn sp_save(&mut self) {
+        let cur = self.materials.current.clone();
+        let t = s(&self.mmeta()["title"]);
+        let name = format!("{} - {}", type_label(&cur), if t.is_empty() { "설교".into() } else { t });
+        let Some(w) = self.materials.sp.wav.clone() else { return };
+        let target = if let Ok(d) = std::env::var("SS_TEST_SAVE_DIR") { Some(PathBuf::from(d).join(format!("{}.mp3", mr::safe_name(&name)))) } else { rfd::FileDialog::new().set_title("음성 저장").add_filter("MP3 음성", &["mp3"]).add_filter("WAV 음성", &["wav"]).set_file_name(format!("{}.mp3", mr::safe_name(&name))).save_file() };
+        if let Some(target) = target {
+            self.mat_bg("음성 저장하는 중…", move |tx| { let r = sermon_shorts::speech::save_as(&w, &target); let _ = tx.send(match r { Ok(()) => Job::Toast("음성을 저장했습니다.".into(), Some(target)), Err(e) => Job::Toast(format!("실패: {e}"), None) }); });
+        }
+    }
+    fn sp_stop(&mut self) { if let Some(p) = &mut self.materials.sp.player { p.stop(); } self.materials.sp.player = None; }
+
+    // ---------------- 홈페이지 묶음 보내기 ----------------
+    /// 홈페이지로 보낼 묶음 (기존 bundleOf): 날짜·예배·공개 쇼츠 주소·카드 문장·나눔지(소그룹 자료) PDF
+    pub(crate) fn mat_bundle_of(&mut self) -> (String, Value, Option<Value>) {
+        let md = self.mmeta();
+        let date = mat::iso_date(&s(&md["date"]));
+        let re = regex::Regex::new(r"(?:shorts/|youtu\.be/|[?&]v=)([\w-]{11})").unwrap();
+        let mut shorts: Vec<String> = vec![];
+        for u in self.project.rest.get("uploads").and_then(|u| u.as_array()).cloned().unwrap_or_default() {
+            if u["privacy"] != "public" { continue; }
+            if let Some(m) = re.captures(&s(&u["url"])) { let x = format!("https://www.youtube.com/shorts/{}", &m[1]); if !shorts.contains(&x) { shorts.push(x); } }
+        }
+        let r = self.mstore()["results"].clone();
+        let line = [s(&r["summary"]["data"]["theme"]), s(&r["cardnews"]["data"]["title"]), s(&r["cards"]["data"]["cards"][0]["headline"])].into_iter().find(|x| !x.is_empty()).unwrap_or_default();
+        let json = json!({ "date": date, "service": self.mat_service(&s(&md["date"])), "shorts": shorts, "cardLine": two_lines(&line) });
+        let handout = r.get("smallgroup").map(|sg| { let mut m = sg["meta"].clone(); if let (Some(a), Some(b)) = (m.as_object_mut(), md.as_object()) { for (k, v) in b { a.insert(k.clone(), v.clone()); } } mr::job("page", "smallgroup", &sg["data"], &m, "navy", "", &Value::Null) });
+        (date, json, handout)
+    }
+    pub(crate) fn mat_bundle(&mut self) {
+        let (date, js, handout) = self.mat_bundle_of();
+        let n = js["shorts"].as_array().map(|a| a.len()).unwrap_or(0);
+        let has: Vec<String> = [if n > 0 { format!("공개 쇼츠 {n}개") } else { String::new() }, if handout.is_some() { "나눔지 PDF(소그룹 자료)".into() } else { String::new() }, if s(&js["cardLine"]).is_empty() { String::new() } else { "카드 문장".into() }].into_iter().filter(|x| !x.is_empty()).collect();
+        if has.is_empty() { self.toast("보낼 것이 없습니다. 소그룹 자료나 설교 요약을 먼저 만들어 주세요."); return; }
+        if !regex::Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap().is_match(&date) { self.toast("예배 날짜가 올바르지 않습니다. 날짜 칸을 확인해 주세요."); return; }
+        let msg = format!("{date} 예배 묶음을 만듭니다: {}.\n\n홈페이지에 공개되므로 나눔지에 성도 이름·헌금·봉사자 명단·사관 개인 사정·전화번호가 없는지 확인하셨나요?{}", has.join(", "), if n > 0 { "" } else { "\n\n(공개로 올린 쇼츠가 없어 쇼츠 주소는 넣지 않습니다.)" });
+        let test_dir = std::env::var("SS_TEST_SAVE_DIR").ok();
+        if test_dir.is_none() && rfd::MessageDialog::new().set_title("홈페이지 묶음").set_description(msg).set_buttons(rfd::MessageButtons::YesNo).show() != rfd::MessageDialogResult::Yes { return; }
+        let root = match test_dir {
+            Some(d) => PathBuf::from(d),
+            None => {
+                let saved = self.settings["homepageBundleDir"].as_str().unwrap_or("").to_string();
+                let guess = if !saved.is_empty() { PathBuf::from(saved) } else if std::path::Path::new("F:\\aside").exists() { PathBuf::from("F:\\aside\\홈페이지보내기") } else { sermon_shorts::documents_dir().join("홈페이지보내기") };
+                let _ = std::fs::create_dir_all(&guess);
+                let Some(r) = rfd::FileDialog::new().set_title("홈페이지로 보낼 폴더 (날짜 폴더가 이 안에 만들어집니다)").set_directory(&guess).pick_folder() else { return };
+                let _ = sermon_shorts::settings::save(&json!({ "homepageBundleDir": r.to_string_lossy() }));
+                self.settings["homepageBundleDir"] = json!(r.to_string_lossy());
+                r
+            }
+        };
+        self.mat_bg("홈페이지 묶음 만드는 중…", move |tx| {
+            let r = write_bundle(&root, &date, &js, handout.as_ref());
+            let _ = tx.send(match r { Ok(f) => Job::Toast(format!("홈페이지 묶음을 만들었습니다: {}", f.parent().map(|p| p.display().to_string()).unwrap_or_default()), Some(f)), Err(e) => Job::Toast(format!("실패: {e}"), None) });
+        });
+    }
+
+    // ---------------- 샘플 설교 체험 ----------------
+    /// 체험용 예시 자료로 바꾸기 / 원래 자료로 돌아가기 (기존 materials-sample.js enter·leave). AI 를 쓰지 않는다
+    pub(crate) fn mat_sample_toggle(&mut self) {
+        if self.materials.gen_rx.is_some() { self.toast("자료 만들기가 끝난 뒤 샘플을 열어 주세요."); return; }
+        let cur = self.mstore().clone();
+        if cur["demoMode"] == true {
+            let back = cur["demoBackup"].clone();
+            self.project.rest.insert("materials".into(), if back.is_object() { back } else { json!({}) });
+            let has = self.mstore()["results"].as_object().is_some_and(|r| !r.is_empty());
+            self.materials.page = if has { MPage::Results } else { MPage::Make };
+            self.materials.current.clear();
+        } else {
+            let raw = std::fs::read_to_string(sermon_shorts::assets_dir().join("materials").join("sample.json")).unwrap_or_default();
+            let Ok(mut st) = serde_json::from_str::<Value>(&raw) else { self.toast("샘플 자료를 찾지 못했습니다."); return; };
+            let now = sermon_shorts::youtube::now_iso();
+            if let Some(o) = st["results"].as_object_mut() { for (_, r) in o.iter_mut() { r["made"] = json!(now); } }
+            st["demoBackup"] = cur;
+            self.project.rest.insert("materials".into(), st);
+            self.materials.page = MPage::Results;
+            self.materials.current = "summary".into();
+        }
+        self.materials.status.clear();
+        self.materials.prev_tex.clear(); self.materials.prev_key = 0;
+        self.sp_stop(); self.materials.sp.open = false;
+    }
+    fn mat_sample_banner(&mut self, ui: &mut egui::Ui) {
+        if self.mstore()["demoMode"] != true { return; }
+        let mut back = false;
+        egui::Frame::new().fill(style::WARN_SOFT).corner_radius(CornerRadius::same(12)).inner_margin(egui::Margin::symmetric(14, 10)).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new("샘플 체험 중 · AI 사용·요금 없음").size(13.5).family(style::bold()));
+            ui.add(egui::Label::new(RichText::new("실제 설교가 아닌 체험용 예시입니다. 기존 자료는 보관되어 있습니다. 샘플에서 고친 내용은 돌아갈 때 사라집니다. 영상 점검에는 실제 자막이 필요합니다.").size(12.0).color(style::TEXT2)).wrap());
+            if ui.button("원래 자료로 돌아가기").clicked() { back = true; }
+        });
+        ui.add_space(10.0);
+        if back { self.mat_sample_toggle(); }
+    }
 
     /// 매 화면: 만들기·내보내기 진행
     pub(crate) fn materials_ui(&mut self, ctx: &egui::Context) {
@@ -960,6 +1179,51 @@ impl App {
     }
 }
 
+/// 저장된 시각(UTC ISO) → 이 컴퓨터 시각 "YYYY-MM-DD HH:MM"
+pub(crate) fn local_time(iso: &str) -> String {
+    use sermon_shorts::youtube as yt;
+    let re = regex::Regex::new(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})").unwrap();
+    let Some(c) = re.captures(iso) else { return iso.chars().take(16).collect() };
+    let n = |i: usize| c[i].parse::<i64>().unwrap_or(0);
+    let secs = yt::days_from_civil(n(1), n(2), n(3)) * 86400 + n(4) * 3600 + n(5) * 60 + yt::local_offset_secs();
+    let (y, m, d) = yt::civil_from_days(secs.div_euclid(86400));
+    let r = secs.rem_euclid(86400);
+    format!("{y:04}-{m:02}-{d:02} {:02}:{:02}", r / 3600, r / 60 % 60)
+}
+/// 카드에 넣을 핵심 문장 두 줄 (가운데 가까운 띄어쓰기에서 나눔)
+pub(crate) fn two_lines(t: &str) -> String {
+    let t = regex::Regex::new(r"\s+").unwrap().replace_all(t, " ").trim().to_string();
+    let c: Vec<char> = t.chars().collect();
+    if c.len() <= 14 { return t; }
+    let mid = c.len() as f64 / 2.0;
+    let mut best: i64 = -1;
+    for (i, ch) in c.iter().enumerate() { if *ch == ' ' && (best < 0 || (i as f64 - mid).abs() < (best as f64 - mid).abs()) { best = i as i64; } }
+    if best > 0 { let b = best as usize; format!("{}\n{}", c[..b].iter().collect::<String>(), c[b + 1..].iter().collect::<String>()) } else { t }
+}
+/// 날짜 폴더에 bundle.json (+ 나눔지.pdf). 이미 있던 묶음은 합친다 (쇼츠 주소는 모아서, 나머지는 새 값이 있으면 새 값)
+pub(crate) fn write_bundle(root: &std::path::Path, date: &str, js: &Value, handout: Option<&Value>) -> Result<PathBuf, String> {
+    let dir = root.join(date);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let file = dir.join("bundle.json");
+    let old: Value = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str(&t).ok()).filter(|v: &Value| v.is_object()).unwrap_or(json!({}));
+    let mut out = old.clone();
+    let empty = |v: &Value| v.is_null() || v.as_str() == Some("") || v.as_array().is_some_and(|a| a.is_empty());
+    if let Some(o) = js.as_object() { for (k, v) in o { if !empty(v) { out[k] = v.clone(); } } }
+    out["date"] = json!(date);
+    let mut shorts: Vec<Value> = vec![];
+    for v in old["shorts"].as_array().into_iter().flatten().chain(js["shorts"].as_array().into_iter().flatten()) { if !shorts.contains(v) { shorts.push(v.clone()); } }
+    out["shorts"] = json!(shorts);
+    if out["handout"].as_str().is_some_and(|h| !dir.join(h).exists()) { out.as_object_mut().unwrap().remove("handout"); }
+    if shorts.is_empty() { out.as_object_mut().unwrap().remove("shorts"); }
+    if let Some(job) = handout {
+        let pdf = mr::to_pdf(job)?;
+        mr::write_friendly(&dir.join("나눔지.pdf"), &pdf)?;
+        out["handout"] = json!("나눔지.pdf");
+    }
+    if let Some(o) = out.as_object_mut() { o.retain(|_, v| !(v.is_null() || v.as_str() == Some(""))); }
+    mr::write_friendly(&file, serde_json::to_string_pretty(&out).unwrap().as_bytes())?;
+    Ok(file)
+}
 /// 저장할 곳 (시험: SS_TEST_SAVE_DIR)
 fn save_to(title: &str, kind: &str, ext: &str, name: &str) -> Option<PathBuf> {
     if let Ok(d) = std::env::var("SS_TEST_SAVE_DIR") { return Some(PathBuf::from(d).join(name)); }

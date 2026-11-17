@@ -959,10 +959,67 @@ impl App {
                 info["pass"] = json!(info["sermonChars"].as_u64().unwrap_or(0) > 200 && info["made"].as_array().map(|a| a.len()) == Some(3) && info["checked"] == 3
                     && info["previewSize"].is_array() && info["rerendered"] == true && pdf && pngs == 3 && md && r.is_some_and(|r| r.cpm > 0 && !r.bins.is_empty()));
                 shot(ctx, std::env::var("SS_SHOT4").ok().map(PathBuf::from), false);
-                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                self.test_words = info.to_string();
+                // 홈페이지 묶음 (요약·소그룹 자료가 있으니 카드 문장·나눔지 PDF)
+                self.mat_bundle();
                 t.step = 8; t.t0 = Instant::now();
             }
-            ("materialsflow", 8) if t.t0.elapsed().as_secs_f64() > 1.0 => { self.unsaved = false; ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9; }
+            // 음성으로 듣기: 요약을 한국어 음성으로 → 재생 → MP3 저장
+            ("materialsflow", 8) if self.materials.busy_label.is_empty() && t.t0.elapsed().as_secs_f64() > 0.5 || t.step == 8 && t.t0.elapsed().as_secs_f64() > 60.0 => {
+                self.materials.page = ui_materials::MPage::Results;
+                self.materials.current = "summary".into();
+                self.mat_listen();
+                self.sp_make();
+                t.step = 9; t.t0 = Instant::now();
+            }
+            ("materialsflow", 9) if self.materials.sp.make_rx.is_none() && t.t0.elapsed().as_secs_f64() > 0.5 || t.step == 9 && t.t0.elapsed().as_secs_f64() > 120.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["speechWav"] = json!(self.materials.sp.wav.as_ref().and_then(|w| std::fs::metadata(w).ok()).map(|m| m.len()));
+                info["speechStatus"] = json!(self.materials.sp.status);
+                info["voices"] = json!(match &self.materials.sp.voices { Some(Ok(v)) => v.iter().map(|x| format!("{} {}", x.name, x.lang)).collect::<Vec<_>>(), Some(Err(e)) => vec![e.clone()], None => vec![] });
+                self.sp_toggle();
+                info["speechPlaying"] = json!(self.materials.sp.player.as_ref().is_some_and(|p| p.playing()));
+                self.sp_save();
+                self.test_words = info.to_string();
+                t.step = 10; t.t0 = Instant::now();
+            }
+            // 샘플 설교 체험: 예시 자료 9종 → 설교 PPT 저장 → 원래 자료로
+            ("materialsflow", 10) if self.materials.busy_label.is_empty() && t.t0.elapsed().as_secs_f64() > 1.5 || t.step == 10 && t.t0.elapsed().as_secs_f64() > 60.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                self.sp_toggle();
+                self.mat_sample_toggle();
+                info["demoResults"] = json!(self.mstore()["results"].as_object().map(|o| o.len()));
+                info["demoMode"] = self.mstore()["demoMode"].clone();
+                self.materials.current = "slides".into();
+                self.mat_pptx();
+                self.test_words = info.to_string();
+                t.step = 11; t.t0 = Instant::now();
+            }
+            ("materialsflow", 11) if self.materials.busy_label.is_empty() && !self.materials.prev_tex.is_empty() && t.t0.elapsed().as_secs_f64() > 1.0 || t.step == 11 && t.t0.elapsed().as_secs_f64() > 60.0 => {
+                shot(ctx, std::env::var("SS_SHOT5").ok().map(PathBuf::from), false);
+                t.step = 12; t.t0 = Instant::now();
+            }
+            ("materialsflow", 12) if t.t0.elapsed().as_secs_f64() > 1.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                self.mat_sample_toggle();
+                info["afterLeave"] = json!(self.mstore()["results"].as_object().map(|o| o.len()));
+                info["demoAfter"] = self.mstore()["demoMode"].clone();
+                let dir = PathBuf::from(std::env::var("SS_TEST_SAVE_DIR").unwrap_or_default());
+                let walk = |d: &std::path::Path| -> Vec<(String, u64)> { let mut v = vec![]; for e in std::fs::read_dir(d).into_iter().flatten().flatten() { let p = e.path(); if p.is_dir() { for e2 in std::fs::read_dir(&p).into_iter().flatten().flatten() { v.push((format!("{}/{}", e.file_name().to_string_lossy(), e2.file_name().to_string_lossy()), e2.metadata().map(|m| m.len()).unwrap_or(0))); } } else { v.push((e.file_name().to_string_lossy().to_string(), e.metadata().map(|m| m.len()).unwrap_or(0))); } } v };
+                let files = walk(&dir);
+                info["files"] = json!(files);
+                let bundle = files.iter().find(|f| f.0.ends_with("/bundle.json")).map(|f| f.0.clone());
+                info["bundle"] = bundle.as_ref().and_then(|b| std::fs::read_to_string(dir.join(b)).ok()).and_then(|t| serde_json::from_str::<Value>(&t).ok()).unwrap_or(Value::Null);
+                let has = |suffix: &str, min: u64| files.iter().any(|f| f.0.ends_with(suffix) && f.1 > min);
+                let voices_ok = info["voices"].as_array().is_some_and(|a| a.iter().any(|v| v.as_str().is_some_and(|s| s.contains(" ko-"))));
+                // 한국어 음성이 없는 PC 에서는 음성 부분을 확인할 수 없다 (그때는 안내 글이 나와야 함)
+                let speech_ok = if voices_ok { info["speechWav"].as_u64().unwrap_or(0) > 10_000 && info["speechPlaying"] == true && has(".mp3", 5_000) } else { info["speechStatus"].as_str().unwrap_or("").contains("한국어 음성이 없습니다") };
+                info["pass"] = json!(info["pass"] == true && has("/나눔지.pdf", 10_000) && info["bundle"]["cardLine"].as_str().is_some_and(|s| !s.is_empty()) && info["bundle"]["service"].is_string()
+                    && speech_ok && info["demoResults"] == 9 && info["demoMode"] == true && has(".pptx", 5_000) && info["afterLeave"] == 3 && info["demoAfter"].is_null());
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                t.step = 13; t.t0 = Instant::now();
+            }
+            ("materialsflow", 13) if t.t0.elapsed().as_secs_f64() > 1.0 => { self.unsaved = false; ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 14; }
             // 테마 편집기: 열기 → 그림 → 제목 끌기(아래로 100) → Ctrl+Z → 저장(기본 테마 → 복제 이름 묻기 → Enter) → 이 테마 사용
             ("themeflow", 0) if t.t0.elapsed().as_secs_f64() > 1.0 => { self.cmd_edit_theme(); t.step = 1; t.t0 = Instant::now(); }
             ("themeflow", 1) if self.theme_ed.ed.as_ref().is_some_and(|e| e.rendered) && t.t0.elapsed().as_secs_f64() > 1.0 => {

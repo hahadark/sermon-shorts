@@ -36,6 +36,7 @@ pub mod ai;
 pub mod materials;
 pub mod materials_file;
 pub mod pptx;
+pub mod speech;
 pub mod matrender;
 pub mod delivery;
 pub mod updater;
