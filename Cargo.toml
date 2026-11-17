@@ -11,6 +11,7 @@ base64 = "0.23.1"
 cpal = "0.18.2"
 eframe = "0.37.0"
 egui_extras = { version = "0.37", features = ["svg", "image"] }
+flate2 = "1.1"
 getrandom = "0.2"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png"] }
 num-bigint = "0.4"
@@ -32,4 +33,4 @@ pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Security_Cryptography", "Win32_Foundation", "Win32_System_Memory", "Win32_System_SystemInformation", "Win32_System_Threading", "Win32_Storage_FileSystem"] }
+windows-sys = { version = "0.59", features = ["Win32_Security_Cryptography", "Win32_Foundation", "Win32_System_Memory", "Win32_System_SystemInformation", "Win32_System_Threading", "Win32_Storage_FileSystem", "Win32_Globalization"] }

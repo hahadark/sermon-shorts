@@ -120,11 +120,19 @@ fn prompt_ctx(s: &Value, title: &str) -> cp::PromptCtx {
 }
 
 /// AI 에게 묻기. 시험(SS_TEST_LLM_ANSWERS = 답 목록 JSON 파일)에서는 돈 드는 호출 없이 차례로 꺼낸다
-fn ask(provider: &str, system: &str, messages: &[Msg]) -> Result<String, String> {
+pub fn ask(provider: &str, system: &str, messages: &[Msg]) -> Result<String, String> {
     if let Ok(p) = std::env::var("SS_TEST_LLM_ANSWERS") {
         static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        let list: Vec<Value> = serde_json::from_str(&std::fs::read_to_string(&p).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        let all: Value = serde_json::from_str(&std::fs::read_to_string(&p).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         let i = N.fetch_add(1, Ordering::Relaxed);
+        // {"match":[[요청에 든 글, 답], …]}: 동시에 여러 개를 물어도 요청마다 맞는 답 (교인 자료)
+        if let Some(pairs) = all["match"].as_array() {
+            let last = messages.last().map(|m| m.content.as_str()).unwrap_or("");
+            std::thread::sleep(std::time::Duration::from_millis(400));
+            let _ = std::fs::write(std::env::temp_dir().join(format!("ss_llm_sent{i}.txt")), format!("{system}\n\n=====\n{last}"));
+            return pairs.iter().find(|p| last.contains(p[0].as_str().unwrap_or("\u{0}"))).map(|p| p[1].as_str().map(String::from).unwrap_or_else(|| p[1].to_string())).ok_or_else(|| "시험 답이 없습니다".into());
+        }
+        let list: Vec<Value> = all.as_array().cloned().unwrap_or_default();
         std::thread::sleep(std::time::Duration::from_millis(600));
         let _ = std::fs::write(std::env::temp_dir().join(format!("ss_llm_sent{i}.txt")), format!("{system}\n\n=====\n{}", messages.last().map(|m| m.content.as_str()).unwrap_or("")));
         return list.get(i).map(|v| v.as_str().map(String::from).unwrap_or_else(|| v.to_string())).ok_or_else(|| "시험 답이 더 없습니다".into());

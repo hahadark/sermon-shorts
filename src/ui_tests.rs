@@ -887,6 +887,82 @@ impl App {
                 t.step = 2; t.t0 = Instant::now();
             }
             ("updflow", 2) if t.t0.elapsed().as_secs_f64() > 1.0 => { ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 3; }
+            // 교인 자료: 화면 열기(편집 중인 자막을 원고로) → 요약·묵상카드·소그룹 고르고 [만들기] (가짜 AI 답, 설교와 대조까지)
+            //  → 만든 자료 미리보기 → 글 고치기가 미리보기에 반영 → PDF·카드 PNG·홈페이지 글 저장 → 설교 전달 점검
+            ("materialsflow", 0) if t.t0.elapsed().as_secs_f64() > 1.5 => {
+                self.page = Page::Materials;
+                t.step = 1; t.t0 = Instant::now();
+            }
+            ("materialsflow", 1) if t.t0.elapsed().as_secs_f64() > 1.0 => {
+                let r = self.materials.rects.iter().find(|x| x.0 == "go").map(|x| x.1);
+                let Some(r) = self.t_stable("mat-go", r) else { return self.test = Some(test) };
+                let sermon = self.mstore()["sermon"].as_str().unwrap_or("").chars().count();
+                self.mstore()["selected"] = json!(["summary", "cards", "smallgroup"]);
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                self.test_words = json!({ "sermonChars": sermon, "note": self.mstore()["sourceNote"] }).to_string();
+                self.t_click(r.center(), egui::Modifiers::NONE);
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("materialsflow", 2) if self.materials.page == ui_materials::MPage::Results && self.materials.status.values().all(|s| s == "done" || s.starts_with("err")) && t.t0.elapsed().as_secs_f64() > 1.0 || t.step == 2 && t.t0.elapsed().as_secs_f64() > 60.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let res = self.mstore()["results"].clone();
+                info["made"] = json!(res.as_object().map(|o| o.keys().cloned().collect::<Vec<_>>()).unwrap_or_default());
+                info["checked"] = json!(res.as_object().map(|o| o.values().filter(|v| v["check"]["ok"] == true).count()).unwrap_or(0));
+                info["status"] = json!(self.materials.status);
+                info["err"] = json!(self.materials.err);
+                info["unsaved"] = json!(self.unsaved);
+                self.materials.current = "summary".into();
+                self.test_words = info.to_string();
+                t.step = 3; t.t0 = Instant::now();
+            }
+            // 미리보기가 그려지면 제목을 고친다 → 다시 그려지는지
+            ("materialsflow", 3) if !self.materials.prev_tex.is_empty() || t.t0.elapsed().as_secs_f64() > 40.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["previewSize"] = json!(self.materials.prev_tex.first().map(|x| x.size()));
+                info["previewSecs"] = json!(t.t0.elapsed().as_secs_f64());
+                info["tex0"] = json!(format!("{:?}", self.materials.prev_tex.first().map(|x| x.id())));
+                self.mstore()["results"]["summary"]["data"]["title"] = json!("고친 제목입니다");
+                self.test_words = info.to_string();
+                t.step = 4; t.t0 = Instant::now();
+            }
+            ("materialsflow", 4) if t.t0.elapsed().as_secs_f64() > 1.0 && self.materials.prev_rx_idle() || t.t0.elapsed().as_secs_f64() > 40.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["rerendered"] = json!(self.materials.prev_key == self.materials.prev_want);
+                shot(ctx, std::env::var("SS_SHOT3").ok().map(PathBuf::from), false);
+                self.test_words = info.to_string();
+                let c = ctx.clone();
+                self.mat_act_test("pdf", &c);
+                t.step = 5; t.t0 = Instant::now();
+            }
+            ("materialsflow", 5) if self.materials.busy_label.is_empty() && t.t0.elapsed().as_secs_f64() > 0.5 || t.step == 5 && t.t0.elapsed().as_secs_f64() > 60.0 => {
+                let c = ctx.clone();
+                self.mat_act_test("homepage", &c);
+                self.materials.current = "cards".into();
+                self.mat_act_test("png", &c);
+                t.step = 6; t.t0 = Instant::now();
+            }
+            ("materialsflow", 6) if self.materials.busy_label.is_empty() && t.t0.elapsed().as_secs_f64() > 0.5 || t.step == 6 && t.t0.elapsed().as_secs_f64() > 60.0 => {
+                self.materials.page = ui_materials::MPage::Delivery;
+                self.mat_delivery_run();
+                t.step = 7; t.t0 = Instant::now();
+            }
+            ("materialsflow", 7) if t.t0.elapsed().as_secs_f64() > 1.5 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let dir = PathBuf::from(std::env::var("SS_TEST_SAVE_DIR").unwrap_or_default());
+                let files: Vec<(String, u64)> = std::fs::read_dir(&dir).map(|d| d.flatten().map(|e| (e.file_name().to_string_lossy().to_string(), e.metadata().map(|m| m.len()).unwrap_or(0))).collect()).unwrap_or_default();
+                info["files"] = json!(files);
+                let r = self.materials.dl.as_ref();
+                info["delivery"] = json!(r.map(|r| json!({ "cpm": r.cpm, "bins": r.bins.len(), "pauses": r.pauses.len(), "fillers": r.fillers.len(), "repeats": r.repeats.len(), "words": r.word_count })));
+                let pdf = files.iter().any(|f| f.0.ends_with(".pdf") && f.1 > 10_000);
+                let pngs = files.iter().filter(|f| f.0.ends_with(".png") && f.1 > 10_000).count();
+                let md = files.iter().any(|f| f.0.ends_with(".md") && f.1 > 100);
+                info["pass"] = json!(info["sermonChars"].as_u64().unwrap_or(0) > 200 && info["made"].as_array().map(|a| a.len()) == Some(3) && info["checked"] == 3
+                    && info["previewSize"].is_array() && info["rerendered"] == true && pdf && pngs == 3 && md && r.is_some_and(|r| r.cpm > 0 && !r.bins.is_empty()));
+                shot(ctx, std::env::var("SS_SHOT4").ok().map(PathBuf::from), false);
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                t.step = 8; t.t0 = Instant::now();
+            }
+            ("materialsflow", 8) if t.t0.elapsed().as_secs_f64() > 1.0 => { self.unsaved = false; ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9; }
             // 테마 편집기: 열기 → 그림 → 제목 끌기(아래로 100) → Ctrl+Z → 저장(기본 테마 → 복제 이름 묻기 → Enter) → 이 테마 사용
             ("themeflow", 0) if t.t0.elapsed().as_secs_f64() > 1.0 => { self.cmd_edit_theme(); t.step = 1; t.t0 = Instant::now(); }
             ("themeflow", 1) if self.theme_ed.ed.as_ref().is_some_and(|e| e.rendered) && t.t0.elapsed().as_secs_f64() > 1.0 => {

@@ -441,3 +441,47 @@ pub fn parse_check(text: &str, data: Option<&Value>, ty: &str) -> Result<Value, 
     }).filter(|it| it["problem"] != "").collect();
     Ok(json!({ "ok": issues.is_empty(), "issues": issues, "at": crate::youtube::now_iso() }))
 }
+
+// ---------------- AI 로 만들기·대조 (기존 main/materials.js generate·check) ----------------
+fn msg(role: &str, c: &str) -> crate::llm::Msg { crate::llm::Msg { role: role.into(), content: c.into() } }
+/// 자료 만들기: (데이터, AI 이름). 형식이 깨지면 한 번 고쳐 달라고 한다. ctx: { church, title, verse, speaker, date, sermon }
+pub fn generate(ty: &str, options: &Value, ctx: &Value) -> Result<(Value, String), String> {
+    if type_of(ty).is_none() { return Err("모르는 자료 종류입니다.".into()); }
+    if js_trim(&if truthy(ctx.get("sermon")) { js_string(ctx.get("sermon")) } else { String::new() }).is_empty() { return Err("설교 원고가 비어 있습니다.".into()); }
+    let s = crate::settings::load();
+    let provider = crate::llm::active_provider(&s).ok_or("AI 가 연결되어 있지 않습니다. 오른쪽 위 [AI 연결]에서 챗GPT·클로드·제미나이 중 하나를 연결해 주세요.")?;
+    let mut c = ctx.clone(); c["options"] = options.clone();
+    let system = build_system(&c);
+    let request = build_request(ty, options)?;
+    let messages = vec![msg("user", &request)];
+    let first = crate::chat::ask(&provider, &system, &messages)?;
+    match parse(ty, &first) {
+        Ok(d) => Ok((d, provider)),
+        Err(_) => {
+            let mut m2 = messages.clone();
+            m2.push(msg("assistant", &first.chars().take(12000).collect::<String>()));
+            m2.push(msg("user", "방금 답은 JSON 형식이 잘못되었거나 비어 있습니다. 같은 내용을 요청한 JSON 하나로만 다시 쓰세요. 문자열 안 따옴표는 \\\", 줄바꿈은 \\n."));
+            let fix = crate::chat::ask(&provider, &system, &m2)?;
+            Ok((parse(ty, &fix)?, provider))
+        }
+    }
+}
+/// 충실도 검사: 만든 자료를 설교와 다시 대조 (AI 한 번 더)
+pub fn check(ty: &str, data: &Value, options: &Value, ctx: &Value) -> Result<Value, String> {
+    if type_of(ty).is_none() { return Err("모르는 자료 종류입니다.".into()); }
+    let s = crate::settings::load();
+    let provider = crate::llm::active_provider(&s).ok_or("AI 가 연결되어 있지 않습니다.")?;
+    let mut c = ctx.clone(); c["options"] = options.clone();
+    let system = build_system(&c);
+    let messages = vec![msg("user", &build_check_request(ty, data))];
+    let first = crate::chat::ask(&provider, &system, &messages)?;
+    match parse_check(&first, Some(data), ty) {
+        Ok(v) => Ok(v),
+        Err(_) => {
+            let mut m2 = messages.clone();
+            m2.push(msg("assistant", &first.chars().take(6000).collect::<String>()));
+            m2.push(msg("user", "요청한 JSON 하나로만 다시 쓰세요: {\"issues\":[...]}"));
+            parse_check(&crate::chat::ask(&provider, &system, &m2)?, Some(data), ty)
+        }
+    }
+}

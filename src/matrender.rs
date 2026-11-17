@@ -161,3 +161,95 @@ pub fn free_base(folder: &Path, base: &str, count: usize) -> String {
     for n in 2..100 { let b = format!("{base} ({n})"); if !has(&b) { return b; } }
     format!("{base} {}", uniq())
 }
+
+/// PDF 설교 원고 → 글 (기존 materials-pdf.js: pdf.js 로 글자 레이어를 읽는다. 기기 안에서만, OCR 없음)
+pub fn pdf_text(f: &Path) -> Result<String, String> {
+    use base64::Engine;
+    let buf = std::fs::read(f).map_err(|e| format!("PDF 파일 내용을 읽지 못했습니다: {e}"))?;
+    if buf.is_empty() { return Err("PDF 파일이 비어 있습니다.".into()); }
+    if buf.len() > 20 * 1024 * 1024 { return Err("PDF 파일이 너무 큽니다(최대 20MB). 필요한 부분만 나눠 올려 주세요.".into()); }
+    let dir = crate::assets_dir().join("pdfjs");
+    if !dir.join("pdf.min.mjs").exists() { return Err("PDF 읽기 파일(assets/pdfjs)이 없습니다.".into()); }
+    let id = uniq();
+    let data = tmp_dir().join(format!("pdf_{id}.js"));
+    std::fs::write(&data, format!("window.__PDF='{}';", base64::engine::general_purpose::STANDARD.encode(&buf))).map_err(|e| e.to_string())?;
+    let script = PDF_HARNESS.replace("__LIB__", &file_url(&dir.join("pdf.min.mjs"))).replace("__WORKER__", &file_url(&dir.join("pdf.worker.min.mjs"))).replace("__CMAPS__", &(file_url(&dir.join("cmaps")) + "/"));
+    let html_s = format!("<!doctype html><html><head><meta charset=\"utf-8\"></head><body><script src=\"{}\"></script><script type=\"module\">{script}</script></body></html>", file_url(&data));
+    let html = tmp_dir().join(format!("pdf_{id}.html"));
+    std::fs::write(&html, html_s).map_err(|e| e.to_string())?;
+    // 헤드리스 브라우저를 띄워 둔 채 콘솔 출력(SSPDF:번호/전체:base64)을 읽고, 다 받으면 닫는다
+    let r = (|| -> Result<String, String> {
+        let b = browser().ok_or_else(|| NO_BROWSER.to_string())?;
+        let prof = tmp_dir().join(format!("prof_{}", uniq()));
+        let mut c = Command::new(&b);
+        c.args(["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", "--disable-extensions", "--allow-file-access-from-files", "--enable-logging=stderr", "--v=0", "--remote-debugging-port=0"]);
+        c.arg(format!("--user-data-dir={}", prof.to_string_lossy())).arg(file_url(&html));
+        c.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::piped());
+        #[cfg(windows)] { use std::os::windows::process::CommandExt; c.creation_flags(0x0800_0000); }
+        let mut child = c.spawn().map_err(|e| format!("브라우저를 실행하지 못했습니다: {e}"))?;
+        let err = child.stderr.take().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel::<String>();
+        std::thread::spawn(move || { use std::io::BufRead; for l in std::io::BufReader::new(err).lines().map_while(Result::ok) { if tx.send(l).is_err() { break; } } });
+        let re = regex::Regex::new(r"SSPDF:(\d+)/(\d+):([A-Za-z0-9+/=]*)").unwrap();
+        let t0 = std::time::Instant::now();
+        let mut parts: std::collections::BTreeMap<usize, String> = Default::default();
+        let mut total = usize::MAX;
+        while parts.len() < total {
+            let left = std::time::Duration::from_secs(90).saturating_sub(t0.elapsed());
+            if left.is_zero() { break; }
+            match rx.recv_timeout(left) {
+                Ok(l) => if let Some(m) = re.captures(&l) { total = m[2].parse().unwrap_or(0); parts.insert(m[1].parse().unwrap_or(0), m[3].to_string()); },
+                Err(_) => break,
+            }
+        }
+        #[cfg(windows)] { use std::os::windows::process::CommandExt; let _ = Command::new("taskkill").args(["/T", "/F", "/PID", &child.id().to_string()]).creation_flags(0x0800_0000).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status(); }
+        let _ = child.kill();
+        let _ = child.wait();
+        let _ = std::fs::remove_dir_all(&prof);
+        if parts.len() < total || total == usize::MAX { return Err("PDF 를 읽지 못했습니다 (시간이 너무 오래 걸렸습니다).".into()); }
+        let b64: String = parts.into_values().collect();
+        String::from_utf8(base64::engine::general_purpose::STANDARD.decode(b64).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+    })();
+    let _ = std::fs::remove_file(&html);
+    let _ = std::fs::remove_file(&data);
+    let v: Value = serde_json::from_str(&r?).map_err(|_| "PDF 를 읽지 못했습니다.".to_string())?;
+    if let Some(e) = v["error"].as_str() { return Err(e.to_string()); }
+    let text = v["text"].as_str().unwrap_or("").trim().to_string();
+    if text.is_empty() { return Err("이 PDF에서 읽을 수 있는 글자가 없습니다. 이미지로 스캔된 PDF일 수 있습니다. 이 앱은 OCR(글자 인식)을 하지 않으니, 글자 선택이 되는 PDF나 텍스트/한글 파일로 올려 주세요.".into()); }
+    Ok(text)
+}
+const PDF_HARNESS: &str = r#"
+import * as pdfjs from '__LIB__';
+const send = (o) => { const b = btoa(unescape(encodeURIComponent(JSON.stringify(o)))); const n = Math.max(1, Math.ceil(b.length / 4000)); for (let i = 0; i < n; i++) console.log('SSPDF:' + i + '/' + n + ':' + b.slice(i * 4000, (i + 1) * 4000)); };
+function pageToText(items) {
+  const lines = []; let cur = '', lastY = null, lastH = 0, lastEnd = null;
+  const flush = (blank) => { if (cur.trim()) lines.push(cur.replace(/[ \t]+$/g, '')); cur = ''; if (blank && lines.length && lines[lines.length - 1] !== '') lines.push(''); };
+  for (const it of items) {
+    if (typeof it.str !== 'string') continue;
+    const y = it.transform ? it.transform[5] : 0, x = it.transform ? it.transform[4] : 0;
+    const h = Math.abs(it.height) || Math.abs(it.transform?.[3]) || 10;
+    if (lastY !== null && Math.abs(y - lastY) > Math.max(h, lastH) * 0.5) { const gap = Math.abs(y - lastY); flush(gap > Math.max(h, lastH) * 1.9); lastEnd = null; }
+    if (it.str) { if (cur && lastEnd !== null && x - lastEnd > h * 0.25 && !/\s$/.test(cur) && !/^\s/.test(it.str)) cur += ' '; cur += it.str; lastEnd = x + (it.width || 0); lastY = y; lastH = h; }
+    if (it.hasEOL) { flush(false); lastEnd = null; }
+  }
+  flush(false);
+  while (lines.length && lines[lines.length - 1] === '') lines.pop();
+  return lines.join('\n');
+}
+(async () => {
+  try {
+    pdfjs.GlobalWorkerOptions.workerSrc = '__WORKER__';
+    const bin = atob(window.__PDF); const data = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
+    const doc = await pdfjs.getDocument({ data, cMapUrl: '__CMAPS__', cMapPacked: true, useSystemFonts: true, isEvalSupported: false, verbosity: 0 }).promise;
+    if (doc.numPages > 300) throw new Error(`PDF 쪽수가 너무 많습니다(${doc.numPages}쪽, 최대 300쪽). 나눠서 올려 주세요.`);
+    const parts = [];
+    for (let n = 1; n <= doc.numPages; n++) { const p = await doc.getPage(n); parts.push(pageToText((await p.getTextContent()).items)); p.cleanup(); }
+    send({ text: parts.filter(Boolean).join('\n\n').trim() });
+  } catch (e) {
+    let m = String(e && e.message || e);
+    if (e && e.name === 'PasswordException') m = '암호가 걸린 PDF입니다. 암호를 해제한 파일로 다시 올려 주세요.';
+    else if (e && /InvalidPDF|FormatError|MissingPDF|UnknownError/.test(e.name || '')) m = 'PDF 파일이 손상되었거나 PDF 형식이 아닙니다.';
+    send({ error: m });
+  }
+})();
+"#;
