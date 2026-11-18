@@ -69,7 +69,7 @@ bash tools/mac_smoke.sh dist/SermonShorts.app smoke   # 빈 사용자 자료로 
 
 ## 7. 일하는 규칙
 - 커밋: `git -c user.name=hahadark -c user.email="$(git log -1 --format=%ae)" commit …`, 끝난 단위마다 커밋하고 `rust` 가지에 푸시. 푸시 전에 `git pull --rebase origin rust`(PC 에서도 올릴 수 있음).
-- **릴리즈는 사용자가 "릴리즈"라고 할 때만.** 순서: `Cargo.toml` 버전 올림 → 커밋·푸시 → 맥 CI 결과물(맥 zip·dmg·덩어리·`-files.json`) 받기 → Windows 묶음은 PC 의 `tools/win_package.ps1`(zip·설치 파일·덩어리) → `SHA256SUMS-rust.txt` 에 모든 파일 → 태그 `rust-vX.Y.Z` 는 커밋이 올라간 뒤에만 → `gh release create … --latest`. 예전 Electron 사용자용 `latest.yml`·`SermonShorts-Setup-0.3.27-x64.exe`·`.blockmap` 도 계속 함께 올린다(예전 판이 새 판 안내를 받도록). **Windows 묶음은 맥에서 못 만들므로 릴리즈는 PC 와 같이 한다.**
+- **릴리즈는 사용자가 "릴리즈"라고 할 때만.** 순서(2026-11-19부터, PC 없이 됨): `Cargo.toml`·`Cargo.lock` 버전 올림 + `docs/release-notes/X.Y.Z.md` 작성 → 커밋·푸시 → `git tag rust-vX.Y.Z && git push origin rust-vX.Y.Z`. 그러면 `.github/workflows/rust-release.yml` 이 맥(Apple 칩·Intel)·Windows(zip·Setup·덩어리)를 빌드·시험하고 `SHA256SUMS-rust.txt`, 예전 Electron 안내 파일(`latest.yml`·`SermonShorts-Setup-0.3.27-x64.exe`·`.blockmap`, 이전 릴리스에서 복사)까지 모아 Latest 로 올린다(약 15~25분). Apple 칩 맥 서버를 못 받아 그 빌드가 취소되면 Intel 서버 교차 빌드(`mac-arm64-cross`)를 대신 올리니, 그때는 Apple 칩 맥에서 `tools/mac_smoke.sh` 로 따로 확인한다. 리허설은 `rust-vX.Y.Z-dry1` 태그(숨은 초안으로만 올림, 확인 뒤 초안·태그 삭제). 맥에서는 git 에 키체인 토큰(hahadark, 이 저장소만, 2027-11-18 만료)이 있어 바로 푸시된다. Windows 묶음은 GitHub Windows 서버(`rust-win.yml`)가 이전 릴리스 압축본의 ffmpeg·yt-dlp 로 만든다(PC 의 `tools/win_package.ps1` 과 같은 순서).
 - 비밀(구글 클라이언트, 서명 인증서, 로그인 정보)은 출력·커밋 금지. 과금 API·결제 설정은 건드리지 않는다.
 - 공개 저장소에 실제 설교 영상·교회 로고·구세군체·구입한 배경음악·실제 설교 자막 시험 자료를 넣지 않는다.
 - 사용자에게 수동 시험을 부탁하기보다 자동 시험·화면 찍기로 확인하고 결과와 남은 문제를 보고한다.

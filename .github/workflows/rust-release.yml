@@ -1,0 +1,71 @@
+# 릴리스: rust 가지 커밋에 rust-vX.Y.Z 태그를 붙여 푸시하면 맥(Apple 칩·Intel)·Windows 를 빌드·시험하고,
+# 해시 목록을 만들어 GitHub 릴리스(Latest)로 올린다. 사람은 버전 올림·릴리스 노트·태그만 한다.
+#   1) Cargo.toml(+Cargo.lock) 버전을 X.Y.Z 로, docs/release-notes/X.Y.Z.md 작성 → rust 가지에 커밋·푸시
+#   2) git tag rust-vX.Y.Z && git push origin rust-vX.Y.Z
+# 리허설: rust-vX.Y.Z-dry1 처럼 뒤에 '-글자'를 붙인 태그는 모든 단계를 하되 숨은 초안(draft)으로만 올린다 (사용자·자동 업데이트에 안 보임).
+# Apple 칩 맥 서버를 받지 못해 그 빌드가 취소되면(2026-11 에 잦음) Intel 서버에서 교차 빌드한 Apple 칩 판을 대신 올린다(실행 시험은 못 함).
+name: Rust Release
+
+on:
+  push:
+    tags: ['rust-v*']
+
+jobs:
+  mac:
+    uses: ./.github/workflows/rust-mac.yml
+    with:
+      with_cross: true
+    secrets: inherit
+  win:
+    uses: ./.github/workflows/rust-win.yml
+    secrets: inherit
+  release:
+    needs: [mac, win]
+    # 맥 묶음 중 Apple 칩 서버 빌드만 실패해도 교차 빌드가 있으면 올린다 (아래에서 확인)
+    if: ${{ !cancelled() && needs.win.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: art
+      - name: 버전·릴리스 노트 확인
+        run: |
+          BASE="${TAG#rust-v}"; VER="${BASE%%-*}"
+          if [ "$BASE" != "$VER" ]; then echo "DRY=1" >> "$GITHUB_ENV"; echo "리허설 태그: 초안으로만 올립니다" | tee -a "$GITHUB_STEP_SUMMARY"; fi
+          CV="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"
+          [ "$VER" = "$CV" ] || { echo "::error::태그 $TAG 와 Cargo.toml 버전 $CV 가 다릅니다"; exit 1; }
+          [ -f "docs/release-notes/$VER.md" ] || { echo "::error::docs/release-notes/$VER.md 가 없습니다"; exit 1; }
+          echo "VER=$VER" >> "$GITHUB_ENV"
+      - name: 올릴 파일 모으기
+        run: |
+          set -euo pipefail
+          mkdir up
+          # Apple 칩: 그 칩 서버에서 만든 것(실행 시험까지 한 것) 먼저, 없으면 Intel 서버 교차 빌드
+          if ls art/mac-arm64/*.dmg >/dev/null 2>&1; then A=art/mac-arm64; echo "Apple 칩: Apple 칩 서버 빌드" | tee -a "$GITHUB_STEP_SUMMARY"
+          elif ls art/mac-arm64-cross/*.dmg >/dev/null 2>&1; then A=art/mac-arm64-cross; echo "Apple 칩: Apple 칩 서버를 받지 못해 Intel 서버 교차 빌드를 올림 (실행 시험 없음)" | tee -a "$GITHUB_STEP_SUMMARY"
+          else echo "::error::Apple 칩 맥 판이 없습니다"; exit 1; fi
+          cp "$A"/* art/mac-intel/* art/win-x64/* up/
+          for f in win-x64.zip mac-arm64.dmg mac-arm64.zip mac-intel.dmg mac-intel.zip win-x64-files.json mac-arm64-files.json mac-intel-files.json; do
+            test -f "up/SermonShorts-Rust-$VER-$f" || { echo "::error::없음: SermonShorts-Rust-$VER-$f"; exit 1; }
+          done
+          test -f "up/SermonShorts-Rust-Setup-$VER-x64.exe" || { echo "::error::Windows 설치 프로그램이 없습니다"; exit 1; }
+          # 예전 Electron판이 스스로 업데이트해 새 판 안내를 받도록: 이전 Rust 릴리스의 latest.yml·Setup·blockmap 을 그대로 다시 올린다
+          PREV=$(gh release list -R "$REPO" --limit 30 --json tagName,isPrerelease,isDraft --jq '[.[] | select((.tagName | startswith("rust-v")) and (.isPrerelease | not) and (.isDraft | not))][0].tagName')
+          echo "이전 판: $PREV"
+          gh release download "$PREV" -R "$REPO" -D up -p latest.yml -p 'SermonShorts-Setup-*-x64.exe' -p 'SermonShorts-Setup-*-x64.exe.blockmap'
+          cd up
+          { for f in "SermonShorts-Rust-$VER-win-x64.zip" "SermonShorts-Rust-Setup-$VER-x64.exe" "SermonShorts-Rust-$VER-mac-arm64.dmg" "SermonShorts-Rust-$VER-mac-arm64.zip" "SermonShorts-Rust-$VER-mac-intel.dmg" "SermonShorts-Rust-$VER-mac-intel.zip"; do sha256sum "$f"; done
+            for p in files.json core.zip assets.zip tools.zip; do for f in SermonShorts-Rust-$VER-*-$p; do sha256sum "$f"; done; done; } > SHA256SUMS-rust.txt
+          cat SHA256SUMS-rust.txt
+          ls -la | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: 릴리스 올리기 (Latest, 리허설은 초안)
+        run: |
+          if [ "${DRY:-}" = 1 ]; then gh release create "$TAG" -R "$REPO" --verify-tag --draft --prerelease --title "[리허설] 설교 쇼츠 $VER" --notes-file "docs/release-notes/$VER.md" up/*
+          else gh release create "$TAG" -R "$REPO" --verify-tag --latest --title "설교 쇼츠 $VER" --notes-file "docs/release-notes/$VER.md" up/*; fi

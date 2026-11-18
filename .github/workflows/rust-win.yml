@@ -7,6 +7,7 @@ on:
   push:
     branches: [rust]
   workflow_dispatch:
+  workflow_call:   # 릴리스(rust-release.yml)가 부른다
 
 jobs:
   win:

@@ -8,7 +8,7 @@ ARCH="$1"; LABEL="$2"
 VER="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"
 APP="dist/SermonShorts.app"
 rm -rf dist; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/bin"
-cp target/release/sermon_shorts "$APP/Contents/MacOS/SermonShorts"
+cp "${SS_BIN:-target/release/sermon_shorts}" "$APP/Contents/MacOS/SermonShorts"   # SS_BIN: 교차 빌드한 실행 파일
 rsync -a --exclude google-client.json assets "$APP/Contents/Resources/"
 for t in ffmpeg ffprobe; do
   curl -fsSL "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/$t-darwin-$ARCH.gz" | gunzip > "$APP/Contents/Resources/bin/$t"

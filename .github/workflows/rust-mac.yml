@@ -5,15 +5,20 @@ name: Rust Mac
 on:
   push:
     branches: [rust]
+  # 릴리스(rust-release.yml)가 부른다. with_cross 면 Apple 칩 판을 Intel 맥 서버에서도 교차 빌드해 둔다(Apple 칩 서버를 못 받을 때 대신 쓰기)
+  workflow_call:
+    inputs:
+      with_cross:
+        type: boolean
+        default: false
 
 jobs:
   mac:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { runner: macos-15, arch: arm64, label: arm64 }
-          - { runner: macos-15-intel, arch: x64, label: intel }
+        # art: 결과물 이름, target: 교차 빌드 대상(비면 그 서버 칩 그대로)
+        include: ${{ fromJSON(inputs.with_cross && '[{"runner":"macos-15","arch":"arm64","label":"arm64","art":"mac-arm64","target":""},{"runner":"macos-15-intel","arch":"x64","label":"intel","art":"mac-intel","target":""},{"runner":"macos-15-intel","arch":"arm64","label":"arm64","art":"mac-arm64-cross","target":"aarch64-apple-darwin"}]' || '[{"runner":"macos-15","arch":"arm64","label":"arm64","art":"mac-arm64","target":""},{"runner":"macos-15-intel","arch":"x64","label":"intel","art":"mac-intel","target":""}]') }}
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -23,13 +28,19 @@ jobs:
           if [ -n "$X" ]; then sudo xcode-select -s "$X"; fi
           xcodebuild -version | head -1; xcrun --show-sdk-version
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
       - name: 구글 OAuth 클라이언트 넣기 (실행 파일 안으로)
         env:
           GOOGLE_CLIENT_JSON: ${{ secrets.GOOGLE_CLIENT_JSON }}
         run: if [ -n "$GOOGLE_CLIENT_JSON" ]; then printf '%s' "$GOOGLE_CLIENT_JSON" > assets/google-client.json; echo 넣음; else echo 없음; fi
       - name: 빌드
-        run: cargo build --release
+        run: |
+          if [ -n "${{ matrix.target }}" ]; then
+            cargo build --release --target ${{ matrix.target }}
+            mkdir -p target/release; cp target/${{ matrix.target }}/release/sermon_shorts target/release/sermon_shorts.cross
+          else cargo build --release; fi
       - name: 계산 시험 (공개 저장소에 있는 자료로)
         run: cargo test --release --test bgm_parity --test llm_parity --test settings_parity --test snap_parity --test ytmeta_parity --test mac_crypt_parity --test delta --test json3_words
       - name: 서명 인증서 넣기 (업데이트해도 같은 앱으로 보이게)
@@ -52,23 +63,34 @@ jobs:
           echo "MAC_SIGN_HASH=$HASH" >> "$GITHUB_ENV"
           echo "MAC_SIGN_KEYCHAIN=$KC" >> "$GITHUB_ENV"
       - name: 앱 묶음·ZIP·DMG
+        env:
+          SS_BIN: ${{ matrix.target != '' && 'target/release/sermon_shorts.cross' || '' }}
         run: bash tools/mac_bundle.sh ${{ matrix.arch }} ${{ matrix.label }}
       - name: 바뀐 부분만 받는 업데이트용 덩어리·파일 목록
         run: |
           VER="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"
           cargo run --release --example make_delta -- dist/SermonShorts.app "$VER" mac-${{ matrix.label }} dist
       - name: 실행 시험 (화면·내보내기)
+        if: matrix.target == ''
         run: bash tools/mac_smoke.sh dist/SermonShorts.app smoke
+      - name: 교차 빌드 확인 (실행은 못 하므로 칩 종류·서명·버전만)
+        if: matrix.target != ''
+        run: |
+          B=dist/SermonShorts.app/Contents/MacOS/SermonShorts
+          file "$B" | grep -q arm64 || { echo "arm64 실행 파일이 아닙니다"; exit 1; }
+          file dist/SermonShorts.app/Contents/Resources/bin/ffmpeg | grep -q arm64
+          codesign --verify --deep --strict dist/SermonShorts.app
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" dist/SermonShorts.app/Contents/Info.plist
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: smoke-${{ matrix.label }}
+          name: smoke-${{ matrix.art }}
           path: smoke/
           if-no-files-found: warn
           retention-days: 7
       - uses: actions/upload-artifact@v4
         with:
-          name: mac-${{ matrix.label }}
+          name: ${{ matrix.art }}
           path: |
             dist/*.zip
             dist/*.dmg
