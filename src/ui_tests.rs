@@ -944,6 +944,88 @@ impl App {
                 if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
             }
+            // 단어 수정 칸: 글을 고친 뒤 Enter 없이 다른 곳을 눌러도 적용 (맥 한글 입력기), Esc 는 취소
+            ("wordblur", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
+                let wid = self.project.words.iter().position(|w| !w.del).unwrap_or(0);
+                self.caret = wid; self.edit_word();
+                self.test_words = json!({ "wid": wid, "before": self.project.words[wid].text }).to_string();
+                t.step = 1; t.t0 = Instant::now();
+            }
+            ("wordblur", 1) if t.t0.elapsed().as_secs_f64() > 0.8 => { self.t_text("고친말"); t.step = 2; t.t0 = Instant::now(); }
+            ("wordblur", 2) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.6 => {
+                let c = ctx.content_rect().center_top() + egui::vec2(0.0, 30.0);
+                self.t_click(c, egui::Modifiers::NONE);
+                t.step = 3; t.t0 = Instant::now();
+            }
+            ("wordblur", 3) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let wid = info["wid"].as_u64().unwrap_or(0) as usize;
+                info["afterBlur"] = json!(self.project.words[wid].text);
+                info["editOpen"] = json!(self.word_edit.is_some());
+                // 두 번째: 고친 뒤 Esc → 그대로
+                self.caret = wid; self.edit_word();
+                self.test_words = info.to_string();
+                t.step = 4; t.t0 = Instant::now();
+            }
+            ("wordblur", 4) if t.t0.elapsed().as_secs_f64() > 0.8 => { self.t_text("취소될말"); self.t_key(egui::Key::Escape, egui::Modifiers::NONE); t.step = 5; t.t0 = Instant::now(); }
+            ("wordblur", 5) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let wid = info["wid"].as_u64().unwrap_or(0) as usize;
+                info["afterEsc"] = json!(self.project.words[wid].text);
+                // 세 번째: 맥 한글 입력기처럼 마지막 글자가 아직 조합 중(Preedit)일 때 다른 곳을 누름 (맥은 이때 아무 사건도 안 보냄)
+                self.caret = wid; self.edit_word();
+                self.test_words = info.to_string();
+                t.step = 6; t.t0 = Instant::now();
+            }
+            ("wordblur", 6) if t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let n = egui::Modifiers::NONE;
+                self.t_queue(vec![egui::Event::Ime(egui::ImeEvent::Enabled)], n);
+                self.t_queue(vec![egui::Event::Ime(egui::ImeEvent::Preedit { text: "ㅅ".into(), active_range_chars: Some(1..1) })], n);
+                self.t_queue(vec![egui::Event::Ime(egui::ImeEvent::Preedit { text: "새".into(), active_range_chars: Some(1..1) })], n);
+                self.t_queue(vec![egui::Event::Ime(egui::ImeEvent::Preedit { text: "".into(), active_range_chars: None }), egui::Event::Ime(egui::ImeEvent::Commit("새".into()))], n);
+                self.t_queue(vec![egui::Event::Ime(egui::ImeEvent::Preedit { text: "ㅁ".into(), active_range_chars: Some(1..1) })], n);
+                self.t_queue(vec![egui::Event::Ime(egui::ImeEvent::Preedit { text: "말".into(), active_range_chars: Some(1..1) })], n);
+                t.step = 7; t.t0 = Instant::now();
+            }
+            ("wordblur", 7) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.5 => {
+                let c = ctx.content_rect().center_top() + egui::vec2(0.0, 30.0);
+                self.t_click(c, egui::Modifiers::NONE);
+                t.step = 8; t.t0 = Instant::now();
+            }
+            ("wordblur", 8) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let wid = info["wid"].as_u64().unwrap_or(0) as usize;
+                info["afterPreeditBlur"] = json!(self.project.words[wid].text);
+                // 네 번째: 출력 자막 칸에서도 같은 맥 순서 (끝에 ‘끝’을 조합 중인 채로 다른 곳 누르기)
+                let b = self.blocks.iter().find(|b| b.line.is_some()).cloned().unwrap();
+                info["lineBefore"] = json!(self.lines[b.line.unwrap()].text);
+                info["blockFrom"] = json!(b.from);
+                self.focus_line = self.lines[b.line.unwrap()].parts.first().map(|p| (crate::caption_edit::Anchor { id: p.id, from: p.from }, self.lines[b.line.unwrap()].text.chars().count()));
+                self.test_words = info.to_string();
+                t.step = 10; t.t0 = Instant::now();
+            }
+            ("wordblur", 10) if t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let n = egui::Modifiers::NONE;
+                self.t_queue(vec![egui::Event::Ime(egui::ImeEvent::Enabled)], n);
+                self.t_queue(vec![egui::Event::Ime(egui::ImeEvent::Preedit { text: "ㄷ".into(), active_range_chars: Some(1..1) })], n);
+                self.t_queue(vec![egui::Event::Ime(egui::ImeEvent::Preedit { text: "끝".into(), active_range_chars: Some(1..1) })], n);
+                t.step = 11; t.t0 = Instant::now();
+            }
+            ("wordblur", 11) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.5 => {
+                let c = ctx.content_rect().center_top() + egui::vec2(0.0, 30.0);
+                self.t_click(c, egui::Modifiers::NONE);
+                t.step = 12; t.t0 = Instant::now();
+            }
+            ("wordblur", 12) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let from = info["blockFrom"].as_u64().unwrap_or(0) as usize;
+                let line = self.blocks.iter().find(|b| b.from == from).and_then(|b| b.line).map(|li| self.lines[li].text.clone());
+                info["lineAfter"] = json!(line);
+                let want = format!("{}끝", info["lineBefore"].as_str().unwrap_or(""));
+                info["pass"] = json!(info["afterBlur"] == "고친말" && info["editOpen"] == false && info["afterEsc"] == "고친말" && info["afterPreeditBlur"] == "새말" && info["lineAfter"].as_str() == Some(want.as_str()));
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                self.unsaved = false; ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 13;
+            }
             // 칸 크기 끌기: 왼쪽 칸 +80, 대화 칸 60 넓게, 파형 60 높게, 디자인 탭 50 높게 → layout.json 저장 → 왼쪽 손잡이 두 번 누르기는 기본으로
             ("panes", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
                 let ids = ["left", "chat", "wave", "tabs"];

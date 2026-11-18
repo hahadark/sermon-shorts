@@ -288,9 +288,12 @@ impl App {
                             if *focus { te.request_focus(); let mut st = egui::TextEdit::load_state(ui.ctx(), te.id).unwrap_or_default(); st.cursor.set_char_range(Some(egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(buf.chars().count())))); st.store(ui.ctx(), te.id); *focus = false; }
                             if te.has_focus() || te.lost_focus() {
                                 let (enter, esc, tab) = ui.input_mut(|x| (x.consume_key(egui::Modifiers::NONE, egui::Key::Enter), x.consume_key(egui::Modifiers::NONE, egui::Key::Escape), x.consume_key(egui::Modifiers::NONE, egui::Key::Tab)));
-                                if enter || (te.lost_focus() && ui.input(|x| x.key_pressed(egui::Key::Enter))) { word_edit_done = Some(Some((*wid, buf.clone(), false))); }
+                                // Esc 만 취소. 다른 곳을 눌러 칸을 떠나도 적용한다 (맥 한글 입력기는 글자를 끝내는 첫 Enter 를 앱에 넘기지 않아
+                                // Enter 한 번 → 다른 곳 누르기로 끝내면 고친 것이 버려지던 문제)
+                                let esc_now = esc || (te.lost_focus() && ui.input(|x| x.key_pressed(egui::Key::Escape)));
+                                if esc_now { word_edit_done = Some(None); }
                                 else if tab { word_edit_done = Some(Some((*wid, buf.clone(), true))); }
-                                else if esc || (te.lost_focus() && !enter) { word_edit_done = Some(None); }
+                                else if enter || te.lost_focus() { word_edit_done = Some(Some((*wid, buf.clone(), false))); }
                             }
                         });
                     }
