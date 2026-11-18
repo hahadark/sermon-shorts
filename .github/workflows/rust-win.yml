@@ -12,6 +12,8 @@ jobs:
   win:
     runs-on: windows-latest
     steps:
+      - name: 줄바꿈 그대로 받기 (PC 묶음처럼 LF, 설치본과 파일이 같아야 덩어리 업데이트가 작게 받는다)
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
