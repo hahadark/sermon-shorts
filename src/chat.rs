@@ -72,7 +72,7 @@ pub fn load_video(shared: &Shared, url: &str) -> Result<Loaded, String> {
     let subs = match yt::fetch_auto_subs_raw(url) { Ok(v) => v, Err(e) if re_subs().is_match(&e) => None, Err(e) => return Err(e) };
     let Some(raw) = subs else {
         if let Some((w, l)) = read_whisper_cache(&info.id) { return Ok(start_session(shared, url, &info.title, info.duration, w, l, true, false)); }
-        return Ok(Loaded::NoSubs { url: url.into(), title: info.title.clone(), duration: info.duration, live: info.live_now(), engine_ready: crate::stt::python().exists() });
+        return Ok(Loaded::NoSubs { url: url.into(), title: info.title.clone(), duration: info.duration, live: info.live_now(), engine_ready: crate::stt::engine_ready() });
     };
     let (words, lines) = cp::words_from_json3(&raw);
     if words.len() < 20 { return Err("자막이 너무 짧습니다. 다른 영상을 넣어 주세요.".into()); }
@@ -86,7 +86,7 @@ pub fn load_video(shared: &Shared, url: &str) -> Result<Loaded, String> {
 pub fn load_video_whisper(shared: &Shared, url: &str, progress: Arc<dyn Fn(&str, Option<f64>) + Send + Sync>, cancel: Arc<AtomicBool>) -> Result<Loaded, String> {
     let info = yt::fetch_info(url)?;
     if info.live_now() { return Err("라이브가 아직 진행 중이라 소리를 받을 수 없습니다. 방송이 끝난 뒤 다시 해 주세요.".into()); }
-    if !crate::stt::python().exists() { return Err("위스퍼(자막 엔진)가 설치되어 있지 않습니다. 도움말 → 시스템 점검에서 [엔진 설치]를 한 뒤 다시 불러와 주세요.".into()); }
+    if !crate::stt::engine_ready() { return Err("위스퍼(자막 엔진)가 설치되어 있지 않습니다. 도움말 → 시스템 점검에서 [엔진 설치]를 한 뒤 다시 불러와 주세요.".into()); }
     let dir = yt::yt_cache_root().join(&info.id);
     let a = yt::download_audio(url, &dir, &|p| progress("download", Some(p)))?;
     if cancel.load(Ordering::Relaxed) { return Err(CANCELLED.into()); }
@@ -97,7 +97,7 @@ pub fn load_video_whisper(shared: &Shared, url: &str, progress: Arc<dyn Fn(&str,
     let res = res.map_err(|e| e.to_string())?;
     let raw = res["words"].as_array().cloned().unwrap_or_default();
     let (words, lines) = cp::whisper_words_to_lines(&raw);
-    if words.len() < 20 { return Err("위스퍼가 알아들은 말이 너무 적습니다. 다른 영상을 넣어 주세요.".into()); }
+    if words.len() < 20 { return Err(format!("{}가 알아들은 말이 너무 적습니다. 다른 영상을 넣어 주세요.", crate::stt::engine_label())); }
     write_whisper_cache(&info.id, url, &info.title, &words, &lines);
     Ok(start_session(shared, url, &info.title, info.duration, words, lines, true, false))
 }

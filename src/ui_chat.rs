@@ -330,9 +330,11 @@ impl App {
         if !engine_ready { self.chat_sys(format!("{name}에는 유튜브 자막이 없습니다. 위스퍼(자막 엔진)가 설치되어 있지 않아 자막을 만들 수 없습니다. 도움말 → 시스템 점검에서 [엔진 설치]를 한 뒤 다시 불러와 주세요.")); return; }
         let mins = (duration / 60.0).round() as i64;
         let len = if mins >= 60 { format!("{}시간 {}분", mins / 60, mins % 60) } else { format!("{mins}분") };
-        let ok = yes("AI 편집 대화", &format!("{name}에는 유튜브 자막이 아직 없습니다.\n\n이 PC에 설치된 위스퍼(음성 인식)로 자막을 만들어 이어서 편집할까요?\n\n· 영상 길이 {}: 소리 전체를 받아 자막을 만듭니다.\n· 컴퓨터 성능에 따라 몇 분에서 수십 분 걸릴 수 있습니다(그래픽카드가 있으면 빠릅니다).\n· 한 번 만들면 다음부터는 이 영상을 바로 불러옵니다.", if mins > 0 { len } else { "알 수 없음".into() }));
-        if !ok { self.chat_sys(format!("{name}에는 유튜브 자막이 없어 불러오지 않았습니다. 나중에 다시 불러오면 위스퍼로 만들 수 있습니다.")); return; }
-        let mut card = Card::new("위스퍼로 자막 만드는 중", &[("download", "영상 소리 받기".into()), ("transcribe", "위스퍼로 자막 만들기".into())], Hint::Whisper, true);
+        let eng = sermon_shorts::stt::engine_label();
+        let (who, speed) = if sermon_shorts::stt::use_apple() { ("이 맥의 내장 받아쓰기(기기 안에서만, 설치 필요 없음)", "· 1시간 설교도 보통 1분 안에 끝납니다(소리 받는 시간 제외).") } else { ("이 PC에 설치된 위스퍼(음성 인식)", "· 컴퓨터 성능에 따라 몇 분에서 수십 분 걸릴 수 있습니다(그래픽카드가 있으면 빠릅니다).") };
+        let ok = yes("AI 편집 대화", &format!("{name}에는 유튜브 자막이 아직 없습니다.\n\n{who}로 자막을 만들어 이어서 편집할까요?\n\n· 영상 길이 {}: 소리 전체를 받아 자막을 만듭니다.\n{speed}\n· 한 번 만들면 다음부터는 이 영상을 바로 불러옵니다.", if mins > 0 { len } else { "알 수 없음".into() }));
+        if !ok { self.chat_sys(format!("{name}에는 유튜브 자막이 없어 불러오지 않았습니다. 나중에 다시 불러오면 {eng}로 만들 수 있습니다.")); return; }
+        let mut card = Card::new(&format!("{eng}로 자막 만드는 중"), &[("download", "영상 소리 받기".into()), ("transcribe", format!("{eng}로 자막 만들기"))], Hint::Whisper, true);
         card.step("download", None, Some("0%".into())); card.pct = Some(0.0);
         let shared = self.chat.shared.clone();
         self.start_job(card, Next::None, move |prog, cancel| {
@@ -353,7 +355,7 @@ impl App {
         let name = if title.is_empty() { "설교 영상".to_string() } else { title.clone() };
         if resumed { self.chat_sys(format!("「{name}」 이어서 편집합니다. AI 가 앞의 대화를 기억합니다.")); }
         else {
-            self.chat_sys(format!("「{name}」 자막 {}단어를 불러왔습니다.{}", fmt_n(words), if whisper { " (유튜브 자막이 없어 위스퍼로 만든 자막)" } else { "" }));
+            self.chat_sys(format!("「{name}」 자막 {}단어를 불러왔습니다.{}", fmt_n(words), if whisper { format!(" (유튜브 자막이 없어 {}로 만든 자막)", sermon_shorts::stt::engine_label()) } else { String::new() }));
             self.chat_push(M::Ai { t: "어떤 쇼츠를 만들까요? 아래 버튼으로 길이와 다듬기 조건을 고른 뒤 [보내기](또는 [구간 3곳 추천받기])를 누르거나, 원하는 내용을 말씀해 주세요.\n예: \"결론 부분으로\", \"기도에 대한 부분으로\"".into(), meta: String::new() });
             if sermon_shorts::llm::active_provider(&self.settings).is_none() { self.chat_sys("먼저 위의 [AI 연결]을 눌러 AI 를 연결해 주세요."); }
         }
@@ -726,7 +728,7 @@ impl App {
             },
             Out::Whisper(r) => match r {
                 Ok(l) => self.chat_ready(l),
-                Err(e) => { self.chat.after = None; self.chat_sys(if stopped { "자막 만들기를 멈췄습니다.".into() } else { format!("위스퍼로 자막을 만들지 못했습니다: {e}") }); }
+                Err(e) => { self.chat.after = None; self.chat_sys(if stopped { "자막 만들기를 멈췄습니다.".into() } else { format!("{}로 자막을 만들지 못했습니다: {e}", sermon_shorts::stt::engine_label()) }); }
             },
             Out::Send(r) => match r {
                 Ok(rep) => self.chat_reply(rep),

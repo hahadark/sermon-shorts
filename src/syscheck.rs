@@ -131,6 +131,11 @@ const PY_INFO: &str = "import json,sys\ntry:\n import torch\n c=torch.cuda.is_av
 
 pub fn check_python(quick: bool) -> Row {
     let py = python();
+    if !py.exists() && crate::stt::use_apple() {
+        // 맥(macOS 26 이상): 설치 없이 맥 내장 받아쓰기로 자막을 만든다. 위스퍼는 고를 때만
+        let r = row("python", "자막 엔진", St::Ok, "맥 내장 받아쓰기 (설치 필요 없음)").hint("이 맥 안에서만 받아쓰며 매우 빠릅니다. 위스퍼(Python, 약 3GB)는 설치하지 않아도 됩니다.");
+        return if quick { r } else { r.acts(&["install-engine"]) };
+    }
     if !py.exists() {
         if quick { return row("python", "자막 엔진 (Python)", St::Warn, "설치 안 됨"); }
         return match find_python312() {
@@ -171,6 +176,7 @@ pub fn check_model() -> Row {
     let has = |n: &str| names.iter().any(|f| f.contains(&format!("faster-whisper-{n}")));
     if has("large-v3") { return row("model", "Whisper 모델", St::Ok, "large-v3 받음"); }
     if has("medium") { return row("model", "Whisper 모델", St::Ok, "medium 받음 (CPU용)"); }
+    if !python().exists() && crate::stt::use_apple() { return row("model", "Whisper 모델", St::Ok, "필요 없음 (맥 내장 받아쓰기)"); }
     let r = row("model", "Whisper 모델", St::Warn, "아직 안 받음")
         .hint(format!("첫 자막 생성 때 자동으로 내려받습니다. [지금 받기]로 미리 받아 둘 수 있습니다 ({}medium 약 1.5GB).", if cfg!(windows) { "GPU: large-v3 약 3GB, CPU: " } else { "" }));
     if python().exists() { r.acts(&["download-model"]) } else { r }
