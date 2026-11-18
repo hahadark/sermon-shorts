@@ -354,7 +354,7 @@ impl App {
         if resumed { self.chat_sys(format!("「{name}」 이어서 편집합니다. AI 가 앞의 대화를 기억합니다.")); }
         else {
             self.chat_sys(format!("「{name}」 자막 {}단어를 불러왔습니다.{}", fmt_n(words), if whisper { " (유튜브 자막이 없어 위스퍼로 만든 자막)" } else { "" }));
-            self.chat_push(M::Ai { t: "어떤 쇼츠를 만들까요? 아래 버튼으로 길이와 다듬기 조건을 고른 뒤 [구간 3곳 추천받기]를 누르거나, 원하는 내용을 말씀해 주세요.\n예: \"결론 부분으로\", \"기도에 대한 부분으로\"".into(), meta: String::new() });
+            self.chat_push(M::Ai { t: "어떤 쇼츠를 만들까요? 아래 버튼으로 길이와 다듬기 조건을 고른 뒤 [보내기](또는 [구간 3곳 추천받기])를 누르거나, 원하는 내용을 말씀해 주세요.\n예: \"결론 부분으로\", \"기도에 대한 부분으로\"".into(), meta: String::new() });
             if sermon_shorts::llm::active_provider(&self.settings).is_none() { self.chat_sys("먼저 위의 [AI 연결]을 눌러 AI 를 연결해 주세요."); }
         }
         self.chat.focus_text = true;
@@ -383,7 +383,7 @@ impl App {
                 self.chat.last_fetch = Some(LastFetch { url: url.clone(), path: PathBuf::from(&path), map: vec![Piece { src0: off, src1: off + file_dur, file0: 0.0 }] });
                 let r = match (src["range"]["start"].as_f64(), src["range"]["end"].as_f64()) { (Some(a), Some(b)) => format!(" ({} ~ {})", edl::format_time(a, false), edl::format_time(b, false)), _ => String::new() };
                 self.chat_sys(format!("편집기에 불러온 「{}」{r} 자막 {}단어로 AI 대화를 합니다. 받아 둔 구간 안에서 편집합니다.", if title.is_empty() { "설교 영상" } else { &title }, fmt_n(words)));
-                self.chat_push(M::Ai { t: "어떤 쇼츠를 만들까요? 아래 버튼으로 길이와 다듬기 조건을 고른 뒤 [구간 3곳 추천받기]를 누르거나, 원하는 내용을 말씀해 주세요.".into(), meta: String::new() });
+                self.chat_push(M::Ai { t: "어떤 쇼츠를 만들까요? 아래 버튼으로 길이와 다듬기 조건을 고른 뒤 [보내기](또는 [구간 3곳 추천받기])를 누르거나, 원하는 내용을 말씀해 주세요.".into(), meta: String::new() });
                 if sermon_shorts::llm::active_provider(&self.settings).is_none() { self.chat_sys("먼저 위의 [AI 연결]을 눌러 AI 를 연결해 주세요."); }
                 true
             }
@@ -1059,7 +1059,7 @@ impl App {
                 let id = egui::Id::new("chat-text");
                 let mut send = false;
                 if on && ui.memory(|m| m.has_focus(id)) && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)) { send = true; }
-                let te = ui.add_enabled(on, egui::TextEdit::multiline(&mut self.chat_input).id(id).hint_text("예: 결론 부분으로 2분 정도 만들어 줘").desired_rows(3).desired_width(f32::INFINITY).margin(egui::Margin::same(12)));
+                let te = ui.add_enabled(on, egui::TextEdit::multiline(&mut self.chat_input).id(id).hint_text(if self.chat.video.as_ref().is_some_and(|v| v.edited) { "예: 결론 부분으로 2분 정도 만들어 줘" } else { "예: 결론 부분으로 2분 정도 만들어 줘\n비워 두고 [보내기]를 누르면 구간 3곳을 추천받습니다" }).desired_rows(3).desired_width(f32::INFINITY).margin(egui::Margin::same(12)));
                 rects.push(("text".into(), te.rect));
                 if on && std::mem::take(&mut self.chat.focus_text) { te.request_focus(); }
                 ui.add_space(8.0);
@@ -1069,12 +1069,24 @@ impl App {
                         .on_hover_text("완성 영상(MP4)과 자막(SRT) 만들기");
                     if ex.clicked() { acts.push(Act::Export); }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let sb = ui.add_enabled(on, egui::Button::new(RichText::new("보내기 (Enter)").color(Color32::WHITE).family(style::bold())).fill(style::PRIMARY).corner_radius(CornerRadius::same(12)).min_size(egui::vec2(0.0, 36.0)));
+                        let sb = ui.add_enabled(on, egui::Button::new(RichText::new("보내기 (Enter)").color(Color32::WHITE).family(style::bold())).fill(style::PRIMARY).corner_radius(CornerRadius::same(12)).min_size(egui::vec2(0.0, 36.0)))
+                            .on_hover_text(if edited { "쓴 내용을 보냅니다 (비워 두면 골라 둔 다듬기를 한번에 적용)" } else { "쓴 내용으로 바로 만들기 · 비워 두면 구간 3곳 추천받기" });
                         rects.push(("send".into(), sb.rect));
                         if sb.clicked() { send = true; }
                     });
                 });
-                if send { let t = std::mem::take(&mut self.chat_input); if t.trim().is_empty() { self.chat_input = t; } else { acts.push(Act::Send(t, None)); } }
+                if send {
+                    let t = std::mem::take(&mut self.chat_input);
+                    if !t.trim().is_empty() { acts.push(Act::Send(t, None)); }
+                    else {
+                        self.chat_input = t;
+                        // 비워 두고 보내기: 처음이면 구간 추천부터, 다듬기를 골라 두었으면 한번에 적용 (처음 쓰는 사람도 [보내기]만으로 시작)
+                        let edited = self.chat.video.as_ref().is_some_and(|v| v.edited);
+                        if !edited { acts.push(Act::Do("recommend".into(), Value::Null)); }
+                        else if !self.chat.picked.is_empty() { acts.push(Act::ApplyPicked); }
+                        else { self.toast("바꾸고 싶은 내용을 쓰거나 위의 다듬기 단추를 골라 주세요."); }
+                    }
+                }
             });
         });
         self.chat.rects = rects;

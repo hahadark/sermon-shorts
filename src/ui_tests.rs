@@ -1238,6 +1238,29 @@ impl App {
                 if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
             }
+            // 처음 쓰는 사람: 영상을 불러온 뒤 입력 칸을 비운 채 [보내기] → 구간 추천이 시작돼 후보 카드가 나온다
+            ("chatsend", 0) if t.t0.elapsed().as_secs_f64() > 2.0 => {
+                if let Some(s) = self.project.rest.get_mut("source") { s["url"] = json!("https://youtu.be/uSE5pZB3gtQ"); s["title"] = json!("시험 설교"); }
+                let ok = self.chat_use_editor_video();
+                self.chat_input.clear();
+                self.test_words = json!({ "useEditor": ok }).to_string();
+                t.step = 1; t.t0 = Instant::now();
+            }
+            ("chatsend", 1) if t.t0.elapsed().as_secs_f64() > 1.0 => {
+                match self.t_stable_rect("send") { Some(r) => self.t_click(r.center(), egui::Modifiers::NONE), None if t.t0.elapsed().as_secs_f64() < 15.0 => return self.test = Some(test), None => {} }
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("chatsend", 2) if self.test_input.is_empty() && !self.chat_busy() && self.chat.rects.iter().any(|x| x.0 == "pick:1") && t.t0.elapsed().as_secs_f64() > 1.5 || t.step == 2 && t.t0.elapsed().as_secs_f64() > 30.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["cands"] = json!(self.chat.msgs.iter().filter(|m| matches!(m, crate::ui_chat::M::Cand { .. })).count());
+                let sent = std::fs::read_to_string(std::env::temp_dir().join("ss_llm_sent0.txt")).unwrap_or_default();
+                info["recommendPrompt"] = json!(sent.contains("추천해 줘"));
+                info["userBubble"] = json!(self.chat.msgs.iter().rev().find_map(|m| if let crate::ui_chat::M::User { t } = m { Some(t.clone()) } else { None }));
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                info["pass"] = json!(info["useEditor"] == true && info["cands"] == 2 && info["recommendPrompt"] == true);
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                self.unsaved = false; ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
+            }
             // 칸 크기 끌기: 왼쪽 칸 +80, 대화 칸 60 넓게, 파형 60 높게, 디자인 탭 50 높게 → layout.json 저장 → 왼쪽 손잡이 두 번 누르기는 기본으로
             ("panes", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
                 let ids = ["left", "chat", "wave", "tabs"];
