@@ -21,9 +21,11 @@ if [ "${SDKV%%.*}" -ge 26 ] 2>/dev/null; then
 else
   echo "SDK $SDKV: 맥 받아쓰기 도우미 빼고 만듦 (macOS 26 SDK 필요)"
 fi
-mkdir -p "$APP/Contents/Resources/assets/bin"
-curl -fsSL -o "$APP/Contents/Resources/assets/bin/yt-dlp" https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos
-chmod +x "$APP/Contents/MacOS/SermonShorts" "$APP/Contents/Resources/bin/"* "$APP/Contents/Resources/assets/bin/yt-dlp"
+# yt-dlp 는 묶지 않는다(36MB): 앱이 처음 유튜브를 쓸 때 공식 최신판을 사용자 자료(runtime/bin)에 받아 두고 스스로 업데이트한다
+rm -rf "$APP/Contents/Resources/assets/bin"
+# 디버그 기호 빼기 (약 5MB)
+strip -x "$APP/Contents/MacOS/SermonShorts"
+chmod +x "$APP/Contents/MacOS/SermonShorts" "$APP/Contents/Resources/bin/"*
 # 아이콘
 ICON="$(mktemp -d)/icon.iconset"; mkdir -p "$ICON"
 for s in 16 32 128 256 512; do
@@ -51,9 +53,9 @@ PLIST
 # 서명: 늘 같은 인증서(MAC_SIGN_HASH, 워크플로가 넣음)로 서명해야 맥이 업데이트한 앱을 같은 앱으로 알아본다
 # (폴더 접근·키체인 허락을 업데이트마다 다시 묻지 않게). 인증서가 없으면 임시 서명(-)
 SIGN="${MAC_SIGN_HASH:--}"
-KCARG=(); if [ -n "$MAC_SIGN_KEYCHAIN" ]; then KCARG=(--keychain "$MAC_SIGN_KEYCHAIN"); fi
-codesign --force --timestamp=none "${KCARG[@]}" --sign "$SIGN" "$APP/Contents/Resources/bin/"* "$APP/Contents/Resources/assets/bin/yt-dlp"
-codesign --force --timestamp=none "${KCARG[@]}" --sign "$SIGN" "$APP"
+KCARG=(); if [ -n "${MAC_SIGN_KEYCHAIN:-}" ]; then KCARG=(--keychain "$MAC_SIGN_KEYCHAIN"); fi
+codesign --force --timestamp=none ${KCARG[@]+"${KCARG[@]}"} --sign "$SIGN" "$APP/Contents/Resources/bin/"*
+codesign --force --timestamp=none ${KCARG[@]+"${KCARG[@]}"} --sign "$SIGN" "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 codesign -d -r- "$APP" 2>&1 | sed -n 's/^designated => /서명 요구 조건: /p'
 NAME="SermonShorts-Rust-$VER-mac-$LABEL"
