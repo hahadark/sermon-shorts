@@ -40,9 +40,14 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSApplicationCategoryType</key><string>public.app-category.video</string>
 </dict></plist>
 PLIST
-codesign --force --sign - "$APP/Contents/Resources/bin/"* "$APP/Contents/Resources/assets/bin/yt-dlp"
-codesign --force --deep --sign - "$APP"
+# 서명: 늘 같은 인증서(MAC_SIGN_HASH, 워크플로가 넣음)로 서명해야 맥이 업데이트한 앱을 같은 앱으로 알아본다
+# (폴더 접근·키체인 허락을 업데이트마다 다시 묻지 않게). 인증서가 없으면 임시 서명(-)
+SIGN="${MAC_SIGN_HASH:--}"
+KCARG=(); if [ -n "$MAC_SIGN_KEYCHAIN" ]; then KCARG=(--keychain "$MAC_SIGN_KEYCHAIN"); fi
+codesign --force --timestamp=none "${KCARG[@]}" --sign "$SIGN" "$APP/Contents/Resources/bin/"* "$APP/Contents/Resources/assets/bin/yt-dlp"
+codesign --force --timestamp=none "${KCARG[@]}" --sign "$SIGN" "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
+codesign -d -r- "$APP" 2>&1 | sed -n 's/^designated => /서명 요구 조건: /p'
 NAME="SermonShorts-Rust-$VER-mac-$LABEL"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "dist/$NAME.zip"
 STAGE="$(mktemp -d)"; ditto "$APP" "$STAGE/SermonShorts.app"; ln -s /Applications "$STAGE/Applications"

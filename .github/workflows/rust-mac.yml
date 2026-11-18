@@ -27,6 +27,25 @@ jobs:
         run: cargo build --release
       - name: 계산 시험 (공개 저장소에 있는 자료로)
         run: cargo test --release --test bgm_parity --test llm_parity --test settings_parity --test snap_parity --test ytmeta_parity --test mac_crypt_parity
+      - name: 서명 인증서 넣기 (업데이트해도 같은 앱으로 보이게)
+        env:
+          MAC_SIGN_P12: ${{ secrets.MAC_SIGN_P12 }}
+          MAC_SIGN_PASSWORD: ${{ secrets.MAC_SIGN_PASSWORD }}
+        run: |
+          if [ -z "$MAC_SIGN_P12" ]; then echo "인증서 없음: 임시 서명"; exit 0; fi
+          KC="$RUNNER_TEMP/sign.keychain-db"; KP="$(uuidgen)"
+          security create-keychain -p "$KP" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KP" "$KC"
+          printf '%s' "$MAC_SIGN_P12" | base64 --decode > "$RUNNER_TEMP/sign.p12"
+          security import "$RUNNER_TEMP/sign.p12" -k "$KC" -P "$MAC_SIGN_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/sign.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KP" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          HASH="$(security find-certificate -c "SermonShorts Code Signing" -Z "$KC" | awk '/SHA-1 hash/{print $NF}')"
+          echo "인증서 지문: $HASH"
+          echo "MAC_SIGN_HASH=$HASH" >> "$GITHUB_ENV"
+          echo "MAC_SIGN_KEYCHAIN=$KC" >> "$GITHUB_ENV"
       - name: 앱 묶음·ZIP·DMG
         run: bash tools/mac_bundle.sh ${{ matrix.arch }} ${{ matrix.label }}
       - name: 실행 시험 (화면·내보내기)
