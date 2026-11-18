@@ -13,6 +13,14 @@ rsync -a --exclude google-client.json assets "$APP/Contents/Resources/"
 for t in ffmpeg ffprobe; do
   curl -fsSL "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/$t-darwin-$ARCH.gz" | gunzip > "$APP/Contents/Resources/bin/$t"
 done
+# 맥 내장 받아쓰기 도우미 (tools/mac_stt, macOS 26 이상에서 동작). 만들려면 macOS 26 SDK 가 있어야 한다: 없으면 빼고 만든다(그 앱은 위스퍼만 쓴다)
+SDKV="$(xcrun --show-sdk-version 2>/dev/null || echo 0)"
+if [ "${SDKV%%.*}" -ge 26 ] 2>/dev/null; then
+  if [ "$ARCH" = x64 ]; then STT_T=x86_64; else STT_T=arm64; fi
+  if swiftc -O -parse-as-library -target "$STT_T-apple-macos11.0" tools/mac_stt/main.swift -o "$APP/Contents/Resources/bin/ss-stt-apple"; then echo "맥 받아쓰기 도우미 넣음 (SDK $SDKV)"; else echo "맥 받아쓰기 도우미를 만들지 못해 빼고 만듦"; rm -f "$APP/Contents/Resources/bin/ss-stt-apple"; fi
+else
+  echo "SDK $SDKV: 맥 받아쓰기 도우미 빼고 만듦 (macOS 26 SDK 필요)"
+fi
 mkdir -p "$APP/Contents/Resources/assets/bin"
 curl -fsSL -o "$APP/Contents/Resources/assets/bin/yt-dlp" https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos
 chmod +x "$APP/Contents/MacOS/SermonShorts" "$APP/Contents/Resources/bin/"* "$APP/Contents/Resources/assets/bin/yt-dlp"
