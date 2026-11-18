@@ -281,7 +281,7 @@
               const oldPrompt = window.prompt;
               const oldConfirm = window.confirm;
               const oldAlert = window.alert;
-              window.prompt = () => "테마 (복사본)";
+              window.prompt = () => "테마 (복사본)"; window.__ssPromptOverride = true;
               window.confirm = () => true;
               window.alert = () => {};
 
@@ -401,7 +401,7 @@
                 console.log('[Test] SS.doExport not available');
               }
 
-              window.prompt = oldPrompt;
+              window.prompt = oldPrompt; window.__ssPromptOverride = false;
               window.confirm = oldConfirm;
               window.alert = oldAlert;
 

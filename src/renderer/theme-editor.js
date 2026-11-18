@@ -725,8 +725,36 @@
     }
   }
 
+  /** 이름 묻기 (Electron 은 window.prompt 를 지원하지 않아 그동안 새 테마·복제·이름 변경이 아무 일도 안 했다) */
+  function askText(title, value) {
+    if (window.__ssPromptOverride) return Promise.resolve(window.prompt(title, value));
+    return new Promise((resolve) => {
+      const ov = document.createElement('div');
+      ov.className = 'modal-overlay';
+      ov.style.zIndex = '10050';
+      ov.innerHTML = '<div class="modal-dialog" role="dialog" aria-modal="true" style="width:360px;padding:20px 22px">'
+        + '<div style="font-weight:600;margin-bottom:10px"></div>'
+        + '<input type="text" class="input" style="width:100%;box-sizing:border-box">'
+        + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn sm" data-no>취소</button><button class="btn sm primary" data-ok>확인</button></div></div>';
+      ov.querySelector('div > div').textContent = title;
+      const inp = ov.querySelector('input');
+      inp.value = value || '';
+      const done = (v) => { ov.remove(); resolve(v); };
+      ov.querySelector('[data-ok]').onclick = () => done(inp.value);
+      ov.querySelector('[data-no]').onclick = () => done(null);
+      inp.addEventListener('keydown', (e) => {
+        if (e.isComposing) return;
+        if (e.key === 'Enter') { e.preventDefault(); done(inp.value); }
+        else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(null); }
+        e.stopPropagation();
+      });
+      document.body.appendChild(ov);
+      inp.focus(); inp.select();
+    });
+  }
+
   async function createNew() {
-    const name = prompt('새 테마 이름:', '새 테마');
+    const name = (await askText('새 테마 이름:', '새 테마') || '').trim();
     if (!name) return;
     const newTheme = SS.theme.normalizeTheme({ name });
     newTheme.id = 'user-' + Date.now();
@@ -737,19 +765,21 @@
   }
 
   async function cloneCurrent() {
-    const name = prompt('복제된 테마 이름:', currentTheme.name + ' (복사본)');
-    if (!name) return;
+    const name = (await askText('복제된 테마 이름:', currentTheme.name + ' (복사본)') || '').trim();
+    if (!name) return false;
     const newTheme = JSON.parse(JSON.stringify(currentTheme));
     newTheme.name = name;
     newTheme.id = 'user-' + Date.now();
+    delete newTheme.userPreset;
     currentTheme = newTheme;
     pushHistory();
     updateUI();
     render();
+    return true;
   }
 
   async function renameCurrent() {
-    const name = prompt('테마 이름 변경:', currentTheme.name);
+    const name = (await askText('테마 이름 변경:', currentTheme.name) || '').trim();
     if (!name) return;
     currentTheme.name = name;
     pushHistory();
@@ -794,7 +824,7 @@
   async function save() {
     if (!currentTheme.id.startsWith('user-') && !currentTheme.userPreset) {
       if (confirm('기본 테마는 수정할 수 없습니다. 복제해서 편집하시겠습니까?')) {
-        await cloneCurrent();
+        if (!(await cloneCurrent())) return;   // 이름을 취소하면 기본 테마를 저장하지 않는다
       } else {
         return;
       }
