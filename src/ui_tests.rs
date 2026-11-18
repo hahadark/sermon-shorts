@@ -1509,7 +1509,79 @@ impl App {
                 }
                 self.test_words = info.to_string();
                 t.step = s + 1; t.t0 = Instant::now();
-            }            // 화면 찍기: 다른 창에 가려져도 앱이 그린 그대로 PNG 로 (--test shot --report 경로.png)
+            }            // 음성 싱크: [목소리] 탭 단추 → 되돌리기·다시 → 재생 중 바꾸면 플레이어가 새 값으로 → 저장 → 다시 열기 → 숫자 칸 입력
+            ("syncflow", s) if s < 99 => {
+                let rect = |a: &App, k: &str| a.audio.sync_rects.iter().find(|x| x.0 == k).map(|x| x.1);
+                let el = t.t0.elapsed().as_secs_f64();
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let idle = self.test_input.is_empty();
+                let mut next = None;
+                let mut finish = false;
+                match s {
+                    0 if el > 3.0 => { self.design_tab = DesignTab::Voice; info["start"] = json!({ "offset": self.audio_offset(), "player": self.player.audio_offset() }); next = Some(1); }
+                    1 => {
+                        let r = rect(self, "+50");
+                        if let (Some(p), Some(m)) = (self.t_stable("sync+50", r), rect(self, "-10")) {
+                            self.t_click(p.center(), egui::Modifiers::NONE); self.t_click(p.center(), egui::Modifiers::NONE); self.t_click(m.center(), egui::Modifiers::NONE);
+                            next = Some(2);
+                        } else if el > 20.0 { info["err"] = json!("단추가 없음"); finish = true; }
+                    }
+                    2 if idle && el > 0.8 => {
+                        info["clicks"] = json!({ "offset": self.audio_offset(), "player": self.player.audio_offset(), "unsaved": self.unsaved, "ok": (self.audio_offset() - 0.09).abs() < 1e-9 && (self.player.audio_offset() - 0.09).abs() < 1e-9 && self.unsaved });
+                        self.undo(); next = Some(3);
+                    }
+                    3 if el > 0.5 => { info["undo"] = json!({ "offset": self.audio_offset(), "player": self.player.audio_offset(), "ok": (self.audio_offset() - 0.1).abs() < 1e-9 && (self.player.audio_offset() - 0.1).abs() < 1e-9 }); self.redo(); next = Some(4); }
+                    4 if el > 0.5 => {
+                        info["redo"] = json!({ "offset": self.audio_offset(), "player": self.player.audio_offset(), "ok": (self.audio_offset() - 0.09).abs() < 1e-9 && (self.player.audio_offset() - 0.09).abs() < 1e-9 });
+                        self.player.seek(0.0); self.player.play(); next = Some(5);
+                    }
+                    5 if el > 1.5 => {
+                        info["playing"] = json!({ "running": self.player.running_offset(), "ok": self.player.running_offset().is_some_and(|x| (x - 0.09).abs() < 1e-9) });
+                        // 재생 중에 0 으로 되돌리고 −50 을 여섯 번 → −300ms
+                        if let (Some(z), Some(m)) = (rect(self, "reset"), rect(self, "-50")) { self.t_click(z.center(), egui::Modifiers::NONE); for _ in 0..6 { self.t_click(m.center(), egui::Modifiers::NONE); } }
+                        next = Some(6);
+                    }
+                    6 if idle && el > 1.0 => {
+                        info["whilePlaying"] = json!({ "offset": self.audio_offset(), "running": self.player.running_offset(), "playing": self.player.playing(), "ok": (self.audio_offset() + 0.3).abs() < 1e-9 && self.player.running_offset().is_some_and(|x| (x + 0.3).abs() < 1e-9) });
+                        self.player.stop();
+                        let sp = PathBuf::from(t.report.clone().unwrap()).with_extension("sshorts");
+                        self.project_path = Some(sp.clone()); self.save_project(false);
+                        let saved = Project::load(&sp).map(|p| sermon_shorts::sync::of(&p.rest)).unwrap_or(f64::NAN);
+                        let raw: Value = std::fs::read(&sp).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(Value::Null);
+                        info["saved"] = json!({ "file": sp, "value": saved, "raw": raw[sermon_shorts::sync::KEY], "unsaved": self.unsaved, "ok": (saved + 0.3).abs() < 1e-9 && !self.unsaved });
+                        // 다른 값으로 바꾼 뒤 파일을 다시 열어 되돌아오는지
+                        self.change_sync(0.0);
+                        self.open_project(sp);
+                        next = Some(7);
+                    }
+                    7 if el > 2.5 => {
+                        info["reopen"] = json!({ "offset": self.audio_offset(), "player": self.player.audio_offset(), "unsaved": self.unsaved, "ok": (self.audio_offset() + 0.3).abs() < 1e-9 && (self.player.audio_offset() + 0.3).abs() < 1e-9 && !self.unsaved });
+                        shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                        next = Some(8);
+                    }
+                    8 if el > 1.0 => {
+                        // 숫자 칸에 직접 넣기: 눌러서 고치기 → 전체 선택 → 120 → Enter
+                        if let Some(v) = rect(self, "value") { self.t_click(v.center(), egui::Modifiers::NONE); self.t_key(egui::Key::A, egui::Modifiers::COMMAND); self.t_text("120"); self.t_key(egui::Key::Enter, egui::Modifiers::NONE); }
+                        next = Some(9);
+                    }
+                    9 if idle && el > 1.0 => {
+                        info["typed"] = json!({ "offset": self.audio_offset(), "player": self.player.audio_offset(), "unsaved": self.unsaved, "ok": (self.audio_offset() - 0.12).abs() < 1e-9 && (self.player.audio_offset() - 0.12).abs() < 1e-9 && self.unsaved });
+                        shot(ctx, std::env::var("SS_SHOT3").ok().map(PathBuf::from), false);
+                        finish = true;
+                    }
+                    _ => {}
+                }
+                if finish || el > 120.0 {
+                    let all = ["clicks", "undo", "redo", "playing", "whilePlaying", "saved", "reopen", "typed"].iter().all(|k| info[*k]["ok"] == true);
+                    info["pass"] = json!(all);
+                    info["stepAtEnd"] = json!(s);
+                    if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    t.step = 99;
+                } else if let Some(n) = next { t.step = n; t.t0 = Instant::now(); }
+                self.test_words = info.to_string();
+            }
+            // 화면 찍기: 다른 창에 가려져도 앱이 그린 그대로 PNG 로 (--test shot --report 경로.png)
             ("shot", 0) if t.t0.elapsed().as_secs_f64() > 5.0 => {
                 let out = t.report.clone(); let c2 = ctx.clone();
                 ctx.request_screenshot(move |img| {

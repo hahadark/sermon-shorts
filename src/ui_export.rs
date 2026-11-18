@@ -40,6 +40,7 @@ impl App {
             meta: export::Meta { title: self.title.clone(), verse: self.verse.clone(), speaker: self.speaker(), church },
             encoder: export::Encoder::Nvenc,
             voice: None, bgm: None, bgm_file: None, bgm_plan: None,
+            audio_offset: sermon_shorts::sync::of(&self.project.rest),
         };
         let (voice, bgm) = self.audio_export_params();
         let req = export::Request { voice, bgm, ..req };

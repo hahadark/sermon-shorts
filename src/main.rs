@@ -87,7 +87,7 @@ fn main() -> eframe::Result<()> {
 
 #[derive(Clone)]
 /// 되돌리기 한 칸 (기존 pushHistory: 단어·미세 조정·순서·목소리·배경음악)
-pub(crate) struct Snap { words: Vec<Word>, overrides: Overrides, order: Option<Vec<i64>>, voice: Option<Value>, bgm: Option<Value>, theme: Option<(Value, bool)> }
+pub(crate) struct Snap { words: Vec<Word>, overrides: Overrides, order: Option<Vec<i64>>, voice: Option<Value>, bgm: Option<Value>, theme: Option<(Value, bool)>, sync: Option<Value> }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub(crate) enum Page { #[default] Editor, Materials, Music, Theme, Ai, Guide, Settings }
@@ -261,6 +261,8 @@ impl App {
                 let (has_audio, dur) = (self.player.probe.has_audio, self.player.probe.duration);
                 self.source_name = p.file_name().unwrap_or_default().to_string_lossy().to_string();
                 if !has_audio { self.toast("이 영상에는 소리가 없습니다"); }
+                // 음성 싱크는 원본마다 다르다: 다른 영상을 열면 0 으로
+                if self.project.source_path != p { self.project.rest.remove(sermon_shorts::sync::KEY); self.player.set_audio_offset(0.0); }
                 if self.project.source_path != p && !self.project.words.is_empty() {
                     self.project.words.clear(); self.project.overrides.clear(); self.project.order = None;
                     self.hide_deleted = false; self.project_path = None;
@@ -417,11 +419,11 @@ impl App {
     }
 
     // ---------------- 되돌리기 ----------------
-    fn snap(&self) -> Snap { Snap { words: self.project.words.clone(), overrides: self.project.overrides.clone(), order: self.project.order.clone(), voice: self.project.rest.get("voice").cloned(), bgm: self.project.rest.get("bgm").cloned(), theme: Some((self.theme.clone(), self.project_theme)) } }
+    fn snap(&self) -> Snap { Snap { words: self.project.words.clone(), overrides: self.project.overrides.clone(), order: self.project.order.clone(), voice: self.project.rest.get("voice").cloned(), bgm: self.project.rest.get("bgm").cloned(), theme: Some((self.theme.clone(), self.project_theme)), sync: self.project.rest.get(sermon_shorts::sync::KEY).cloned() } }
     pub fn push_undo(&mut self) {
         let s = self.snap();
         self.history.truncate(self.hist_at.min(self.history.len()));
-        if let Some(last) = self.history.last() { if serde_json::to_string(&last.words).ok() == serde_json::to_string(&s.words).ok() && last.overrides == s.overrides && last.order == s.order && last.voice == s.voice && last.theme == s.theme && last.bgm == s.bgm { return; } }
+        if let Some(last) = self.history.last() { if serde_json::to_string(&last.words).ok() == serde_json::to_string(&s.words).ok() && last.overrides == s.overrides && last.order == s.order && last.voice == s.voice && last.theme == s.theme && last.bgm == s.bgm && last.sync == s.sync { return; } }
         self.history.push(s);
         self.hist_at = self.history.len();
     }
@@ -430,7 +432,7 @@ impl App {
     fn restore(&mut self, k: usize) {
         let s = self.history[k].clone();
         self.project.words = s.words; self.project.overrides = s.overrides; self.project.order = s.order;
-        for (k, v) in [("voice", s.voice), ("bgm", s.bgm)] { match v { Some(v) => { self.project.rest.insert(k.into(), v); } None => { self.project.rest.remove(k); } } }
+        for (k, v) in [("voice", s.voice), ("bgm", s.bgm), (sermon_shorts::sync::KEY, s.sync)] { match v { Some(v) => { self.project.rest.insert(k.into(), v); } None => { self.project.rest.remove(k); } } }
         // 미리보기 편집으로 고친 프로젝트 테마도 되돌린다 (기록에 없으면 설정의 테마로)
         // (기존 editor.js 처럼 기록마다 테마를 넣고 되돌린다)
         if let Some((t, proj)) = s.theme { if t != self.theme || proj != self.project_theme { self.theme = t; self.project_theme = proj; self.theme_changed(); } }

@@ -46,6 +46,7 @@ pub mod autosave;
 pub mod settings;
 pub mod voice;
 pub mod vox_dsp;
+pub mod sync;
 pub mod bgm;
 pub mod llm;
 pub mod syscheck;
