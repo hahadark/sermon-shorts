@@ -55,7 +55,9 @@ pub fn platform_label() -> &'static str {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Rel { pub version: String, pub tag: String, pub zip_name: String, pub zip_url: String, pub zip_size: u64, pub sums_url: String, pub page: String }
+pub struct Rel { pub version: String, pub tag: String, pub zip_name: String, pub zip_url: String, pub zip_size: u64, pub sums_url: String, pub page: String,
+    /// 바뀐 부분만 받기: 파일 목록 주소와 덩어리들 (이름, 주소, 크기). 없으면 전체 ZIP
+    pub manifest_url: Option<String>, pub parts: Vec<(String, String, u64)> }
 
 /// 릴리스 목록 → 지금보다 새, 내 플랫폼 묶음이 있는 가장 새 릴리스 (지금이 베타면 베타도)
 pub fn pick_release(list: &Value, label: &str, current: &str) -> Option<Rel> {
@@ -74,8 +76,11 @@ pub fn pick_release(list: &Value, label: &str, current: &str) -> Option<Rel> {
         let Some(sums) = assets.iter().find(|a| a["name"].as_str() == Some(SUMS_NAME)) else { continue };
         if compare_versions(&version, current) != Ordering::Greater { continue; }
         if best.as_ref().is_some_and(|b| compare_versions(&version, &b.version) != Ordering::Greater) { continue; }
+        let url_of = |n: &str| assets.iter().find(|a| a["name"].as_str() == Some(n)).map(|a| (a["browser_download_url"].as_str().unwrap_or("").to_string(), a["size"].as_u64().unwrap_or(0)));
+        let manifest_url = url_of(&crate::delta::manifest_name(&version, label)).map(|x| x.0);
+        let parts: Vec<(String, String, u64)> = crate::delta::PARTS.iter().filter_map(|p| { let n = crate::delta::part_name(&version, label, p); url_of(&n).map(|(u, s)| (n, u, s)) }).collect();
         best = Some(Rel { version, tag: tag.into(), zip_name: want, zip_url: zip["browser_download_url"].as_str().unwrap_or("").into(), zip_size: zip["size"].as_u64().unwrap_or(0),
-            sums_url: sums["browser_download_url"].as_str().unwrap_or("").into(), page: rel["html_url"].as_str().unwrap_or(RELEASES_URL).into() });
+            sums_url: sums["browser_download_url"].as_str().unwrap_or("").into(), page: rel["html_url"].as_str().unwrap_or(RELEASES_URL).into(), manifest_url, parts });
     }
     best
 }
@@ -265,10 +270,16 @@ pub fn prepare(rel: &Rel, on: &dyn Fn(u32)) -> Result<PathBuf, String> {
     if done.exists() { if let Some(p) = find_payload(&app) { return Ok(p); } }
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let zip = dir.join(&rel.zip_name);
-    on(0);
-    download(&rel.zip_url, &zip, rel.zip_size, on)?;
     let sums = get_text(&rel.sums_url)?;
+    on(0);
+    // 바뀐 부분만 받기 (안 되면 전체)
+    match prepare_delta(rel, &sums, &dir, on) {
+        Ok(Some(p)) => { std::fs::write(&done, format!("{{\"version\":\"{}\",\"delta\":true}}", rel.version)).map_err(|e| e.to_string())?; return Ok(p); }
+        Ok(None) => {}
+        Err(e) => { let _ = std::fs::write(dir.join("delta-error.txt"), &e); let _ = std::fs::remove_dir_all(&app); }
+    }
+    let zip = dir.join(&rel.zip_name);
+    download(&rel.zip_url, &zip, rel.zip_size, on)?;
     let want = sum_for(&sums, &rel.zip_name).ok_or("해시 목록에 이 파일이 없습니다")?;
     if sha256_file(&zip)? != want { return Err("받은 파일의 해시가 맞지 않습니다".into()); }
     #[cfg(target_os = "macos")]
@@ -289,6 +300,56 @@ pub fn prepare(rel: &Rel, on: &dyn Fn(u32)) -> Result<PathBuf, String> {
     Ok(payload)
 }
 
+/// 바뀐 부분만 받아 새 앱 만들기. 목록이 없거나 아낄 것이 적으면 Ok(None) → 전체 ZIP
+pub fn prepare_delta(rel: &Rel, sums: &str, dir: &Path, on: &dyn Fn(u32)) -> Result<Option<PathBuf>, String> {
+    let Some(murl) = rel.manifest_url.as_ref() else { return Ok(None) };
+    let Some(install) = install_target() else { return Ok(None) };
+    if std::env::var("SS_UPDATE_FULL").is_ok() { return Ok(None); }
+    let label = platform_label();
+    let mname = crate::delta::manifest_name(&rel.version, label);
+    let mtext = get_text(murl)?;
+    let want = sum_for(sums, &mname).ok_or("해시 목록에 파일 목록이 없습니다")?;
+    if sha256_bytes(mtext.as_bytes()) != want { return Err("파일 목록의 해시가 맞지 않습니다".into()); }
+    let m: Value = serde_json::from_str(&mtext).map_err(|e| e.to_string())?;
+    if m["version"].as_str() != Some(rel.version.as_str()) { return Err("파일 목록의 버전이 다릅니다".into()); }
+    let (need, size, keep) = crate::delta::plan(&m, &install);
+    let _ = std::fs::write(dir.join("delta.json"), serde_json::json!({ "need": need, "size": size, "keep": keep.len(), "full": rel.zip_size }).to_string());
+    // 아끼는 것이 적으면(전체의 80% 넘게 받아야 하면) 전체 ZIP
+    if rel.zip_size > 0 && size as f64 > rel.zip_size as f64 * 0.8 { return Ok(None); }
+    let parts_dir = dir.join("parts");
+    let total = size.max(1);
+    let mut got = 0u64;
+    for p in &need {
+        let (name, url, psize) = rel.parts.iter().find(|x| x.0 == crate::delta::part_name(&rel.version, label, p)).cloned().ok_or(format!("{p} 덩어리가 릴리스에 없습니다"))?;
+        let file = dir.join(&name);
+        let base = got;
+        download(&url, &file, psize, &|pct| on(((base + psize * pct as u64 / 100) * 100 / total) as u32))?;
+        got += psize;
+        let h = sha256_file(&file)?;
+        let w1 = sum_for(sums, &name);
+        let w2 = m["parts"].as_array().into_iter().flatten().find(|x| x["asset"].as_str() == Some(name.as_str())).and_then(|x| x["sha256"].as_str()).map(String::from);
+        if w1.as_deref() != Some(h.as_str()) || w2.as_deref() != Some(h.as_str()) { return Err(format!("{name} 해시가 맞지 않습니다")); }
+        crate::delta::extract_part(&file, &parts_dir)?;
+        let _ = std::fs::remove_file(&file);
+    }
+    let root = m["root"].as_str().filter(|r| !r.is_empty() && !r.contains(['/', '\\']) && *r != "..").ok_or("목록의 앱 이름이 잘못됐습니다")?;
+    let payload = dir.join("app").join(root);
+    crate::delta::assemble(&m, &install, &parts_dir, &keep, &payload)?;
+    let _ = std::fs::remove_dir_all(&parts_dir);
+    #[cfg(target_os = "macos")]
+    {
+        let plist = payload.join("Contents").join("Info.plist");
+        let ver = run("/usr/bin/plutil", &["-extract", "CFBundleShortVersionString", "raw", "-o", "-", &plist.to_string_lossy()])?.trim().to_string();
+        if ver != rel.version { return Err(format!("새 앱의 버전이 다릅니다 ({ver})")); }
+        run("/usr/bin/codesign", &["--verify", "--deep", &payload.to_string_lossy()])?;
+        let _ = run("/usr/bin/xattr", &["-dr", "com.apple.quarantine", &payload.to_string_lossy()]);
+    }
+    #[cfg(not(target_os = "macos"))]
+    { if !payload.join("SermonShorts.exe").is_file() { return Err("새 앱에 실행 파일이 없습니다".into()); } }
+    on(100);
+    Ok(Some(payload))
+}
+fn sha256_bytes(b: &[u8]) -> String { let mut h = sha2::Sha256::new(); h.update(b); h.finalize().iter().map(|x| format!("{x:02x}")).collect() }
 /// 지난 바꿔 끼우기 결과를 읽고 지운다 (실패였으면 true)
 fn read_last_swap_failed() -> bool {
     let f = work_dir().join("last-swap");

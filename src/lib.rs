@@ -34,6 +34,7 @@ pub fn assets_dir() -> std::path::PathBuf {
 pub mod chat_plan;
 pub mod chat;
 pub mod ai;
+pub mod delta;
 pub mod materials;
 pub mod materials_file;
 pub mod pptx;

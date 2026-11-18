@@ -26,7 +26,7 @@ jobs:
       - name: 빌드
         run: cargo build --release
       - name: 계산 시험 (공개 저장소에 있는 자료로)
-        run: cargo test --release --test bgm_parity --test llm_parity --test settings_parity --test snap_parity --test ytmeta_parity --test mac_crypt_parity
+        run: cargo test --release --test bgm_parity --test llm_parity --test settings_parity --test snap_parity --test ytmeta_parity --test mac_crypt_parity --test delta
       - name: 서명 인증서 넣기 (업데이트해도 같은 앱으로 보이게)
         env:
           MAC_SIGN_P12: ${{ secrets.MAC_SIGN_P12 }}
@@ -48,6 +48,10 @@ jobs:
           echo "MAC_SIGN_KEYCHAIN=$KC" >> "$GITHUB_ENV"
       - name: 앱 묶음·ZIP·DMG
         run: bash tools/mac_bundle.sh ${{ matrix.arch }} ${{ matrix.label }}
+      - name: 바뀐 부분만 받는 업데이트용 덩어리·파일 목록
+        run: |
+          VER="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"
+          cargo run --release --example make_delta -- dist/SermonShorts.app "$VER" mac-${{ matrix.label }} dist
       - name: 실행 시험 (화면·내보내기)
         run: bash tools/mac_smoke.sh dist/SermonShorts.app smoke
       - uses: actions/upload-artifact@v4
@@ -63,5 +67,6 @@ jobs:
           path: |
             dist/*.zip
             dist/*.dmg
+            dist/*.json
           if-no-files-found: error
           retention-days: 14
