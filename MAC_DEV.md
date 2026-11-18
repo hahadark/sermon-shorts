@@ -56,6 +56,7 @@ bash tools/mac_smoke.sh dist/SermonShorts.app smoke   # 빈 사용자 자료로 
 - **업데이트**: 앱이 `.app` 을 바꿔 끼운다(`updater.rs` 의 `mac_swap_script`, 격리 표시 제거·서명 확인). DMG 안이나 격리 위치(AppTranslocation)에서 실행 중이면 바꾸지 못하고 내려받기 안내만 한다. 0.4.1 다음 판부터 바뀐 부분만 받는다.
 - **예/아니요 창**: `style::confirm` (한국어 단추).
 - **맥 내장 받아쓰기(자막 엔진)**: macOS 26 이상은 위스퍼 없이 애플 SpeechAnalyzer 로 자막을 만든다(`tools/mac_stt/main.swift` → 앱 묶음 `Resources/bin/ss-stt-apple`, `stt.rs` 의 `use_apple`). transcribe.py 와 같은 인자·결과 JSON. 실측(2026-11-18, M 맥): 20분 설교 7.6초, 말소리의 99% 가 낱말 시각 안, 낱말 사이 틈의 89% 가 실제 무음. '음·어' 같은 군말은 거의 받아 적지 않는다(군말 빼기가 찾을 것이 적다). 맥 받아쓰기가 실패하면 설치된 위스퍼로. `SS_STT_ENGINE=whisper|apple` 로 고정 가능. 도우미는 macOS 26 SDK 로만 만들어진다(맥 CI 에서 Xcode 26 고름, 없으면 빼고 묶음).
+- **맥 묶음 크기**: yt-dlp 는 묶지 않는다(첫 유튜브 사용 때 앱이 runtime/bin 에 받음, 시스템 점검에서는 '아직 안 받음'=꼭 필요 아님). 실행 파일은 strip -x. Apple 칩 기준 앱 192→151MB, DMG 117→78MB. 받은 yt-dlp 에 실행 권한을 주도록 고침(예전에는 맥에서 업데이트·403 재시도로 받은 yt-dlp 가 Permission denied).
 - **부드러운 미리보기**: 맥은 `h264_videotoolbox` 로 미리보기용 영상을 만든다(`src/proxy.rs`). 실제 맥에서 속도·품질 확인 안 됨.
 - **교인 자료 그리기**: PC 에 있는 Chrome/Edge 를 헤드리스로 빌려 쓴다(`src/matrender.rs`). 맥에는 Chrome 이 있어야 PDF·PNG 가 된다. 음성으로 듣기는 맥 `say` + 한국어 음성(Yuna).
 - **화면 크기**: 레티나(배율 2)에서 칸 너비·글자 크기, 창 최소 크기 1280×760, 칸 크기 손잡이(`ui_panes.rs`)를 확인할 것.
