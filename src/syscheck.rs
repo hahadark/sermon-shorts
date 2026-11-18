@@ -98,6 +98,8 @@ pub fn check_ytdlp() -> Row {
     let p = crate::youtube::ytdlp_path();
     match out_ok(&mut crate::media::command_path(&p).arg("--version")) {
         Some((v, _)) => row("ytdlp", "yt-dlp", St::Ok, v.trim()).hint("유튜브 가져오기가 갑자기 안 되면 [업데이트]를 누르세요.").acts(&["update-ytdlp"]),
+        // 맥 묶음에는 yt-dlp 가 없다: 처음 유튜브를 쓸 때 앱이 받으므로 첫 실행에 점검 창을 띄우지 않는다
+        None if !p.exists() && cfg!(target_os = "macos") => row("ytdlp", "yt-dlp", St::Warn, "아직 안 받음").hint("처음 유튜브 영상을 불러올 때 공식 최신판(GitHub)을 자동으로 받습니다. [설치]로 미리 받아 둘 수 있습니다.").acts(&["install-ytdlp", "open:ytdlp"]),
         None => row("ytdlp", "yt-dlp", St::Error, "없음").crit().hint("[설치]를 누르면 공식 최신판(GitHub)을 받아 넣습니다.").acts(&["install-ytdlp", "open:ytdlp"]),
     }
 }

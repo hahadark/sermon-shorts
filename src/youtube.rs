@@ -157,6 +157,8 @@ fn download_latest(dest: &Path) -> anyhow::Result<()> {
     if buf.len() < 1_000_000 { anyhow::bail!("받은 yt-dlp 파일이 올바르지 않습니다"); }
     let tmp = dest.with_extension("download");
     std::fs::write(&tmp, &buf)?;
+    // 맥·리눅스: 받은 파일은 실행 권한이 없다 (없으면 "Permission denied" 로 유튜브를 못 쓴다)
+    #[cfg(unix)] { use std::os::unix::fs::PermissionsExt; std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755))?; }
     if dest.exists() { if std::fs::rename(dest, dest.with_extension(format!("old-{}", now_ms()))).is_err() { let _ = std::fs::remove_file(dest); } }
     std::fs::rename(&tmp, dest)?;
     Ok(())
