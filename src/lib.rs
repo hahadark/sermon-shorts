@@ -8,6 +8,7 @@ pub mod project;
 pub mod caption_edit;
 pub mod peaks;
 pub mod blocks;
+pub mod word_trim;
 pub mod theme;
 pub mod textfx;
 pub mod template;

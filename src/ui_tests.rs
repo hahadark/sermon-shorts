@@ -216,7 +216,107 @@ impl App {
                 r.insert("pass".into(), all.into());
                 if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&Value::Object(r)).unwrap()); }
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
-            }            // 내보내기 → 완성 영상 창 → (가짜) 유튜브 올리기 → 업로드 기록
+            }            // 단어별 조정: 칸 끝 단어 다음 말을 지우고 미세 조정 열기 → 단어 막대 누르기 → 끝 손잡이를 실제 마우스로 끌기 → 단어 시각·구간 변화 → Ctrl+Z → Ctrl+Y → 저장·다시 열기
+            ("wordtrim", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
+                let b = self.blocks.iter().filter(|b| b.line.is_some()).nth(2).cloned().unwrap();
+                let li = (b.from..b.to).rev().find(|&k| !self.project.words[k].del).unwrap();
+                // 칸 끝 단어 다음 말을 지운다 (지운 말 경계 조정이 구간에 따라오는지 보려고)
+                if li + 1 < self.project.words.len() && !self.project.words[li + 1].del { self.toggle_words(li + 1, li + 2, true); self.recompute(); }
+                self.open_fine(b.from, li);
+                self.test_words = json!({ "li": li, "hist0": self.hist_at }).to_string();
+                t.step = 1; t.t0 = Instant::now();
+            }
+            ("wordtrim", 1) if self.trim.as_ref().is_some_and(|x| x.wpcm.is_some() && !x.wrects.is_empty()) && t.t0.elapsed().as_secs_f64() > 1.0 => {
+                let info: Value = serde_json::from_str(&self.test_words).unwrap();
+                let li = info["li"].as_u64().unwrap() as usize;
+                let bar = self.trim.as_ref().unwrap().wrects.iter().find(|(i, _)| *i == li).map(|x| x.1);
+                if self.t_stable("wordbar", bar).is_none() { return self.test = Some(test); }
+                self.t_click(bar.unwrap().center(), egui::Modifiers::NONE);
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("wordtrim", 2) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.5 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap();
+                let li = info["li"].as_u64().unwrap() as usize;
+                let tr = self.trim.as_ref().unwrap();
+                let w = &self.project.words[li];
+                let seg_end = self.segs.iter().find(|s| s.last_word_id == w.id).map(|s| s.end);
+                let (r, (v0, v1)) = (tr.wstrip, tr.wview);
+                let x_of = |tt: f64| r.left() + (((tt - v0) / (v1 - v0)) as f32) * r.width();
+                let (xs, xe) = (x_of(w.start), x_of(w.end));
+                let dx = (40.0f32).min((xe - xs) * 0.45).floor();
+                info["selected"] = json!(tr.word == Some(li));
+                info["e0"] = json!(w.end); info["s0"] = json!(w.start); info["seg0"] = json!(seg_end);
+                info["next0"] = json!(self.project.words.get(li + 1).map(|n| n.start));
+                info["delta"] = json!(dx as f64 * (v1 - v0) / r.width() as f64);
+                info["hist1"] = json!(self.hist_at); info["rect2"] = json!([r.left(), r.top(), r.width(), v0, v1, xs, xe, dx]);
+                self.test_words = info.to_string();
+                // 끝 손잡이를 실제 마우스로 끌기 (누르기 → 8번 옮기기 → 놓기)
+                let n = egui::Modifiers::NONE;
+                let p0 = egui::pos2(xe, r.center().y + 12.0);
+                self.t_queue(vec![egui::Event::PointerMoved(p0)], n);
+                self.t_press(p0, n, true);
+                for k in 1..=8 { self.t_queue(vec![egui::Event::PointerMoved(p0 - egui::vec2(dx * k as f32 / 8.0, 0.0))], n); }
+                self.t_press(p0 - egui::vec2(dx, 0.0), n, false);
+                self.t_queue(vec![], n); self.t_queue(vec![egui::Event::PointerMoved(egui::pos2(5.0, 5.0))], n); self.t_queue(vec![], n);
+                t.step = 3; t.t0 = Instant::now();
+            }
+            ("wordtrim", 3) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap();
+                let li = info["li"].as_u64().unwrap() as usize;
+                let (e0, s0, delta) = (info["e0"].as_f64().unwrap(), info["s0"].as_f64().unwrap(), info["delta"].as_f64().unwrap());
+                let w = self.project.words[li].clone();
+                let seg1 = self.segs.iter().find(|s| s.last_word_id == w.id).map(|s| s.end);
+                let seg0 = info["seg0"].as_f64();
+                let next0 = info["next0"].as_f64().unwrap_or(f64::INFINITY);
+                let want_seg = (w.end + self.project.settings.pad_after).min(next0);
+                info["e1"] = json!(w.end); info["seg1"] = json!(seg1); { let tr = self.trim.as_ref().unwrap(); info["rect3"] = json!([tr.wstrip.left(), tr.wstrip.top(), tr.wstrip.width(), tr.wview.0, tr.wview.1]); } info["wantSeg"] = json!(want_seg);
+                info["orig"] = json!(sermon_shorts::word_trim::original(&w));
+                info["drag"] = json!({ "ok": (w.end - (e0 - delta)).abs() < 0.006 && (w.start - s0).abs() < 1e-9 && (sermon_shorts::word_trim::original(&w).1 - e0).abs() < 1e-9 });
+                info["segFollows"] = json!({ "ok": matches!((seg0, seg1), (Some(a), Some(b)) if b < a - 0.01 && (b - want_seg).abs() < 1e-6) });
+                info["oneUndoStep"] = json!({ "ok": self.hist_at == info["hist1"].as_u64().unwrap() as usize + 1 });
+                info["bar"] = json!({ "ok": self.trim.as_ref().is_some_and(|x| x.word == Some(li) && x.wdrag.is_none() && x.wbase.is_none()) });
+                self.test_words = info.to_string();
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                t.step = 6; t.t0 = Instant::now();
+            }
+            ("wordtrim", 6) if t.t0.elapsed().as_secs_f64() > 1.0 => { self.t_key(egui::Key::Z, egui::Modifiers::COMMAND); t.step = 4; t.t0 = Instant::now(); }
+            ("wordtrim", 4) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.5 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap();
+                let li = info["li"].as_u64().unwrap() as usize;
+                if self.dirty { self.recompute(); }
+                let w = &self.project.words[li];
+                let seg = self.segs.iter().find(|s| s.last_word_id == w.id).map(|s| s.end);
+                info["undo"] = json!({ "ok": (w.end - info["e0"].as_f64().unwrap()).abs() < 1e-9 && !w.extra.contains_key("sttEnd") && matches!((seg, info["seg0"].as_f64()), (Some(a), Some(b)) if (a - b).abs() < 1e-9), "end": w.end, "seg": seg, "w": serde_json::to_value(w).unwrap(), "hist": [self.hist_at, self.history.len()] });
+                self.test_words = info.to_string();
+                self.t_key(egui::Key::Y, egui::Modifiers::COMMAND);
+                t.step = 5; t.t0 = Instant::now();
+            }
+            ("wordtrim", 5) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.5 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap();
+                let li = info["li"].as_u64().unwrap() as usize;
+                if self.dirty { self.recompute(); }
+                let e1 = info["e1"].as_f64().unwrap();
+                info["redo"] = json!({ "ok": (self.project.words[li].end - e1).abs() < 1e-9 });
+                if let Some(rep) = &t.report {
+                    let sp = std::path::Path::new(rep).with_extension("sshorts");
+                    self.project_path = Some(sp.clone()); self.save_project(false);
+                    match Project::load(&sp) {
+                        Ok(p2) => {
+                            let w2 = &p2.words[li];
+                            let segs2 = edl::build_segments(&p2.words, &p2.settings, &p2.overrides, Some(self.player.probe.duration), p2.order.as_deref());
+                            let ok = (w2.end - e1).abs() < 1e-9 && (sermon_shorts::word_trim::original(w2).1 - info["e0"].as_f64().unwrap()).abs() < 1e-9 && p2.overrides == self.project.overrides && segs2 == self.segs;
+                            info["saveReload"] = json!({ "ok": ok, "file": sp, "end": w2.end });
+                        }
+                        Err(e) => { info["saveReload"] = json!({ "ok": false, "error": e.to_string() }); }
+                    }
+                }
+                let all = ["drag", "segFollows", "oneUndoStep", "bar", "undo", "redo", "saveReload"].iter().all(|k| info[*k]["ok"].as_bool() == Some(true)) && info["selected"].as_bool() == Some(true);
+                info["pass"] = json!(all);
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                self.unsaved = false;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
+            }
+            // 내보내기 → 완성 영상 창 → (가짜) 유튜브 올리기 → 업로드 기록
             ("exportflow", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
                 self.title = "오늘의 말씀 / 하나님 중심의 *기도*".into();
                 let out = PathBuf::from(t.report.clone().unwrap()).with_extension("mp4");

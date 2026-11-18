@@ -31,6 +31,7 @@ mod ui_theme_editor;
 mod ui_tests;
 mod ui_tidy;
 mod ui_trim;
+mod ui_trim_words;
 mod ui_wave;
 
 pub(crate) use eframe::egui::{self, Color32, CornerRadius, RichText, Stroke};

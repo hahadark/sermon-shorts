@@ -29,8 +29,15 @@ impl App {
     pub(crate) fn center_column(&mut self, ui: &mut egui::Ui) {
         style::card().inner_margin(egui::Margin { left: 18, right: 18, top: 16, bottom: 10 }).show(ui, |ui| {
             ui.set_min_size(ui.available_size());
+            // 미세 조정 창 높이 (자막 미세 조정이면 아래 단어별 조정 칸까지)
+            let measured = ui.ctx().data(|d| d.get_temp::<(bool, f32)>(egui::Id::new("trim-panel-h")));
+            let trim_h = match &self.trim {
+                Some(t) if t.range => match measured { Some((true, h)) => (h + 6.0).max(236.0), _ => 236.0 + crate::ui_trim::WORD_SECTION_H },
+                Some(_) => 236.0,
+                None => 0.0,
+            };
             let base_wave = self.panes.wave.clamp(100.0, (ui.available_height() - 236.0 - 200.0).max(100.0));
-            let wave_h = base_wave + if self.trim.is_some() { 236.0 } else { 0.0 };
+            let wave_h = base_wave + trim_h;
             let list_h = (ui.available_height() - wave_h).max(160.0);
             // 자막 목록과 파형 사이 손잡이 (끌어서 파형 높이 바꾸기)
             let top = ui.min_rect().top() + list_h;
