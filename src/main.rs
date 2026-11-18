@@ -80,7 +80,7 @@ fn main() -> eframe::Result<()> {
         if let Some(p) = &a.project { app.open_project(p.clone()); }
         if let Some(p) = &a.open { app.open_video(p.clone()); }
         if let Some(t) = &a.transcript { app.load_words(t.clone()); }
-        if a.test.is_some() && a.test.as_deref() != Some("panes") { app.panes = Default::default(); }
+        if a.test.is_some() && a.test.as_deref() != Some("panes") { app.panes = Default::default(); } app.chat_open = !app.panes.chat_hidden;
             app.test = a.test.clone().map(|name| TestRun { name, report: a.report.clone(), step: 0, t0: Instant::now(), log: vec![] });
         Ok(Box::new(app))
     }))
@@ -596,6 +596,14 @@ impl App {
         let avail = ui.available_rect_before_wrap();
         let gap = 18.0;
         // 기존 #workspace: 왼쪽 440·대화 380 (끌어서 바꿀 수 있음), 가운데가 좁아지면 두 칸을 너비 비율대로 줄인다
+        // 대화 칸을 접으면 오른쪽에 다시 펼치는 좁은 띠 (기존 #chatCol.collapsed)
+        if self.panes.chat_hidden == self.chat_open { self.panes.chat_hidden = !self.chat_open; self.panes.save(); }
+        let strip = if self.chat_open { 0.0 } else { 46.0 };
+        let avail = if self.chat_open { avail } else {
+            let r_strip = egui::Rect::from_min_max(egui::pos2(avail.right() - strip, avail.top()), avail.max);
+            ui.scope_builder(egui::UiBuilder::new().max_rect(r_strip), |ui| self.chat_strip(ui, r_strip));
+            egui::Rect::from_min_max(avail.min, egui::pos2(avail.right() - strip - gap, avail.bottom()))
+        };
         let free = avail.width() - gap * if self.chat_open { 2.0 } else { 1.0 };
         let (lb, rb) = (self.panes.left.max(ui_panes::LEFT_MIN), if self.chat_open { self.panes.chat.max(ui_panes::CHAT_MIN) } else { 0.0 });
         let short = (lb + rb + ui_panes::CENTER_MIN - free).max(0.0); // 가운데 자막 칸은 이만큼은 있어야 쓸 만하다

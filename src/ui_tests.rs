@@ -1218,6 +1218,26 @@ impl App {
                 if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
                 self.unsaved = false; ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
             }
+            // AI 편집 대화 접기 → 오른쪽 띠가 보이고 접은 상태가 저장됨 → 띠를 눌러 다시 펼침
+            ("chatfold", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
+                match self.t_stable_rect("fold") { Some(r) => self.t_click(r.center(), egui::Modifiers::NONE), None if t.t0.elapsed().as_secs_f64() < 20.0 => return self.test = Some(test), None => {} }
+                t.step = 1; t.t0 = Instant::now();
+            }
+            ("chatfold", 1) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let strip = ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("chat-strip-rect")));
+                let saved = std::fs::read_to_string(sermon_shorts::theme::user_data_dir().join("layout.json")).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).map(|v| v["chat_hidden"].clone()).unwrap_or(Value::Null);
+                self.test_words = json!({ "openAfterFold": self.chat_open, "strip": strip.map(|r| [r.left(), r.top(), r.width(), r.height()]), "savedHidden": saved }).to_string();
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                if let Some(r) = strip { self.t_click(r.center(), egui::Modifiers::NONE); }
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("chatfold", 2) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["openAfterClick"] = json!(self.chat_open);
+                info["pass"] = json!(info["openAfterFold"] == false && info["strip"].is_array() && info["savedHidden"] == true && self.chat_open);
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
+            }
             // 칸 크기 끌기: 왼쪽 칸 +80, 대화 칸 60 넓게, 파형 60 높게, 디자인 탭 50 높게 → layout.json 저장 → 왼쪽 손잡이 두 번 누르기는 기본으로
             ("panes", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
                 let ids = ["left", "chat", "wave", "tabs"];

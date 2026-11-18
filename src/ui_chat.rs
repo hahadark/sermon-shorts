@@ -1004,7 +1004,7 @@ impl App {
                     if !narrow { self.chat_chip(ui); }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
-                        if style::icon_btn(ui, "panel-right-close", 17.0, style::MUTED, "대화 창 접기").clicked() { acts.push(Act::Fold); }
+                        { let fb = style::icon_btn(ui, "panel-right-close", 17.0, style::MUTED, "대화 창 접기"); rects.push(("fold".into(), fb.rect)); if fb.clicked() { acts.push(Act::Fold); } }
                         let tr = style::icon_btn(ui, "trash-2", 17.0, style::MUTED, "대화 기록 지우기");
                         rects.push(("clear".into(), tr.rect));
                         if tr.clicked() { acts.push(Act::Clear); }

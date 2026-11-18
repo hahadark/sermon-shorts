@@ -26,7 +26,8 @@ impl App {
         self.proxy = ProxyState { src: Some(src.to_path_buf()), ..Default::default() };
         let on = self.settings["previewProxy"] != false;
         // 다른 자동 시험 중에는 바꾸지 않는다 (시험 도중 영상이 바뀌면 결과가 흔들림)
-        let test_skip = self.test.as_ref().is_some_and(|t| t.name != "smoothpreview");
+        let arg_test = { let a: Vec<String> = std::env::args().collect(); a.iter().position(|x| x == "--test").and_then(|i| a.get(i + 1).cloned()) };
+        let test_skip = self.test.as_ref().map(|t| t.name.clone()).or(arg_test).is_some_and(|n| n != "smoothpreview");
         if !on || test_skip { return; }
         self.proxy.status = Some(("미리보기 준비 중".into(), "건너뛸 때 끊기지 않게 미리보기용 영상을 만들고 있습니다. 그동안에도 편집할 수 있습니다.".into(), 0));
         let (tx, rx) = channel();
