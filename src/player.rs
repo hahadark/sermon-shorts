@@ -65,6 +65,8 @@ struct Run {
     out_from: f64,
     audio: bool,
     done_audio: Arc<AtomicBool>,
+    /// 이 재생에 쓴 음성 싱크 오프셋 (초)
+    offset: f64,
 }
 impl Drop for Run {
     fn drop(&mut self) { self.stop.store(true, Ordering::SeqCst); self.children.kill_all(); }
@@ -88,12 +90,14 @@ pub struct Player {
     pub bgm: Arc<Mutex<Option<BgmMix>>>,
     still_rx: Option<Receiver<Frame>>,
     last_underruns: u64,
+    /// 음성 싱크 오프셋 (초, + 는 소리를 늦춤): 구간마다 원본 소리를 src − offset 부터 (sync::window)
+    audio_offset: f64,
 }
 
 #[derive(Default, Clone, Debug)]
 pub struct Stats { pub shown: u64, pub late: u64, pub underruns: u64 }
 
-impl Default for Player { fn default() -> Self { Self { path: None, probe: Default::default(), spans: vec![], out_t: 0.0, frame: None, preview_w: 0, preview_h: 0, run: None, pending: None, stats: Stats::default(), still_rx: None, last_underruns: 0, fx: Default::default(), meter: Default::default(), bgm: Default::default() } } }
+impl Default for Player { fn default() -> Self { Self { path: None, probe: Default::default(), spans: vec![], out_t: 0.0, frame: None, preview_w: 0, preview_h: 0, run: None, pending: None, stats: Stats::default(), still_rx: None, last_underruns: 0, fx: Default::default(), meter: Default::default(), bgm: Default::default(), audio_offset: 0.0 } } }
 
 impl Player {
     pub fn open(&mut self, path: &Path) -> Result<()> {
@@ -145,8 +149,19 @@ impl Player {
         let Some(path) = self.path.clone() else { return };
         if self.spans.is_empty() { return; }
         if self.out_t >= self.duration() - 0.02 { self.out_t = 0.0; }
-        self.run = Some(start_run(&path, &self.spans, self.out_t, self.preview_w, self.preview_h, self.probe.has_audio, self.fx.clone(), self.meter.clone(), self.bgm.clone()));
+        self.run = Some(start_run(&path, &self.spans, self.out_t, self.preview_w, self.preview_h, self.probe.has_audio, self.fx.clone(), self.meter.clone(), self.bgm.clone(), self.audio_offset));
         self.pending = None;
+    }
+    /// 음성 싱크 오프셋 (초)
+    pub fn audio_offset(&self) -> f64 { self.audio_offset }
+    /// 지금 재생에 실제로 쓰고 있는 오프셋 (멈춰 있으면 None)
+    pub fn running_offset(&self) -> Option<f64> { self.run.as_ref().map(|r| r.offset) }
+    /// 오프셋 바꾸기: 재생 중이면 지금 자리에서 다시 시작해 바로 들린다
+    pub fn set_audio_offset(&mut self, d: f64) {
+        let d = crate::sync::clamp(d);
+        if (d - self.audio_offset).abs() < 1e-9 { return; }
+        self.audio_offset = d;
+        if self.playing() { self.stop(); self.play(); }
     }
     pub fn stop(&mut self) {
         if let Some(r) = self.run.take() { self.out_t = clock(&r).min(self.duration()); self.last_underruns = r.underruns.load(Ordering::SeqCst); }
@@ -224,7 +239,7 @@ fn spans_from(spans: &[Span], from: f64) -> Vec<Span> {
     v
 }
 
-fn start_run(path: &Path, spans: &[Span], from: f64, w: usize, h: usize, has_audio: bool, fx: Arc<Mutex<crate::vox_dsp::Fx>>, meter: Arc<Mutex<crate::vox_dsp::Meter>>, bgm: Arc<Mutex<Option<BgmMix>>>) -> Run {
+fn start_run(path: &Path, spans: &[Span], from: f64, w: usize, h: usize, has_audio: bool, fx: Arc<Mutex<crate::vox_dsp::Fx>>, meter: Arc<Mutex<crate::vox_dsp::Meter>>, bgm: Arc<Mutex<Option<BgmMix>>>, offset: f64) -> Run {
     let stop = Arc::new(AtomicBool::new(false));
     let children = Killer(Arc::new(Mutex::new(vec![])));
     let todo = spans_from(spans, from);
@@ -248,12 +263,45 @@ fn start_run(path: &Path, spans: &[Span], from: f64, w: usize, h: usize, has_aud
                 audio = true;
                 stream = Some(s);
                 let (path, todo, stop, kids, done) = (path.to_path_buf(), todo, stop.clone(), Killer(children.0.clone()), done_audio.clone());
-                thread::spawn(move || audio_worker(&path, &todo, prod, &stop, &kids, &done));
+                thread::spawn(move || audio_worker(&path, &todo, offset, prod, &stop, &kids, &done));
             }
             Err(e) => eprintln!("소리 장치를 열지 못했습니다: {e}"),
         }
     }
-    Run { stop, frames: frx, played, underruns, _stream: stream, children, started: Instant::now(), out_from: from, audio, done_audio }
+    Run { stop, frames: frx, played, underruns, _stream: stream, children, started: Instant::now(), out_from: from, audio, done_audio, offset }
+}
+
+/// 구간마다 소리를 어떻게 낼지: (앞 무음 프레임 수, 풀 원본 구간, 이 구간 전체 프레임 수). 오프셋은 sync::window
+pub fn audio_plan(todo: &[Span], offset: f64) -> Vec<(usize, Option<Span>, usize)> {
+    todo.iter().map(|s| {
+        let want = (s.dur() * RATE as f64).round() as usize;
+        let w = crate::sync::window(s.src_start, s.src_end, offset);
+        let lead = ((w.lead * RATE as f64).round() as usize).min(want);
+        let piece = (w.dur() > 0.0 && lead < want).then(|| Span { src_start: w.src_start, src_end: w.src_end, out_start: s.out_start + w.lead });
+        (lead, piece, want)
+    }).collect()
+}
+
+/// 미리보기 소리 길을 스피커 대신 메모리로 (시험·측정용): 출력 시각 from 부터 끝까지 48kHz 두 채널
+pub fn decode_preview_audio(path: &Path, spans: &[Span], from: f64, offset: f64) -> Vec<f32> {
+    let rb = HeapRb::<f32>::new(RATE as usize * CH * 2);
+    let (prod, mut cons) = rb.split();
+    let stop = Arc::new(AtomicBool::new(false));
+    let done = Arc::new(AtomicBool::new(false));
+    let kids = Killer(Arc::new(Mutex::new(vec![])));
+    let todo = spans_from(spans, from);
+    let (p2, st2, k2, d2) = (path.to_path_buf(), stop.clone(), Killer(kids.0.clone()), done.clone());
+    let h = thread::spawn(move || audio_worker(&p2, &todo, offset, prod, &st2, &k2, &d2));
+    let mut out = vec![];
+    let mut buf = vec![0f32; 8192];
+    loop {
+        let n = cons.pop_slice(&mut buf);
+        out.extend_from_slice(&buf[..n]);
+        if n == 0 { if done.load(Ordering::SeqCst) || h.is_finished() { let n = cons.pop_slice(&mut buf); out.extend_from_slice(&buf[..n]); if n == 0 { break; } } else { thread::sleep(Duration::from_millis(2)); } }
+    }
+    let _ = h.join();
+    kids.kill_all();
+    out
 }
 
 /// 구간 하나를 ffmpeg 로 푸는 프로세스 (stdout 을 읽는다)
@@ -297,14 +345,16 @@ fn video_worker(path: &Path, todo: &[Span], w: usize, h: usize, tx: SyncSender<F
     }
 }
 
-fn audio_worker(path: &Path, todo: &[Span], mut prod: HeapProd<f32>, stop: &AtomicBool, kids: &Killer, done: &AtomicBool) {
-    let mut queue: VecDeque<(Span, Option<std::process::ChildStdout>)> = VecDeque::new();
+fn audio_worker(path: &Path, todo: &[Span], offset: f64, mut prod: HeapProd<f32>, stop: &AtomicBool, kids: &Killer, done: &AtomicBool) {
+    // 음성 싱크: 구간마다 앞 무음 + 옮긴 원본 소리 (길이는 영상 구간 그대로)
+    let plan = audio_plan(todo, offset);
+    let mut queue: VecDeque<((usize, usize), Option<std::process::ChildStdout>)> = VecDeque::new();
     let mut next = 0;
     let launch = |queue: &mut VecDeque<_>, next: &mut usize| {
-        if *next < todo.len() {
-            let s = todo[*next];
-            let out = spawn_piece(path, &s, None).map(|mut c| { let o = c.stdout.take(); kids.add(c); o }).flatten();
-            queue.push_back((s, out));
+        if *next < plan.len() {
+            let (lead, piece, want) = plan[*next];
+            let out = piece.and_then(|p| spawn_piece(path, &p, None)).map(|mut c| { let o = c.stdout.take(); kids.add(c); o }).flatten();
+            queue.push_back(((lead, want), out));
             *next += 1;
         }
     };
@@ -320,14 +370,15 @@ fn audio_worker(path: &Path, todo: &[Span], mut prod: HeapProd<f32>, stop: &Atom
         }
         true
     };
-    while let Some((s, out)) = queue.pop_front() {
+    while let Some(((lead, want), out)) = queue.pop_front() {
         launch(&mut queue, &mut next);   // 다음 구간 미리
-        // 이 구간에서 낼 프레임 수: 시간 줄과 정확히 맞춘다 (모자라면 조용히 채우고, 넘치면 버린다)
-        let want = (s.dur() * RATE as f64).round() as usize;
+        // 이 구간에서 낼 프레임 수(want): 시간 줄과 정확히 맞춘다 (모자라면 조용히 채우고, 넘치면 버린다)
         // 구간 처음·끝 5ms 는 줄였다 키운다 (이음매 딸깍 소리 막기)
         let last = want.saturating_sub(1);
         let gain = |fi: usize| -> f32 { if !multi { return 1.0; } let a = fi.min(last.saturating_sub(fi)); if a >= FADE { 1.0 } else { a as f32 / FADE as f32 } };
-        let mut fi = 0usize;
+        // 소리를 늦출 때: 앞부분 무음
+        if lead > 0 { let silence = vec![0f32; lead * CH]; if !push_all(&mut prod, &silence) { return; } }
+        let mut fi = lead;
         let mut pend: Vec<u8> = vec![];
         if let Some(mut out) = out {
             let mut bytes = vec![0u8; 32768];

@@ -34,7 +34,7 @@ fn export_args_match_electron() {
             source: src.into(), out: out.clone(), words: pr.words.clone(), segs: segs.clone(), lines: lines.clone(), theme: theme::normalize(Some(&c["theme"])), crop: export::Crop::from_value(&c["crop"]), fade_ms: pr.settings.fade_ms,
             meta: export::Meta { title: String::new(), verse: String::new(), speaker: String::new(), church: String::new() },
             encoder: if c["encoder"] == "x264" { export::Encoder::X264 } else { export::Encoder::Nvenc },
-            voice: (!c["voice"].is_null()).then(|| c["voice"].clone()), bgm_plan: bgm.as_ref().and_then(|b| sermon_shorts::bgm::plan(b, out_dur)), bgm_file: bgm.as_ref().map(|_| bgm_file.clone()), bgm,
+            voice: (!c["voice"].is_null()).then(|| c["voice"].clone()), bgm_plan: bgm.as_ref().and_then(|b| sermon_shorts::bgm::plan(b, out_dur)), bgm_file: bgm.as_ref().map(|_| bgm_file.clone()), bgm, audio_offset: 0.0,
         };
         let (args, fg) = export::build_args(&req, &temp, &[], req.encoder).unwrap();
         assert_eq!(fg, js[i]["filtergraph"].as_str().unwrap(), "filtergraph {i} ({})", themes[i].id);

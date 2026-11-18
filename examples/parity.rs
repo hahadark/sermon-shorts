@@ -32,7 +32,7 @@ fn main() {
             crop: export::Crop::default(), fade_ms: settings.fade_ms,
             meta: export::Meta::of(&serde_json::json!({ "title": "오늘의 말씀 / 하나님 중심의 *기도*", "verse": "마태복음 6:13", "speaker": std::env::var("PARITY_SPEAKER").unwrap_or_default() }), &theme::app_settings()),
             encoder: export::Encoder::Nvenc,
-            voice: None, bgm: None, bgm_file: None, bgm_plan: None,
+            voice: None, bgm: None, bgm_file: None, bgm_plan: None, audio_offset: 0.0,
         };
         // 그림만 따로 (Electron 임시 폴더 그림과 비교)
         let img_dir = out_dir.join(&e.id);

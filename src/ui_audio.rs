@@ -5,6 +5,7 @@
 use crate::*;
 use sermon_shorts::voice::{self, Measured, Voice};
 use sermon_shorts::vox_dsp::Fx;
+use sermon_shorts::sync;
 
 #[derive(Default)]
 pub(crate) struct State {
@@ -20,6 +21,10 @@ pub(crate) struct State {
     /// 미터 시험용: 재생 중 가장 큰 값 (dB), 섞은 배경음악 최고값
     pub max_peak_db: f32,
     pub max_bgm_peak: f32,
+    /// 음성 싱크 숫자 칸을 끄는 중 (놓을 때 미리보기에 반영)
+    pub sync_drag: bool,
+    /// 음성 싱크 단추 자리 (시험용: "-50" "-10" "value" "+10" "+50" "reset")
+    pub sync_rects: Vec<(&'static str, egui::Rect)>,
 }
 
 const ERR: Color32 = Color32::from_rgb(0xb9, 0x1c, 0x1c);
@@ -52,6 +57,18 @@ impl App {
         self.audio.measuring = Some(rx);
     }
     pub(crate) fn voice_measuring(&self) -> bool { self.audio.measuring.is_some() }
+    /// 음성 싱크 오프셋 (초, 프로젝트 audioOffset)
+    pub(crate) fn audio_offset(&self) -> f64 { sync::of(&self.project.rest) }
+    /// 음성 싱크 바꾸기 (되돌리기 기록·저장 표시·미리보기 바로)
+    pub(crate) fn change_sync(&mut self, d: f64) {
+        let d = sync::clamp(d);
+        if d == self.audio_offset() { self.player.set_audio_offset(d); return; }
+        self.push_undo();
+        sync::set(&mut self.project.rest, d);
+        self.push_undo();
+        self.unsaved = true;
+        self.player.set_audio_offset(d);
+    }
 
     /// 매 화면: 잰 값 받기 · 편집이 바뀌면 다시 재기 · 미리보기 소리 길 · 미터
     pub(crate) fn audio_ui(&mut self, ctx: &egui::Context) {
@@ -78,6 +95,7 @@ impl App {
             if v.mode == "auto" { ctx.request_repaint_after(std::time::Duration::from_millis(500)); }
         }
         // 미리보기 소리 길
+        if !self.audio.sync_drag { let d = self.audio_offset(); self.player.set_audio_offset(d); }
         let fx = Fx::of(&self.voice());
         if let Ok(mut f) = self.player.fx.lock() { if *f != fx { *f = fx; } }
         // 미터 (-48 ~ 0 dB, 최고값 1.5초 유지)
@@ -207,6 +225,9 @@ impl App {
             let (fill, col, stroke) = if on { (Color32::from_rgb(0xff, 0xfb, 0xeb), Color32::from_rgb(0xb4, 0x53, 0x09), Color32::from_rgb(0xf5, 0x9e, 0x0b)) } else { (Color32::TRANSPARENT, style::FAINT, style::BORDER) };
             egui::Frame::new().fill(fill).stroke(Stroke::new(1.0, stroke)).corner_radius(CornerRadius::same(255)).inner_margin(egui::Margin::symmetric(7, 1)).show(ui, |ui| { ui.label(RichText::new("리미터").size(10.5).family(style::bold()).color(col)); }).response.on_hover_text("리미터가 큰 소리를 누르는 중");
         });
+        // 음성 싱크: 소리를 ms 단위로 늦추거나 앞당김 (미리보기·내보내기 같이)
+        ui.add_space(4.0);
+        self.sync_row(ui, label_w);
         // 들어 보기
         ui.add_space(4.0);
         let playing = self.player.playing();
@@ -215,5 +236,57 @@ impl App {
         ui.add_space(6.0);
         ui.add(egui::Label::new(RichText::new("맨 끝에 리미터가 있어 크게 키워도 소리가 찢어지지 않습니다(최대 -1.5 dB). 미리보기와 내보낸 영상에 똑같이 적용됩니다. 원본에 이미 깨져 녹음된 소리는 되살리지 못합니다.").size(11.5).color(style::MUTED)).wrap());
         if self.player.playing() { ui.ctx().request_repaint(); }
+    }
+
+    /// [목소리] 탭의 "음성 싱크" 줄: −50 −10 [숫자 ms] +10 +50 [0]
+    fn sync_row(&mut self, ui: &mut egui::Ui, label_w: f32) {
+        let cur = self.audio_offset();
+        let mut ms = (cur * 1000.0).round();
+        let mut set: Option<f64> = None;
+        let mut rects: Vec<(&'static str, egui::Rect)> = vec![];
+        ui.horizontal(|ui| {
+            ui.allocate_ui_with_layout(egui::vec2(label_w, 32.0), egui::Layout::left_to_right(egui::Align::Center), |ui| ui.label(RichText::new("음성 싱크").size(13.0).color(style::MUTED)));
+            ui.spacing_mut().item_spacing.x = 3.0;
+            ui.spacing_mut().button_padding.x = 4.0;   // 좁은 왼쪽 칸에서도 한 줄에
+            let small = |ui: &mut egui::Ui, s: &str, tip: &str| ui.add(egui::Button::new(RichText::new(s).size(12.0).family(style::semi()).color(style::TEXT2)).fill(Color32::WHITE).stroke(Stroke::new(1.0, style::BORDER_STRONG)).corner_radius(CornerRadius::same(8)).min_size(egui::vec2(32.0, 26.0))).on_hover_text(tip);
+            for (k, s, dms) in [("-50", "−50", -50.0), ("-10", "−10", -10.0)] {
+                let r = small(ui, s, "소리를 앞당김 (ms)");
+                rects.push((k, r.rect));
+                if r.clicked() { set = Some(ms + dms); }
+            }
+            let max = sync::MAX * 1000.0;
+            let r = ui.add_sized(egui::vec2(66.0, 26.0), egui::DragValue::new(&mut ms).speed(1.0).range(-max..=max).fixed_decimals(0).suffix(" ms"))
+                .on_hover_text("끌거나 눌러서 숫자 넣기 (ms). + 는 소리를 늦춤, − 는 소리를 앞당김");
+            rects.push(("value", r.rect));
+            if r.dragged() && r.changed() {
+                // 끄는 동안에는 값만 바꾸고, 놓을 때 미리보기·되돌리기
+                if !self.audio.sync_drag { self.push_undo(); self.audio.sync_drag = true; }
+                sync::set(&mut self.project.rest, ms / 1000.0);
+            } else if r.changed() { set = Some(ms); }
+            if r.drag_stopped() && self.audio.sync_drag { set = Some(ms); }
+            for (k, s, dms) in [("+10", "+10", 10.0), ("+50", "+50", 50.0)] {
+                let r = small(ui, s, "소리를 늦춤 (ms)");
+                rects.push((k, r.rect));
+                if r.clicked() { set = Some(ms + dms); }
+            }
+            let r = ui.add_enabled(cur != 0.0, egui::Button::image_and_text(icons::img("rotate-ccw", 12.0, style::TEXT2), RichText::new("0").size(12.0).color(style::TEXT2)).fill(Color32::TRANSPARENT).corner_radius(CornerRadius::same(8)).min_size(egui::vec2(0.0, 26.0)))
+                .on_hover_text("음성 싱크를 0 으로 되돌리기");
+            rects.push(("reset", r.rect));
+            if r.clicked() { set = Some(0.0); }
+        });
+        self.audio.sync_rects = rects;
+        if let Some(v) = set {
+            if self.audio.sync_drag {
+                // 끌기를 마침: 끄기 전은 이미 기록했다
+                self.audio.sync_drag = false;
+                sync::set(&mut self.project.rest, v / 1000.0);
+                self.push_undo(); self.unsaved = true;
+                let d = self.audio_offset(); self.player.set_audio_offset(d);
+            } else { self.change_sync(v / 1000.0); }
+        }
+        ui.horizontal(|ui| {
+            ui.add_space(label_w + ui.spacing().item_spacing.x);
+            ui.add(egui::Label::new(RichText::new(format!("지금 {}  ·  + 는 소리를 늦춤, − 는 소리를 앞당김. 원본 소리가 화면보다 빠르면 +, 늦으면 −", sync::describe(self.audio_offset()))).size(11.5).color(style::MUTED)).wrap());
+        });
     }
 }

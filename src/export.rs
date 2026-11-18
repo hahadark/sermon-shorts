@@ -53,6 +53,8 @@ pub struct Request {
     /// run() 이 채운다: 받아 둔 음악 파일과 배치 (렌더러가 아무 파일이나 넣지 못하게 id 로만 받는다)
     pub bgm_file: Option<PathBuf>,
     pub bgm_plan: Option<crate::bgm::Plan>,
+    /// 음성 싱크 오프셋 (초, + 는 소리를 늦춤, 프로젝트 audioOffset). 0 이면 인자가 Electron 과 똑같다
+    pub audio_offset: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -134,6 +136,13 @@ pub fn build_args(r: &Request, temp: &Path, line_images: &[Vec<LineImage>], enco
     let bg_in = if layers.bg_image { add_image(&mut args, "bg.png") } else { -1 };
     let under_in = if layers.under { add_image(&mut args, "under.png") } else { -1 };
     let mask_in = if layers.mask { add_image(&mut args, "mask.png") } else { -1 };
+    // 음성 싱크: 소리는 같은 원본을 따로 한 번 더 열어 오프셋만큼 옮긴 자리에서 가져온다 (영상·자막 시각은 그대로)
+    let d = crate::sync::clamp(r.audio_offset);
+    let audio = audio_input(segs, start_t, end_t, d);
+    let audio_in = if let Some((ta, tb)) = audio {
+        args.extend(["-ss".into(), fx(ta, 3), "-to".into(), fx(tb, 3), "-i".into(), r.source.to_string_lossy().into()]);
+        next += 1; next - 1
+    } else { -1 };
 
     let mut fg = String::new();
     for (i, seg) in segs.iter().enumerate() {
@@ -142,7 +151,10 @@ pub fn build_args(r: &Request, temp: &Path, line_images: &[Vec<LineImage>], enco
         let f = fx(fade, 3);
         let fo = fx(seg.end - seg.start - fade, 3);
         fg += &format!("[0:v]trim=start={s0}:end={e0},setpts=PTS-STARTPTS[v{i}]; ");
-        fg += &format!("[0:a]atrim=start={s0}:end={e0},asetpts=PTS-STARTPTS,afade=t=in:d={f},afade=t=out:st={fo}:d={f}[a{i}]; ");
+        match audio {
+            None => fg += &format!("[0:a]atrim=start={s0}:end={e0},asetpts=PTS-STARTPTS,afade=t=in:d={f},afade=t=out:st={fo}:d={f}[a{i}]; "),
+            Some((ta, _)) => fg += &format!("{},afade=t=in:d={f},afade=t=out:st={fo}:d={f}[a{i}]; ", audio_piece(audio_in, seg.start, seg.end, start_t, ta, d)),
+        }
     }
     let ins: String = (0..segs.len()).map(|i| format!("[v{i}][a{i}]")).collect();
     fg += &format!("{ins}concat=n={}:v=1:a=1[vcat][acat]; ", segs.len());
@@ -191,6 +203,34 @@ pub fn build_args(r: &Request, temp: &Path, line_images: &[Vec<LineImage>], enco
     args.extend(["-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-r", "30", "-movflags", "+faststart", "-progress", "pipe:1"].iter().map(|x| x.to_string()));
     args.push(r.out.to_string_lossy().into());
     Ok((args, fg))
+}
+
+/// 음성 싱크용 소리 입력의 원본 범위 (-ss, -to). 오프셋이 0 이면 None (영상 입력의 소리를 그대로)
+pub fn audio_input(segs: &[Segment], start_t: f64, end_t: f64, d: f64) -> Option<(f64, f64)> {
+    if d == 0.0 { return None; }
+    let ta = ((start_t - d).max(0.0) * 1000.0).round() / 1000.0;
+    let longest = segs.iter().map(|s| s.end - s.start).fold(0.0, f64::max);
+    // 구간 전체가 0초 앞에 떨어져도(무음 구간) 자를 소리가 있도록 끝은 넉넉히
+    let tb = (end_t - d).max(ta + longest + 1.0);
+    Some((ta, tb))
+}
+
+/// 음성 싱크 구간 하나의 소리 필터 (afade 앞까지): 원본 [a−d, b−d) 를 자르고, 0초 앞은 앞 무음(adelay),
+/// 모자라면 뒤 무음(apad) → 영상 구간과 같은 길이(atrim end)
+pub fn audio_piece(input: i32, a: f64, b: f64, start_t: f64, ta: f64, d: f64) -> String {
+    // 영상 trim 과 같은 ms 반올림 길이
+    let r3 = |x: f64| (x * 1000.0).round() / 1000.0;
+    let len = (r3((b - start_t).max(0.0)) - r3((a - start_t).max(0.0))).max(0.0);
+    let w = crate::sync::window(a, b, d);
+    let mut f = if w.dur() > 0.0005 {
+        format!("[{input}:a]atrim=start={}:end={},asetpts=PTS-STARTPTS", fx((w.src_start - ta).max(0.0), 3), fx((w.src_end - ta).max(0.0), 3))
+    } else {
+        // 구간 전체가 원본 소리 밖: 아무 소리나 자르고 끄기 (길이·형식만 맞춤)
+        format!("[{input}:a]atrim=start=0:end={},asetpts=PTS-STARTPTS,volume=0", fx(len.max(0.001), 3))
+    };
+    if w.lead >= 0.0005 && w.dur() > 0.0005 { f += &format!(",adelay=delays={}:all=1", fx(w.lead * 1000.0, 3)); }
+    f += &format!(",apad,atrim=end={}", fx(len, 3));
+    f
 }
 
 /// JS 숫자 → 문자열 (정수는 소수점 없이)
