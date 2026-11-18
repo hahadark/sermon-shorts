@@ -2,6 +2,15 @@
 
 일반 사용자는 [GitHub 릴리스](https://github.com/hahadark/sermon-shorts/releases/latest)의 Windows 설치 파일 또는 Mac용 DMG·ZIP과 [캡처 사용 설명서](USER_GUIDE.md)를 사용하세요. 앱의 **도움말 → 사용 설명서**에서도 열 수 있습니다.
 
+## Rust판 (0.4.0부터 메인)
+- **Windows**: `SermonShorts-Rust-버전-win-x64.zip`을 받아 원하는 곳(예: 문서 폴더)에 풀고 `SermonShorts.exe`를 실행합니다. 설치가 필요 없습니다. 경고창이 나오면 **추가 정보 → 실행**.
+- **Mac**: `SermonShorts-Rust-버전-mac-arm64.dmg`(Apple 칩) 또는 `-mac-intel.dmg`(Intel)를 열어 앱을 응용 프로그램으로 옮깁니다. 처음 열 때는 아래 Mac 항목의 방법으로 엽니다.
+- 처음 실행할 때 음성 인식 엔진이 없으면 **시스템 점검** 창이 열립니다. **[필요한 것 모두 설치]**를 누르세요.
+- 설정·자동 저장·배경음악 보관함·AI 연결·테마는 Electron판과 같은 사용자 폴더(`%APPDATA%\SermonShorts`)를 씁니다. 하던 프로젝트(.sshorts)를 그대로 엽니다.
+- 새 판이 나오면 스스로 받아 두었다가 닫을 때 바꿔 끼웁니다.
+
+아래는 예전 Electron판(v0.3.x) 안내입니다.
+
 ## Windows 설치판
 1. `SermonShorts-Setup-버전-x64.exe`를 실행합니다. 코드 서명이 없는 베타이므로 릴리스 출처와 SHA256을 확인하세요.
 2. 바탕 화면 **설교쇼츠편집기**를 실행합니다. 앱 실행과 영상 편집·출력에는 Node.js를 따로 설치하지 않습니다.

@@ -16,11 +16,11 @@
 처음 한 번만 1~3을 하고, 그다음부터는 **4번만** 하면 됩니다.
 
 **1. 프로그램 설치**
-- [내려받기 페이지](https://github.com/hahadark/sermon-shorts/releases/latest)의 **Assets** 아래에서 `SermonShorts-Setup-버전-x64.exe`(Windows)를 눌러 받고 실행합니다.
+- [내려받기 페이지](https://github.com/hahadark/sermon-shorts/releases/latest)의 **Assets** 아래에서 `SermonShorts-Rust-버전-win-x64.zip`(Windows)을 받아 압축을 풀고 `SermonShorts.exe`를 실행합니다. (0.4.0부터 새로 만든 **Rust판이 메인**입니다. 예전 Electron판 `SermonShorts-Setup-…exe`를 쓰던 분은 자동으로 안내를 받습니다)
 - 파란 경고창(PC 보호)이 나오면 **추가 정보 → 실행**을 누릅니다. (코드 서명이 없는 무료 프로그램이라 나오는 경고입니다)
 - 설치 끝에 *"자막 엔진도 설치할까요?"*가 나오면 **아니요**를 눌러도 됩니다.
 - 한 번 설치하면 그다음부터는 프로그램이 새 버전을 알아서 받아 설치합니다.
-- **Mac**: Apple 칩은 `*-mac-arm64.dmg`, Intel은 `*-mac-intel.dmg`를 받아 응용 프로그램 폴더에 앱을 옮깁니다. [처음 실행·설치 안내](docs/INSTALL.md#mac-베타)를 확인하세요.
+- **Mac**: Apple 칩은 `SermonShorts-Rust-*-mac-arm64.dmg`, Intel은 `SermonShorts-Rust-*-mac-intel.dmg`를 받아 응용 프로그램 폴더에 앱을 옮깁니다. [처음 실행·설치 안내](docs/INSTALL.md#mac-베타)를 확인하세요.
 
 **2. AI 연결** — 프로그램을 처음 열면 [AI 연결] 창이 뜹니다. 넷 중 **하나만** 연결하세요.
 
