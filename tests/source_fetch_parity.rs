@@ -19,7 +19,7 @@ fn same_json(a: &Value, b: &Value, what: &str) {
 fn map_of(v: &Value) -> Vec<sf::Piece> { sf::clean_map(v).unwrap_or_default() }
 
 fn check_subs(fx: &Value, tag: &str) {
-    let (words, lines) = chat_plan::words_from_json3(&fx["json3"]);
+    let (words, lines) = chat_plan::words_from_json3_legacy(&fx["json3"]);   // Electron 과 같은 예전 방식 (되찾기용)
     let js = fx["subWords"].as_array().unwrap();
     assert_eq!(words.len(), js.len(), "{tag} 단어 수");
     for (i, (w, j)) in words.iter().zip(js).enumerate() {
