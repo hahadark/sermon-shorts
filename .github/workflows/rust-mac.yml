@@ -17,6 +17,11 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+      - name: Xcode 26 고르기 (맥 받아쓰기 도우미에 macOS 26 SDK 필요, 없으면 그대로)
+        run: |
+          X="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$X" ]; then sudo xcode-select -s "$X"; fi
+          xcodebuild -version | head -1; xcrun --show-sdk-version
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: 구글 OAuth 클라이언트 넣기 (실행 파일 안으로)
