@@ -58,7 +58,7 @@ bash tools/mac_smoke.sh dist/SermonShorts.app smoke   # 빈 사용자 자료로 
 
 ## 6. 코드 지도
 - `src/main.rs` 앱 상태·창 배치, `ui_frame.rs` 위쪽 막대·메뉴, `ui_side.rs` 왼쪽(미리보기·디자인 탭), `ui_captions.rs` 자막 칸, `ui_trim.rs`·`ui_trim_words.rs` 세부 조정, `ui_chat.rs` AI 편집 대화, `ui_export.rs` 내보내기·완성 영상 창, `ui_materials.rs` 교인 자료, `ui_settings.rs` 설정, `ui_theme_editor.rs` 테마 편집기, `ui_update.rs` 업데이트 알림, `ui_panes.rs` 칸 크기, `ui_proxy.rs` 부드러운 미리보기, `ui_tests.rs` 화면 시험 단계.
-- 라이브러리(`src/lib.rs`): `player.rs` 재생, `export.rs` 내보내기(ffmpeg), `edl.rs` 구간 계산, `template.rs` 화면 그리기, `youtube.rs`·`ytdlp.rs` 유튜브, `stt.rs` 음성 인식, `llm.rs`·`chat.rs` AI, `updater.rs`·`delta.rs` 업데이트, `secret.rs` 비밀 값, `sync.rs` 음성 싱크, `word_trim.rs` 단어별 조정.
+- 라이브러리(`src/lib.rs`): `player.rs` 재생, `export.rs` 내보내기(ffmpeg), `edl.rs` 구간 계산, `template.rs` 화면 그리기, `youtube.rs` 유튜브·yt-dlp, `stt.rs` 음성 인식, `llm.rs`·`chat.rs` AI, `updater.rs`·`delta.rs` 업데이트, `secret.rs` 비밀 값, `sync.rs` 음성 싱크, `word_trim.rs` 단어별 조정.
 - 프로젝트 파일(.sshorts)은 Electron판과 같은 JSON (`project.rs` 가 모르는 항목은 그대로 보존).
 
 ## 7. 일하는 규칙
