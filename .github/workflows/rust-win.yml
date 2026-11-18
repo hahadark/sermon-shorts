@@ -1,0 +1,75 @@
+# rust 가지를 푸시하면 Windows 압축본(zip)·설치 프로그램(Setup.exe)·덩어리를 만들어 내려받을 수 있게 둔다 (PC 의 tools/win_package.ps1 과 같은 순서).
+# ffmpeg·yt-dlp·LICENSE·읽어보세요 는 가장 최근 Rust 릴리스의 Windows 압축본에서 가져온다 (PC 에서 -BinFrom 으로 주던 이전 패키지).
+# 릴리스에 올리는 일은 사람이 확인한 뒤 따로 한다.
+name: Rust Windows
+
+on:
+  push:
+    branches: [rust]
+  workflow_dispatch:
+
+jobs:
+  win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: 구글 OAuth 클라이언트 넣기 (실행 파일 안으로)
+        shell: bash
+        env:
+          GOOGLE_CLIENT_JSON: ${{ secrets.GOOGLE_CLIENT_JSON }}
+        run: if [ -n "$GOOGLE_CLIENT_JSON" ]; then printf '%s' "$GOOGLE_CLIENT_JSON" > assets/google-client.json; echo 넣음; else echo 없음; fi
+      - name: 빌드
+        run: cargo build --release
+      - name: 계산 시험 (공개 저장소에 있는 자료로)
+        run: cargo test --release --test bgm_parity --test llm_parity --test settings_parity --test snap_parity --test ytmeta_parity --test delta --test json3_words
+      - name: 이전 Windows 압축본 (ffmpeg·yt-dlp·안내문)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = gh release list -R $env:GITHUB_REPOSITORY --limit 30 --json tagName,isPrerelease,isDraft --jq '[.[] | select((.tagName | startswith("rust-v")) and (.isPrerelease | not) and (.isDraft | not))][0].tagName'
+          "이전 판: $tag"
+          $prev = Join-Path $env:RUNNER_TEMP 'prev'; New-Item -ItemType Directory $prev | Out-Null
+          gh release download $tag -R $env:GITHUB_REPOSITORY -p 'SermonShorts-Rust-*-win-x64.zip' -D $prev
+          Expand-Archive (Get-ChildItem $prev -Filter *.zip)[0].FullName -DestinationPath $prev
+          $bin = (Get-ChildItem $prev -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'bin\ffmpeg.exe') })[0].FullName
+          "BIN_FROM=$bin" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+      - name: NSIS
+        run: choco install nsis -y --no-progress
+      - name: 압축본·설치 프로그램·덩어리
+        shell: pwsh
+        run: |
+          $dist = Join-Path $env:GITHUB_WORKSPACE 'dist'; New-Item -ItemType Directory $dist | Out-Null
+          $mk = @("${env:ProgramFiles(x86)}\NSIS\makensis.exe", "$env:ProgramFiles\NSIS\makensis.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+          ./tools/win_package.ps1 -Dist $dist -BinFrom $env:BIN_FROM -MakeNsis $mk
+      - name: 실행 시험 (빈 사용자 자료로 화면 찍기)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ver = (Select-String Cargo.toml -Pattern '^version = "([^"]+)"').Matches[0].Groups[1].Value
+          $exe = "dist\SermonShorts-Rust-$ver-win-x64\SermonShorts.exe"
+          $env:SS_USER_DATA_DIR = Join-Path $env:RUNNER_TEMP 'ud'; New-Item -ItemType Directory $env:SS_USER_DATA_DIR | Out-Null
+          $env:SS_NO_UPDATE = '1'; $env:SS_TEST_MUTE = '1'; $env:SS_TEST_YTFAKE = '1'
+          New-Item -ItemType Directory smoke -Force | Out-Null
+          $p = Start-Process $exe -ArgumentList @('--test', 'shot', '--report', (Join-Path $PWD 'smoke\empty.png')) -PassThru
+          if (-not $p.WaitForExit(90000)) { $p | Stop-Process -Force; throw '시간 초과' }
+          if (-not (Test-Path smoke\empty.png)) { throw '화면 그림 없음' }
+          '화면 그림 있음'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-win
+          path: smoke/
+          if-no-files-found: warn
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: win-x64
+          path: |
+            dist/*.zip
+            dist/*.exe
+            dist/*.json
+          if-no-files-found: error
+          retention-days: 14

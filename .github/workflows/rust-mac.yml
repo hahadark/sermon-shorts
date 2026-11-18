@@ -26,7 +26,7 @@ jobs:
       - name: 빌드
         run: cargo build --release
       - name: 계산 시험 (공개 저장소에 있는 자료로)
-        run: cargo test --release --test bgm_parity --test llm_parity --test settings_parity --test snap_parity --test ytmeta_parity --test mac_crypt_parity --test delta
+        run: cargo test --release --test bgm_parity --test llm_parity --test settings_parity --test snap_parity --test ytmeta_parity --test mac_crypt_parity --test delta --test json3_words
       - name: 서명 인증서 넣기 (업데이트해도 같은 앱으로 보이게)
         env:
           MAC_SIGN_P12: ${{ secrets.MAC_SIGN_P12 }}
