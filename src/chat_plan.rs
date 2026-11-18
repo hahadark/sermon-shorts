@@ -18,39 +18,82 @@ fn js_space(c: char) -> bool { c.is_whitespace() || c == '\u{feff}' }
 fn num(v: &Value) -> f64 { v.as_f64().filter(|x| *x != 0.0).unwrap_or(0.0) }
 
 /// json3 → (단어, 줄). 시간은 원본 영상 기준 초
-pub fn words_from_json3(data: &Value) -> (Vec<SubWord>, Vec<SubLine>) {
-    let mut words: Vec<(SubWord, f64)> = vec![];
+///  - 유튜브 자동 자막(ASR): 조각(seg)마다 낱말 하나와 tOffsetMs 가 있다 → 조각 시각 그대로 (기존 chat-plan.js 와 같음)
+///  - 손으로 올린 자막(브루 등): 한 조각에 문장 하나가 통째로, 낱말 시각이 없다 → 그 조각이 차지하는 시간
+///    (다음 조각/다음 자막 시작 또는 자막 끝까지)에 음절 수만큼 나눠 놓는다. 예전에는 0.05초 간격으로 앞에 몰아 두어
+///    자막이 말보다 먼저 나왔다 사라지고, 남긴 구간 끝 문장이 잘렸다.
+pub fn words_from_json3(data: &Value) -> (Vec<SubWord>, Vec<SubLine>) { let (w, l, _) = words_from_json3_with(data, true); (w, l) }
+/// 손 자막에서 사람이 나눈 줄 끝(조각 안 줄바꿈·자막 끝)인 단어: words_from_json3 의 단어와 같은 차례. 자동 자막은 모두 false
+/// (편집기에 넣을 때 br 로 넣어, 이미 뜻 단위로 나눠 둔 자막 줄을 그대로 살린다)
+pub fn json3_caption_breaks(data: &Value) -> Vec<bool> { words_from_json3_with(data, true).2 }
+/// 예전(Electron chat-plan.js) 방식 그대로: 한 조각 안 낱말을 0.05초 간격으로. 예전에 만든 편집의 위치를 되찾을 때만 쓴다
+/// (그때 저장된 단어 시각이 이 방식으로 계산됐으므로 같은 방식으로 맞춰야 한다)
+pub fn words_from_json3_legacy(data: &Value) -> (Vec<SubWord>, Vec<SubLine>) { let (w, l, _) = words_from_json3_with(data, false); (w, l) }
+fn words_from_json3_with(data: &Value, spread: bool) -> (Vec<SubWord>, Vec<SubLine>, Vec<bool>) {
+    // (단어, 자막 끝, 나눠 놓은 칸의 끝 — 손 자막만)
+    let mut words: Vec<(SubWord, f64, Option<f64>)> = vec![];
     let mut lines = vec![];
-    for ev in data["events"].as_array().into_iter().flatten() {
-        let Some(segs) = ev["segs"].as_array() else { continue };
+    let mut breaks: Vec<bool> = vec![];
+    let evs: Vec<&Value> = data["events"].as_array().into_iter().flatten().filter(|ev| ev["segs"].is_array()).collect();
+    for (ei, ev) in evs.iter().enumerate() {
+        let segs = ev["segs"].as_array().unwrap();
         let t0 = num(&ev["tStartMs"]) / 1000.0;
         let ev_end = t0 + num(&ev["dDurationMs"]) / 1000.0;
+        // 나눠 놓을 때 넘지 않을 끝: 자막 끝, 단 다음 자막이 먼저 시작하면 거기까지 (글자가 있는 자막만 본다)
+        let next_ev = evs[ei + 1..].iter().find(|e| e["segs"].as_array().is_some_and(|ss| ss.iter().any(|s| s["utf8"].as_str().is_some_and(|t| !t.trim().is_empty())))).map(|e| num(&e["tStartMs"]) / 1000.0);
+        let limit = match next_ev { Some(n) if n > t0 && (ev_end <= t0 || n < ev_end) => n, _ => ev_end };
         let from = words.len();
-        for s in segs {
+        // 조각마다 (시작, 낱말, 낱말마다 '사람이 나눈 줄 끝인가')
+        let parts: Vec<(f64, Vec<String>, Vec<bool>)> = segs.iter().filter_map(|s| {
             let raw = match &s["utf8"] { Value::String(x) => x.clone(), Value::Null => String::new(), v => v.to_string() };
-            let text = raw.split(js_space).filter(|p| !p.is_empty()).collect::<Vec<_>>().join(" ");
-            if text.is_empty() { continue; }
-            let st = t0 + num(&s["tOffsetMs"]) / 1000.0;
-            let mut q = 0.0;
-            for p in text.split(' ') {
-                if p.is_empty() || p == ">>" { continue; }
-                words.push((SubWord { text: p.to_string(), start: st + q * 0.05, end: 0.0 }, ev_end));
-                q += 1.0;
+            let (mut ws, mut ends) = (vec![], vec![]);
+            for row in raw.split('\n') {
+                let n0 = ws.len();
+                ws.extend(row.split(js_space).filter(|p| !p.is_empty() && *p != ">>").map(String::from));
+                ends.resize(ws.len(), false);
+                if ws.len() > n0 { ends[ws.len() - 1] = true; }
+            }
+            (!ws.is_empty()).then(|| (t0 + num(&s["tOffsetMs"]) / 1000.0, ws, ends))
+        }).collect();
+        let np = parts.len();
+        for (k, (st, ws, ends)) in parts.iter().enumerate() {
+            let seg_end = parts.get(k + 1).map(|p| p.0).unwrap_or(limit);
+            if !spread || ws.len() == 1 || seg_end - st < 0.12 * ws.len() as f64 {
+                // 자동 자막(낱말 하나) 또는 나눌 시간이 없음: 기존처럼
+                for (q, p) in ws.iter().enumerate() { words.push((SubWord { text: p.clone(), start: st + q as f64 * 0.05, end: 0.0 }, ev_end, None)); breaks.push(false); }
+                continue;
+            }
+            // 손 자막: 사람이 나눈 줄 끝과 자막 끝을 줄 바꿈으로
+            for (q, &e) in ends.iter().enumerate() { breaks.push(e || (k + 1 == np && q + 1 == ws.len())); }
+            // 손 자막: 음절 수(+ 띄어쓰기 몫)에 비례해 [st, seg_end) 에 나눠 놓는다
+            let weight = |p: &str| syllables(p) as f64 + 0.5;
+            let total: f64 = ws.iter().map(|p| weight(p)).sum();
+            let span = seg_end - st;
+            let mut acc = 0.0;
+            for p in ws {
+                let a = st + span * acc / total;
+                acc += weight(p);
+                let b = st + span * acc / total;
+                words.push((SubWord { text: p.clone(), start: a, end: 0.0 }, ev_end, Some(b)));
             }
         }
         if words.len() > from { lines.push(SubLine { start: words[from].0.start, from, to: words.len() - 1 }); }
     }
-    // 단어 끝: 다음 단어 시작 전, 글자 수로 어림한 길이만큼
+    // 단어 끝: 다음 단어 시작 전, 글자 수로 어림한 길이만큼 (손 자막은 나눠 놓은 칸 끝까지)
     let n = words.len();
     for i in 0..n {
         let next = if i + 1 < n { words[i + 1].0.start } else { words[i].1 };
-        let ev_end = words[i].1;
+        let (ev_end, slot) = (words[i].1, words[i].2);
         let w = &mut words[i].0;
+        if let Some(b) = slot {
+            w.end = (w.start + 0.12).max((b - 0.02).min(next - 0.02).max(w.start + 0.05));
+            continue;
+        }
         let est = w.start + syllables(&w.text) as f64 * SYL + 0.08;
         w.end = (w.start + 0.12).max((next - 0.02).min(est).min(ev_end.max(w.start + 0.12)));
         if w.end <= w.start { w.end = w.start + 0.12; }
     }
-    (words.into_iter().map(|x| x.0).collect(), lines)
+    (words.into_iter().map(|x| x.0).collect(), lines, breaks)
 }
 
 // ---------------- JS 와 같은 동작을 위한 작은 도구 ----------------

@@ -15,6 +15,8 @@ pub struct SPlan { pub title: String, pub verse: String, pub tighten: String, pu
 pub struct Session {
     pub url: String, pub title: String, pub duration: f64,
     pub words: Vec<SubWord>, pub lines: Vec<SubLine>,
+    /// 손 자막에서 사람이 나눈 줄 끝인 단어 (words 와 같은 차례, 없으면 비어 있음): 편집기에 br 로 넣는다
+    pub breaks: Vec<bool>,
     pub history: Vec<Msg>, pub plan: Option<SPlan>, pub sermon: Option<(usize, usize)>, pub candidates: Vec<Candidate>,
 }
 pub type Shared = Arc<Mutex<Option<Session>>>;
@@ -74,7 +76,10 @@ pub fn load_video(shared: &Shared, url: &str) -> Result<Loaded, String> {
     };
     let (words, lines) = cp::words_from_json3(&raw);
     if words.len() < 20 { return Err("자막이 너무 짧습니다. 다른 영상을 넣어 주세요.".into()); }
-    Ok(start_session(shared, url, &info.title, info.duration, words, lines, false, false))
+    let breaks = cp::json3_caption_breaks(&raw);
+    let r = start_session(shared, url, &info.title, info.duration, words, lines, false, false);
+    if let Some(s) = shared.lock().unwrap().as_mut() { if breaks.len() == s.words.len() { s.breaks = breaks; } }
+    Ok(r)
 }
 
 /// 유튜브 자막이 없는 영상: 소리를 받아(이미 받았으면 그대로) 위스퍼로 자막을 만든다. progress(stage "download"|"transcribe", pct)

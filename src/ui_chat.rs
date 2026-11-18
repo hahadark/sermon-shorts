@@ -520,7 +520,7 @@ impl App {
     fn chat_finish_apply(&mut self, plan: ApplyPlan, replay: bool, first: bool, mut card: Card) {
         let Some(lf) = self.chat.last_fetch.clone() else { self.chat_push(M::Err { t: "영상을 열지 못했습니다".into() }); return };
         card.step("apply", Some("편집기에 넣는 중".into()), None); card.pct = None;
-        let words = { let g = self.chat.shared.lock().unwrap(); g.as_ref().map(|s| s.words.clone()).unwrap_or_default() };
+        let (words, breaks) = { let g = self.chat.shared.lock().unwrap(); g.as_ref().map(|s| (s.words.clone(), s.breaks.clone())).unwrap_or_default() };
         let n = words.len();
         let (mut kept, mut starts) = (vec![false; n], vec![false; n]);
         for &(f, t) in &plan.ranges { if f < n { starts[f] = true; } for k in f..=t.min(n.saturating_sub(1)) { kept[k] = true; } }
@@ -531,7 +531,7 @@ impl App {
             let (Some(fs0), Some(fe0)) = (src_to_file(&lf.map, w.start), src_to_file(&lf.map, w.end)) else { continue };
             // 조각이 바뀌는 곳에서는 항상 컷
             let jump = prev.is_some_and(|(pf, ps)| ((fs0 - pf) - (w.start - ps)).abs() > 0.5);
-            ew.push(json!({ "id": ew.len(), "text": corr.get(&i).cloned().unwrap_or_else(|| w.text.clone()), "sttText": w.text, "start": fs0, "end": fe0.max(fs0 + 0.05), "score": 1, "del": !kept[i], "br": false, "cutBefore": starts[i] || jump }));
+            ew.push(json!({ "id": ew.len(), "text": corr.get(&i).cloned().unwrap_or_else(|| w.text.clone()), "sttText": w.text, "start": fs0, "end": fe0.max(fs0 + 0.05), "score": 1, "del": !kept[i], "br": breaks.get(i).copied().unwrap_or(false), "cutBefore": starts[i] || jump }));
             prev = Some((fs0, w.start));
         }
         let mut wv: Vec<Word> = match serde_json::from_value(Value::Array(ew)) { Ok(w) => w, Err(e) => { self.chat_push(M::Err { t: format!("다시 적용하지 못했습니다: {e}") }); return; } };

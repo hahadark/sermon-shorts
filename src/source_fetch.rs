@@ -191,7 +191,7 @@ pub fn remap_project(data: &Value, f2s: &dyn Fn(f64) -> Option<f64>, s2f: &dyn F
 
 /// 유튜브 자막 단어 (원본 시각): 예전 AI 대화 편집의 위치를 되찾을 때 (기존 source:subWords)
 pub fn sub_words(url: &str) -> Result<Vec<chat_plan::SubWord>, String> {
-    Ok(match yt::fetch_auto_subs_raw(url)? { Some(raw) => chat_plan::words_from_json3(&raw).0, None => vec![] })
+    Ok(match yt::fetch_auto_subs_raw(url)? { Some(raw) => chat_plan::words_from_json3_legacy(&raw).0, None => vec![] })
 }
 
 /// 다시 받고 시각을 옮긴 프로젝트 데이터 (기존 source-recover.js redownload). ui(퍼센트, 글)
