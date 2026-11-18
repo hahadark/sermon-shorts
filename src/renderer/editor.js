@@ -583,6 +583,13 @@
     const slot = span.closest('.caption-block').querySelector('.caption-word-editor');
     slot.textContent = '출력 단어 수정: ';
     slot.appendChild(input);
+    // 다른 곳을 눌러 칸을 떠나도 적용 (Esc 만 취소). 맥 한글 입력은 글자를 끝내는 첫 Enter 가 조합에 쓰여, Enter 한 번 뒤 다른 곳을 누르면 고친 것이 버려지던 문제
+    let cancelled = false;
+    input.addEventListener('keydown', (e) => { if (e.key === 'Escape') cancelled = true; }, true);
+    input.addEventListener('blur', () => {
+      if (cancelled || !input.isConnected) return;
+      if (w.text !== input.value) { w._oldText = w._oldText || w.text; w.text = input.value; pushHistory(); renderTranscript(); }
+    });
     input.focus();
     input.select();
   };

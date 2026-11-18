@@ -20,7 +20,8 @@
       await window.api.mkdir(tempDir);
       if (SS.ensureFonts) await SS.ensureFonts(theme);
       await document.fonts.ready;
-      let logo = theme.logo.path;
+      // 미리보기와 같은 로고: 메인 화면·설정에서 고른 교회 로고가 먼저 (없으면 테마에 든 로고) — 예전에는 테마 로고 경로가 비어 기본 로고로 나갔다
+      let logo = (SS.appSettings && SS.appSettings.template && SS.appSettings.template.logoPath) || theme.logo.path || '';
       if (/^assets[\\/]images[\\/](sa-)?crest\.png$/i.test(logo)) logo = '';
       if (SS.loadLogoFromPath) await SS.loadLogoFromPath(logo);
       const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;
