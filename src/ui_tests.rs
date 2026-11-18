@@ -1091,6 +1091,33 @@ impl App {
                 if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
                 self.unsaved = false; ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
             }
+            // 내보내기 멈추기: 내보내기 시작 → 영상 만드는 중 [멈추기] → 파일 없음·오류 창 없음·다시 내보낼 수 있음
+            ("exportstop", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
+                let out = PathBuf::from(t.report.clone().unwrap()).with_extension("mp4");
+                let _ = std::fs::remove_file(&out);
+                self.test_words = json!({ "out": out.to_string_lossy() }).to_string();
+                self.export_to(out);
+                t.step = 1; t.t0 = Instant::now();
+            }
+            ("exportstop", 1) if self.export.as_ref().is_some_and(|j| j.progress.lock().map(|p| p.stage.contains("영상") && p.pct > 15.0).unwrap_or(false)) || t.t0.elapsed().as_secs_f64() > 60.0 => {
+                let r = ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("export-stop")));
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["pctAtStop"] = json!(self.export.as_ref().map(|j| j.progress.lock().map(|p| p.pct).unwrap_or(0.0)));
+                if let Some(r) = r { self.t_click(r.center(), egui::Modifiers::NONE); } else { info["noStopBtn"] = json!(true); }
+                self.test_words = info.to_string();
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("exportstop", 2) if self.export.is_none() && t.t0.elapsed().as_secs_f64() > 0.5 || t.step == 2 && t.t0.elapsed().as_secs_f64() > 30.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let out = PathBuf::from(info["out"].as_str().unwrap_or(""));
+                info["stopSecs"] = json!(t.t0.elapsed().as_secs_f64());
+                info["fileLeft"] = json!(out.exists());
+                info["errorWindow"] = json!(self.export_error.is_some() || self.export_view.is_some());
+                info["toast"] = json!(self.toast.as_ref().map(|x| x.0.clone()));
+                info["pass"] = json!(self.export.is_none() && !out.exists() && info["errorWindow"] == false && info["toast"] == sermon_shorts::export::CANCELLED && info["stopSecs"].as_f64().unwrap_or(99.0) < 10.0);
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                self.unsaved = false; ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
+            }
             // 칸 크기 끌기: 왼쪽 칸 +80, 대화 칸 60 넓게, 파형 60 높게, 디자인 탭 50 높게 → layout.json 저장 → 왼쪽 손잡이 두 번 누르기는 기본으로
             ("panes", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
                 let ids = ["left", "chat", "wave", "tabs"];

@@ -61,7 +61,10 @@ pub struct Request {
 pub enum Encoder { Nvenc, X264 }
 
 #[derive(Default, Clone)]
-pub struct Progress { pub pct: f32, pub stage: String, pub done: Option<Result<Done, String>> }
+pub struct Progress { pub pct: f32, pub stage: String, pub done: Option<Result<Done, String>>, /// [멈추기]를 눌렀으면 true
+    pub cancel: bool }
+/// 멈췄을 때의 오류 글 (화면에서 오류 창 대신 알림만)
+pub const CANCELLED: &str = "내보내기를 멈췄습니다.";
 #[derive(Clone, Debug)]
 pub struct Done { pub out: PathBuf, pub srt: PathBuf, pub duration: f64, pub secs: f64 }
 
@@ -304,18 +307,29 @@ fn friendly_error(raw: &str) -> String {
     format!("영상 만들기에 실패했습니다. {tail}")
 }
 
-fn run_ffmpeg(args: &[String], total: f64, prog: &dyn Fn(f32)) -> Result<(), String> {
+fn run_ffmpeg(args: &[String], total: f64, prog: &dyn Fn(f32), progress: &Arc<Mutex<Progress>>) -> Result<(), String> {
     let mut cmd = crate::media::command("ffmpeg");
     cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
     let mut child = cmd.spawn().map_err(|e| format!("ffmpeg 를 실행하지 못했습니다: {e}"))?;
     let stderr = child.stderr.take().unwrap();
     let err_thread = std::thread::spawn(move || { let mut s = String::new(); let _ = std::io::Read::read_to_string(&mut BufReader::new(stderr), &mut s); s });
+    // [멈추기]: ffmpeg 를 끝낸다
+    let finished = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    { let (f2, p2, pid) = (finished.clone(), progress.clone(), child.id());
+      std::thread::spawn(move || { while !f2.load(std::sync::atomic::Ordering::SeqCst) { if p2.lock().map(|p| p.cancel).unwrap_or(false) { kill_pid(pid); break; } std::thread::sleep(std::time::Duration::from_millis(150)); } }); }
     for line in BufReader::new(child.stdout.take().unwrap()).lines().map_while(Result::ok) {
         if let Some(v) = line.strip_prefix("out_time_ms=") { if let Ok(us) = v.trim().parse::<f64>() { prog(((us / 1e6) / total).clamp(0.0, 1.0) as f32); } }
     }
-    let status = child.wait().map_err(|e| e.to_string())?;
+    let status = child.wait().map_err(|e| e.to_string());
+    finished.store(true, std::sync::atomic::Ordering::SeqCst);
+    let status = status?;
     let err = err_thread.join().unwrap_or_default();
+    if progress.lock().map(|p| p.cancel).unwrap_or(false) { return Err(CANCELLED.into()); }
     if status.success() { Ok(()) } else { Err(err) }
+}
+fn kill_pid(pid: u32) {
+    #[cfg(windows)] { use std::os::windows::process::CommandExt; let _ = std::process::Command::new("taskkill").args(["/T", "/F", "/PID", &pid.to_string()]).creation_flags(0x0800_0000).stdout(Stdio::null()).stderr(Stdio::null()).status(); }
+    #[cfg(not(windows))] { let _ = std::process::Command::new("kill").args(["-9", &pid.to_string()]).status(); }
 }
 
 /// 전체 내보내기 (다른 스레드에서 부른다). progress 에 단계·퍼센트를 쓴다
@@ -348,18 +362,22 @@ pub fn run(mut r: Request, progress: Arc<Mutex<Progress>>) -> Result<Done, Strin
     }
     let temp = std::env::temp_dir().join(format!("sshorts_export_{}_{}", std::process::id(), t0.elapsed().as_nanos() ^ (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0))));
     std::fs::create_dir_all(&temp).map_err(|e| e.to_string())?;
+    let cancelled = || progress.lock().map(|p| p.cancel).unwrap_or(false);
     let result = (|| {
+        if cancelled() { return Err(CANCELLED.to_string()); }
         set(0.0, "자막 그림 만드는 중");
         let imgs = render_images(&r, &temp, &|f| set(f * 10.0, "자막 그림 만드는 중"))?;
+        if cancelled() { return Err(CANCELLED.to_string()); }
         let total = edl::segments_duration(&r.segs);
         let enc_prog = |f: f32| set(10.0 + f * 90.0, "영상 만드는 중");
         let (args, _) = build_args(&r, &temp, &imgs, r.encoder)?;
-        let mut res = run_ffmpeg(&args, total, &enc_prog);
-        if res.is_err() && r.encoder != Encoder::X264 {
+        let mut res = run_ffmpeg(&args, total, &enc_prog, &progress);
+        if res.is_err() && r.encoder != Encoder::X264 && !cancelled() {
             set(10.0, "영상 만드는 중 (소프트웨어 인코더)");
             let (args, _) = build_args(&r, &temp, &imgs, Encoder::X264)?;
-            res = run_ffmpeg(&args, total, &enc_prog);
+            res = run_ffmpeg(&args, total, &enc_prog, &progress);
         }
+        if cancelled() { let _ = std::fs::remove_file(&r.out); return Err(CANCELLED.to_string()); }
         res.map_err(|e| friendly_error(&e))?;
         let srt = srt_path_of(&r.out);
         std::fs::write(&srt, edl::to_srt(&r.lines)).map_err(|e| format!("SRT 저장 실패: {e}"))?;

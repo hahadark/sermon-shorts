@@ -10,11 +10,15 @@ pub(crate) struct Job {
 impl Job {
     pub fn label(&self) -> String {
         let p = self.progress.lock().unwrap();
-        if p.stage.is_empty() { "내보내는 중...".into() } else { format!("{} {}%", if p.stage.contains("그림") { "준비 중" } else { "내보내는 중" }, p.pct.round() as i64) }
+        if p.cancel { "멈추는 중…".into() } else if p.stage.is_empty() { "내보내는 중...".into() } else { format!("{} {}%", if p.stage.contains("그림") { "준비 중" } else { "내보내는 중" }, p.pct.round() as i64) }
     }
 }
 
 impl App {
+    /// 내보내기 멈추기
+    pub(crate) fn cancel_export(&mut self) {
+        if let Some(j) = &self.export { if let Ok(mut p) = j.progress.lock() { p.cancel = true; p.stage = "멈추는 중".into(); } }
+    }
     pub(crate) fn start_export(&mut self) {
         if self.export.is_some() { self.toast("이미 내보내기가 진행 중입니다."); return; }
         if self.player.path.is_none() || self.project.words.is_empty() { self.toast("내보낼 영상과 자막이 없습니다."); return; }
@@ -56,8 +60,9 @@ impl App {
         let Some(job) = &self.export else { return };
         if let Ok(r) = job.rx.try_recv() {
             self.export = None;
-            match &r { Ok(_) => self.toast("MP4와 SRT를 저장했습니다"), Err(e) => self.toast(format!("내보내기 실패: {e}")) }
-            self.export_result = Some(r);
+            match &r { Ok(_) => self.toast("MP4와 SRT를 저장했습니다"), Err(e) if e == export::CANCELLED => self.toast(export::CANCELLED), Err(e) => self.toast(format!("내보내기 실패: {e}")) }
+            // 멈춘 것은 오류 창을 띄우지 않는다
+            if !matches!(&r, Err(e) if e == export::CANCELLED) { self.export_result = Some(r); }
         }
     }
 

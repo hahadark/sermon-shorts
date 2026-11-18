@@ -102,7 +102,11 @@ impl App {
             let busy = self.export.as_ref().map(|j| j.label());
             let can = self.player.path.is_some() && self.project.words.iter().any(|w| !w.del);
             match busy {
-                Some(label) => { ui.add_enabled(false, egui::Button::image_and_text(img("share", 18.0, Color32::WHITE), RichText::new(label).color(Color32::WHITE).family(style::bold()).size(15.0)).fill(style::PRIMARY).corner_radius(CornerRadius::same(12)).min_size(egui::vec2(0.0, 40.0))); }
+                Some(label) => {
+                    let stop = ui.add(egui::Button::image_and_text(img("square", 15.0, style::DANGER), RichText::new("멈추기").color(style::DANGER).size(14.0)).fill(Color32::WHITE).stroke(Stroke::new(1.0, style::BORDER_STRONG)).corner_radius(CornerRadius::same(12)).min_size(egui::vec2(0.0, 40.0))).on_hover_text("내보내기를 멈춥니다 (만들던 파일은 지웁니다)");
+                    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new("export-stop"), stop.rect));
+                    if stop.clicked() { self.cancel_export(); }
+                    ui.add_enabled(false, egui::Button::image_and_text(img("share", 18.0, Color32::WHITE), RichText::new(label).color(Color32::WHITE).family(style::bold()).size(15.0)).fill(style::PRIMARY).corner_radius(CornerRadius::same(12)).min_size(egui::vec2(0.0, 40.0))); }
                 None => {
                     let r = ui.add_enabled_ui(can, |ui| style::primary(ui, Some("share"), "내보내기")).inner.on_hover_text("MP4·SRT 로 내보내기 (Ctrl+E)");
                     if r.clicked() { self.start_export(); }
