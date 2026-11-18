@@ -83,7 +83,16 @@ impl App {
         // 가운데: 파일 이름
         if !self.source_name.is_empty() {
             let name = if self.unsaved { format!("{} ·", self.source_name) } else { self.source_name.clone() };
-            ui.painter().text(full.center(), egui::Align2::CENTER_CENTER, name, egui::FontId::new(15.0, style::semi()), style::TEXT2);
+            let nr = ui.painter().text(full.center(), egui::Align2::CENTER_CENTER, name, egui::FontId::new(15.0, style::semi()), style::TEXT2);
+            // 부드러운 미리보기 상태 (기존 #proxyStatus)
+            if let Some((txt, tip, kind)) = self.proxy.status.clone() {
+                let col = match kind { 1 => style::OK, 2 => style::WARN, _ => style::MUTED };
+                let g = ui.painter().layout_no_wrap(txt, egui::FontId::new(12.0, style::semi()), col);
+                let pr = egui::Rect::from_min_size(egui::pos2(nr.right() + 10.0, full.center().y - g.size().y / 2.0 - 3.0), g.size() + egui::vec2(14.0, 6.0));
+                ui.painter().rect_filled(pr, CornerRadius::same(255), if kind == 1 { Color32::from_rgb(0xe7, 0xf8, 0xee) } else if kind == 2 { style::WARN_SOFT } else { style::PANEL3 });
+                ui.painter().galley(pr.min + egui::vec2(7.0, 3.0), g, col);
+                ui.interact(pr, egui::Id::new("proxy-status"), egui::Sense::hover()).on_hover_text(tip);
+            }
         }
         // 오른쪽: 내보내기
         let r = egui::Rect::from_min_max(egui::pos2(full.right() - if matches!(self.upd.u.status(), sermon_shorts::updater::St::Downloading { .. } | sermon_shorts::updater::St::Ready { .. } | sermon_shorts::updater::St::Portable { .. }) { 760.0 } else { 330.0 }, full.top()), full.max);
@@ -143,7 +152,7 @@ impl App {
         });
         ui.menu_button(RichText::new("도움말").size(15.0).color(style::TEXT2), |ui| {
             if item(ui, "book-open", "사용 설명서", "") { ui.close(); self.page = Page::Guide; }
-            if item(ui, "keyboard", "단축키", "F1") { ui.close(); self.toast("Space 재생 · Ctrl+Z/Y 되돌리기·다시 · Ctrl+S 저장 · Ctrl+E 내보내기 · H 지운 부분 숨기기 · Alt+↑↓ 칸 옮기기"); }
+            if item(ui, "keyboard", "단축키", "F1") { ui.close(); self.help_open = true; }
             if item(ui, "stethoscope", "시스템 점검", "") { ui.close(); self.open_syscheck(); }
             if item(ui, "refresh-cw", "업데이트 확인", "") { ui.close(); self.cmd_update_check(); }
             ui.separator();

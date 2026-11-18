@@ -109,13 +109,15 @@ pub(crate) struct ChatState {
     focus_text: bool,
     pub rects: Vec<(String, egui::Rect)>,
     quick_h: f32,
+    /// 고른 다듬기 (여러 개 고른 뒤 [한번에 적용])
+    pub picked: Vec<String>,
     scroll_cands: bool,
     flash: Option<Instant>,
 }
 impl Default for ChatState {
     fn default() -> Self {
         ChatState { shared: Arc::new(Mutex::new(None)), msgs: vec![], archived: 0, video: None, last_video: None, url: String::new(), prefs: load_prefs(), cond_open: true,
-            last_ranges: None, last_fetch: None, job: None, after: None, loaded_log: false, log_dirty: None, focus_text: false, rects: vec![], quick_h: 0.0, scroll_cands: false, flash: None }
+            last_ranges: None, last_fetch: None, job: None, after: None, loaded_log: false, log_dirty: None, focus_text: false, rects: vec![], quick_h: 0.0, picked: vec![], scroll_cands: false, flash: None }
     }
 }
 
@@ -166,7 +168,9 @@ fn hint_of(c: &Card) -> (&'static str, bool) {
 }
 
 /// 화면에서 누른 것
-enum Act { Load(String), Send(String, Option<String>), Do(String, Value), Pick(CandData, String, String), Yt(String), Reopen(String), Replay(ApplyPlan), UseEditor, Fit(f64), Fix, Stop, New, Clear, Fold, Export, Len(u32), Tog(&'static str), Content(&'static str), Aud(&'static str), Int(i64), Count(u32), CondFold }
+enum Act { Load(String), Send(String, Option<String>), Do(String, Value), Pick(CandData, String, String), Yt(String), Reopen(String), Replay(ApplyPlan), UseEditor, Fit(f64), Fix, Stop, New, Clear, Fold, Export, Len(u32), Tog(&'static str), Content(&'static str), Aud(&'static str), Int(i64), Count(u32), CondFold, PickTrim(String), ApplyPicked, ClearPicked }
+/// 여러 개 골라 [한번에 적용]하는 다듬기 (적용 순서)
+const PICKABLE: [&str; 9] = ["tight", "filler", "questions", "notices", "shorter", "longer", "ending", "title", "typos"];
 
 // ---------------------------------------------------------------- 그리기 도구
 
@@ -418,6 +422,29 @@ impl App {
             let stage = move |s: &str| { let mut g = p.lock().unwrap(); g.stage = s.into(); g.n += 1; };
             Out::Send(chat::send(&shared, &text, &stage, cancel))
         });
+    }
+
+    /// 다듬기 버튼 고르기·풀기 (더 짧게·더 길게는 둘 중 하나만)
+    fn chat_pick(&mut self, key: &str) {
+        let p = &mut self.chat.picked;
+        if let Some(i) = p.iter().position(|x| x == key) { p.remove(i); return; }
+        if key == "shorter" { p.retain(|x| x != "longer"); }
+        if key == "longer" { p.retain(|x| x != "shorter"); }
+        p.push(key.to_string());
+    }
+    /// 고른 다듬기를 한 번의 요청으로 (기존 버튼 요청 글을 차례로 이어서)
+    pub(crate) fn chat_apply_picked(&mut self) {
+        if self.chat_busy() || self.chat.video.is_none() || self.chat.picked.is_empty() { return; }
+        let keys: Vec<String> = PICKABLE.iter().filter(|k| self.chat.picked.iter().any(|x| x == *k)).map(|k| k.to_string()).collect();
+        let reqs: Vec<(String, String)> = keys.iter().filter_map(|k| cp::action_request(k, &self.chat.prefs, &Value::Null)).collect();
+        self.chat.picked.clear();
+        if reqs.is_empty() { return; }
+        if reqs.len() == 1 { let (l, t) = reqs.into_iter().next().unwrap(); self.chat_send(l, Some(t)); return; }
+        // 구간을 바꾸는 요청이 섞이면 제목·오타의 "구간은 그대로 둡니다"는 뺀다
+        let moves = keys.iter().any(|k| !matches!(k.as_str(), "title" | "typos"));
+        let label = reqs.iter().map(|r| r.0.clone()).collect::<Vec<_>>().join(" + ");
+        let body = reqs.iter().enumerate().map(|(i, r)| { let t = if moves { r.1.replace(" 구간은 그대로 둡니다.", "") } else { r.1.clone() }; format!("{}. {}", i + 1, t) }).collect::<Vec<_>>().join("\n");
+        self.chat_send(label, Some(format!("아래 {}가지를 한 번에 모두 반영해 줘.\n{body}", reqs.len())));
     }
 
     fn chat_do(&mut self, key: &str, arg: Value) {
@@ -756,6 +783,9 @@ impl App {
             Act::Load(u) => { self.chat_load(u); }
             Act::Send(l, t) => self.chat_send(l, t),
             Act::Do(k, arg) => self.chat_do(&k, arg),
+            Act::PickTrim(k) => self.chat_pick(&k),
+            Act::ApplyPicked => self.chat_apply_picked(),
+            Act::ClearPicked => self.chat.picked.clear(),
             Act::Pick(c, url, vt) => {
                 if self.chat_busy() { return; }
                 if url.is_empty() { self.toast("예전 기록이라 이 후보의 영상 주소를 알 수 없습니다. 영상을 먼저 불러온 뒤 눌러 주세요."); return; }
@@ -936,11 +966,26 @@ impl App {
                     "make" => "편집 조건대로 결론·적용 중심으로 바로 만듭니다".into(),
                     _ => cp::action_request(&k, &p, &Value::Null).map(|r| regex::Regex::new(r"(?s)^\[편집 조건\].*?\n\n").unwrap().replace(&r.1, "").to_string()).unwrap_or_default(),
                 };
-                let b = cq_btn(ui, &l, false, pri, true, !busy).on_hover_text(tip);
+                // 다듬기 버튼은 여러 개 골라 두었다가 [한번에 적용] (공백 없애기·추천·후보 보기는 바로)
+                let pickable = PICKABLE.contains(&k.as_str());
+                let on = pickable && self.chat.picked.contains(&k);
+                let shown = if on { format!("✓ {l}") } else { l.clone() };
+                let tip = if pickable { format!("{tip}\n(눌러서 여러 개 고른 뒤 [한번에 적용])") } else { tip };
+                let b = cq_btn(ui, &shown, on, pri, !on, !busy).on_hover_text(tip);
                 rects.push((format!("act:{k}"), b.rect));
-                if b.clicked() { acts.push(Act::Do(k, Value::Null)); }
+                if b.clicked() { acts.push(if pickable { Act::PickTrim(k) } else { Act::Do(k, Value::Null) }); }
             }
         });
+        if !self.chat.picked.is_empty() {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(6.0, 5.0);
+                let n = self.chat.picked.len();
+                let b = cq_btn(ui, &format!("선택한 {n}개 한번에 적용"), false, true, true, !busy).on_hover_text("고른 다듬기를 한 번의 요청으로 모두 반영합니다");
+                rects.push(("act:apply-picked".into(), b.rect));
+                if b.clicked() { acts.push(Act::ApplyPicked); }
+                if cq_btn(ui, "고른 것 지우기", false, false, true, !busy).clicked() { acts.push(Act::ClearPicked); }
+            });
+        }
     }
 
     pub(crate) fn right_column(&mut self, ui: &mut egui::Ui) {

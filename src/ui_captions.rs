@@ -9,7 +9,8 @@ pub(crate) enum Action {
     EditLine(usize, String),
     Move(usize, usize, bool),
     Step(usize, i32, Option<(usize, String)>),
-    Check(usize, usize, bool),
+    /// 체크 (from, to, 켜기, Shift: 마지막으로 누른 칸부터 여기까지 한꺼번에)
+    Check(usize, usize, bool, bool),
     WaveTo(f64, f64),
     RestoreGap(usize),
     CutPause(usize),
@@ -28,8 +29,16 @@ impl App {
     pub(crate) fn center_column(&mut self, ui: &mut egui::Ui) {
         style::card().inner_margin(egui::Margin { left: 18, right: 18, top: 16, bottom: 10 }).show(ui, |ui| {
             ui.set_min_size(ui.available_size());
-            let wave_h = 168.0 + if self.trim.is_some() { 236.0 } else { 0.0 };
+            let base_wave = self.panes.wave.clamp(100.0, (ui.available_height() - 236.0 - 200.0).max(100.0));
+            let wave_h = base_wave + if self.trim.is_some() { 236.0 } else { 0.0 };
             let list_h = (ui.available_height() - wave_h).max(160.0);
+            // 자막 목록과 파형 사이 손잡이 (끌어서 파형 높이 바꾸기)
+            let top = ui.min_rect().top() + list_h;
+            let hr = egui::Rect::from_min_max(egui::pos2(ui.max_rect().left() + 40.0, top - 5.0), egui::pos2(ui.max_rect().right() - 40.0, top + 3.0));
+            let (d, dbl, done) = crate::ui_panes::handle(ui, hr, "wave", false, "끌어서 파형 높이 바꾸기 (두 번 누르면 기본 크기)");
+            if d != 0.0 { self.panes.wave = (base_wave - d).clamp(100.0, (ui.available_height() - 236.0 - 200.0).max(100.0)); }
+            if dbl { self.panes.wave = crate::ui_panes::Panes::default().wave; }
+            if done || dbl { self.panes.save(); }
             ui.allocate_ui_with_layout(egui::vec2(ui.available_width(), list_h), egui::Layout::top_down(egui::Align::Min), |ui| {
                 self.caption_header(ui);
                 ui.add_space(8.0);
@@ -156,6 +165,7 @@ impl App {
         let n_all = self.project.words.len();
         let hide = self.hide_deleted;
         let mut word_rects: Vec<(usize, egui::Rect)> = vec![];
+        let mut check_rects: Vec<(usize, egui::Rect)> = vec![];
         let mut out_rects: Vec<(usize, egui::Rect)> = vec![];
         // 단어 누르기: (단어, Shift, 오른쪽 절반) · 끌기 시작 · 두 번 누르기
         let mut click_word: Option<(usize, bool, bool)> = None;
@@ -189,10 +199,11 @@ impl App {
                         if b.line.is_some() { ui.dnd_drag_source(egui::Id::unique(("grip", b.from)), n, |ui| { ui.add(img("grip-vertical", 17.0, style::FAINT)); }).response.on_hover_text("끌어서 칸 순서 바꾸기 (자막 칸에서 Alt+↑↓)"); }
                         let mut c = is_chk;
                         let cb = ui.add_enabled(!live.is_empty(), egui::Checkbox::without_text(&mut c).indeterminate(n_chk > 0 && !is_chk));
-                        if cb.changed() { action = Some(Action::Check(b.from, b.to, c)); }
+                        check_rects.push((b.from, cb.rect));
+                        if cb.changed() { action = Some(Action::Check(b.from, b.to, c, ui.input(|i| i.modifiers.shift))); }
                         // 번호는 체크 상자의 이름표: 누르면 체크가 바뀐다 (기존 <label>)
                         let num = style::pill(ui, format!("{:03}", n + 1), style::PRIMARY_SOFT, style::PRIMARY).interact(egui::Sense::click()).on_hover_text("같은 STT 단어를 나눠 표시한 구간은 함께 선택됩니다");
-                        if num.clicked() && !live.is_empty() { action = Some(Action::Check(b.from, b.to, !is_chk)); }
+                        if num.clicked() && !live.is_empty() { action = Some(Action::Check(b.from, b.to, !is_chk, ui.input(|i| i.modifiers.shift))); }
                         if !live.is_empty() && style::icon_btn(ui, "trash-2", 17.0, style::MUTED, "이 자막 구간 삭제 (영상·음성도 삭제 · Ctrl+Z로 복원)").clicked() { action = Some(Action::Del(b.from, b.to, true)); }
                         let (a, z) = (words[b.from].start, words[b.to - 1].end);
                         let tp = style::pill_button(ui, format!("{} ~ {}", edl::format_time(a + src_off, true), edl::format_time(z + src_off, true)), style::PANEL3, style::TEXT2, ""); if tp.clicked() { action = Some(Action::SeekSrc(a)); }
@@ -372,6 +383,7 @@ impl App {
             if !ui.input(|i| i.pointer.any_down()) { self.word_drag = false; }
         }
         self.word_rects = word_rects;
+        self.check_rects = check_rects;
         // 직접 스크롤(휠·스크롤 막대·PageUp/Down)하면 따라가기를 멈추고 [재생 위치로] 단추를 띄운다
         let lr = list_out.inner_rect;
         self.list_rect = lr;
@@ -421,8 +433,16 @@ impl App {
                 if let Some((li, text)) = pending { let line = self.lines[li].clone(); self.project.words = caption_edit::apply(&self.project.words, &line, &text); self.cap_buf.clear(); self.commit(); self.recompute(); }
                 if let Some(n) = self.blocks.iter().position(|b| b.line.is_some() && b.from <= from && from < b.to) { if !self.step_block(n, dir) { self.focus_from = Some(self.blocks[n].from); } }
             }
-            Some(Action::Check(a, b, on)) => {
-                for i in a..b { let w = &self.project.words[i]; if w.del { continue; } if on { self.checked.insert(w.id); } else { self.checked.remove(&w.id); } }
+            Some(Action::Check(a, b, on, shift)) => {
+                // Shift: 마지막으로 누른 칸과 이 칸 사이(화면에 보이는 순서)의 칸을 모두 같은 상태로
+                let here = self.blocks.iter().position(|x| x.from == a);
+                let there = self.check_anchor.and_then(|f| self.blocks.iter().position(|x| x.from == f));
+                let ranges: Vec<(usize, usize)> = match (shift, here, there) {
+                    (true, Some(h), Some(t)) => { let (lo, hi) = (h.min(t), h.max(t)); self.blocks[lo..=hi].iter().map(|x| (x.from, x.to)).collect() }
+                    _ => vec![(a, b)],
+                };
+                for (a, b) in ranges { for i in a..b { let w = &self.project.words[i]; if w.del { continue; } if on { self.checked.insert(w.id); } else { self.checked.remove(&w.id); } } }
+                self.check_anchor = Some(a);
             }
             Some(Action::WaveTo(a, z)) => { let pad = ((z - a) * 0.5).max(1.0); self.wave.view_start = (a - pad).max(0.0); self.wave.view_dur = (z - a + pad * 2.0).max(1.0); self.player.seek_src(a); }
             Some(Action::RestoreGap(j)) => self.restore_gap(j),

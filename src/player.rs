@@ -116,6 +116,15 @@ impl Player {
         self.frame = None;
         self.show_still();
     }
+    /// 같은 길이·같은 시각의 다른 파일(미리보기용 영상)로 바꾸기: 길이·fps·크기 정보와 편집 구간·재생 위치는 그대로 둔다
+    pub fn swap_media(&mut self, path: &Path) -> Result<()> {
+        if !path.exists() { anyhow::bail!("파일이 없습니다"); }
+        self.stop();
+        self.path = Some(path.to_path_buf());
+        self.frame = None;
+        self.show_still();
+        Ok(())
+    }
     pub fn duration(&self) -> f64 { total(&self.spans) }
     pub fn playing(&self) -> bool { self.run.is_some() }
     pub fn preview_size(&self) -> (usize, usize) { (self.preview_w, self.preview_h) }

@@ -23,6 +23,8 @@ mod ui_import;
 mod ui_autosave;
 mod ui_bgm;
 mod ui_materials;
+mod ui_proxy;
+mod ui_panes;
 mod ui_settings;
 mod ui_side;
 mod ui_theme_editor;
@@ -77,7 +79,8 @@ fn main() -> eframe::Result<()> {
         if let Some(p) = &a.project { app.open_project(p.clone()); }
         if let Some(p) = &a.open { app.open_video(p.clone()); }
         if let Some(t) = &a.transcript { app.load_words(t.clone()); }
-        app.test = a.test.clone().map(|name| TestRun { name, report: a.report.clone(), step: 0, t0: Instant::now(), log: vec![] });
+        if a.test.is_some() && a.test.as_deref() != Some("panes") { app.panes = Default::default(); }
+            app.test = a.test.clone().map(|name| TestRun { name, report: a.report.clone(), step: 0, t0: Instant::now(), log: vec![] });
         Ok(Box::new(app))
     }))
 }
@@ -124,6 +127,8 @@ pub(crate) struct App {
     pub focus_line: Option<(caption_edit::Anchor, usize)>,
     /// 체크한 단어 id (칸 체크·전체 선택)
     pub checked: BTreeSet<i64>,
+    /// Shift 로 여러 칸 체크할 때의 기준 칸 (마지막으로 누른 칸의 첫 단어 번호)
+    pub check_anchor: Option<usize>,
     /// STT 원문 커서·고른 범위 (단어 번호)
     pub caret: usize,
     pub sel_anchor: Option<usize>,
@@ -139,6 +144,8 @@ pub(crate) struct App {
     pub caret_scroll: bool,
     /// 지난 화면에 그린 단어 자리 (윗줄·아랫줄 이동용)
     pub word_rects: Vec<(usize, egui::Rect)>,
+    /// 자막 칸 체크 상자 자리 (칸 첫 단어 번호, 자리)
+    pub check_rects: Vec<(usize, egui::Rect)>,
     /// 지난 화면의 출력 자막 칸 자리 (칸 첫 단어 번호, 자리) — 시험용
     pub out_rects: Vec<(usize, egui::Rect)>,
     pub find: Option<ui_keys::FindBar>,
@@ -205,6 +212,9 @@ pub(crate) struct App {
     pub asv: ui_autosave::State,
     pub theme_ed: ui_theme_editor::State,
     pub materials: ui_materials::State,
+    pub proxy: ui_proxy::ProxyState,
+    /// 칸 크기 (끌어서 바꾼 것)
+    pub panes: ui_panes::Panes,
     // 내보내기
     pub export: Option<ui_export::Job>,
     pub export_result: Option<Result<export::Done, String>>,
@@ -226,14 +236,14 @@ impl App {
             player: Player::default(), project: Project::default(), project_path: None, has_project: false, edited: false,
             dirty: false, segs: vec![], lines: vec![], blocks: vec![], history: vec![], hist_at: 0,
             tex: None, frame_no: 0, peaks: None, peaks_rx: None, wave: ui_wave::Wave::default(),
-            cap_buf: HashMap::new(), last_block: None, focus_from: None, focus_line: None, checked: BTreeSet::new(), caret: 0, sel_anchor: None, word_drag: false, selection: None, mark_i: None, mark_o: None, manual_caret: false, was_playing: false, raw_once: false, caret_scroll: false, word_rects: vec![], out_rects: vec![], find: None, word_edit: None, help_open: false, follow_play: true, follow_snap: false, list_rect: egui::Rect::NOTHING, scrub_resume: false, test_input: Default::default(), tidy: None, trim: None, trim_loop: None, hide_deleted: false, cap_settings_open: false,
+            cap_buf: HashMap::new(), last_block: None, focus_from: None, focus_line: None, checked: BTreeSet::new(), check_anchor: None, check_rects: vec![], caret: 0, sel_anchor: None, word_drag: false, selection: None, mark_i: None, mark_o: None, manual_caret: false, was_playing: false, raw_once: false, caret_scroll: false, word_rects: vec![], out_rects: vec![], find: None, word_edit: None, help_open: false, follow_play: true, follow_snap: false, list_rect: egui::Rect::NOTHING, scrub_resume: false, test_input: Default::default(), tidy: None, trim: None, trim_loop: None, hide_deleted: false, cap_settings_open: false,
             last_still: None, source_name: String::new(), toast: None, unsaved: false, test: None, test_words: String::new(),
             page: Page::Editor, design_tab: DesignTab::Design, chat_open: true, focus_chat_url: false, chat_input: String::new(), yt_url: String::new(),
             settings, themes, theme, theme_key: 0, project_theme: false,
             title: String::new(), verse: String::new(),
             speaker_pick: def.clone().unwrap_or_else(|| SPEAKER_CUSTOM.into()), speaker_custom: if def.is_none() { String::new() } else { String::new() },
             church, church_save_at: None, crop: export::Crop::default(), crop_drag: None, stage: stage::Stage::new(ctx),
-            import: Default::default(), audio: Default::default(), bgm: Default::default(), ai: Default::default(), prefs: Default::default(), sys: Default::default(), sys_queue_after_refresh: false, chat: Default::default(), rec: Default::default(), upd: ui_update::UpdState::new(true), pe: Default::default(), test_stable: Default::default(), asv: Default::default(), theme_ed: Default::default(), materials: Default::default(),
+            import: Default::default(), audio: Default::default(), bgm: Default::default(), ai: Default::default(), prefs: Default::default(), sys: Default::default(), sys_queue_after_refresh: false, chat: Default::default(), rec: Default::default(), upd: ui_update::UpdState::new(true), pe: Default::default(), test_stable: Default::default(), asv: Default::default(), theme_ed: Default::default(), materials: Default::default(), proxy: Default::default(), panes: ui_panes::Panes::load(),
             export: None, export_result: None, export_error: None, export_view: None, bg_uploads: vec![], uploaded: HashMap::new(),
         };
         app.theme_changed();
@@ -273,6 +283,8 @@ impl App {
                 std::thread::spawn(move || { let _ = tx.send(peaks::compute(&p)); });
                 self.peaks_rx = Some(rx);
                 self.dirty = true;
+                let src_p = self.project.source_path.clone();
+                self.proxy_start(&src_p);
                 true
             }
             Err(e) => { self.toast(format!("영상을 열 수 없습니다: {e}")); false }
@@ -556,6 +568,7 @@ impl eframe::App for App {
         self.autosave_ui(&ctx);
         self.theme_editor_ui(&ctx);
         self.materials_ui(&ctx);
+        self.proxy_poll(&ctx);
         if let Some((msg, at)) = &self.toast {
             if at.elapsed().as_secs_f32() < 4.5 {
                 egui::Area::new(egui::Id::unique("toast")).anchor(egui::Align2::CENTER_BOTTOM, [0.0, -40.0]).show(&ctx, |ui| {
@@ -578,12 +591,12 @@ impl App {
     pub(crate) fn editor(&mut self, ui: &mut egui::Ui) {
         let avail = ui.available_rect_before_wrap();
         let gap = 18.0;
-        // 기존 #workspace: 왼쪽 440·대화 380 고정, 가운데가 300 보다 좁아지면 두 칸을 너비 비율대로 줄인다 (왼쪽 최소 400, 대화 최소 280)
+        // 기존 #workspace: 왼쪽 440·대화 380 (끌어서 바꿀 수 있음), 가운데가 좁아지면 두 칸을 너비 비율대로 줄인다
         let free = avail.width() - gap * if self.chat_open { 2.0 } else { 1.0 };
-        let (lb, rb) = (440.0_f32, if self.chat_open { 380.0_f32 } else { 0.0 });
-        let short = (lb + rb + 440.0 - free).max(0.0); // 가운데 자막 칸은 440 은 있어야 쓸 만하다
-        let left_w = (lb - short * lb / (lb + rb)).max(400.0);
-        let right_w = if self.chat_open { (free - left_w - 440.0).clamp(280.0, rb) } else { 0.0 };
+        let (lb, rb) = (self.panes.left.max(ui_panes::LEFT_MIN), if self.chat_open { self.panes.chat.max(ui_panes::CHAT_MIN) } else { 0.0 });
+        let short = (lb + rb + ui_panes::CENTER_MIN - free).max(0.0); // 가운데 자막 칸은 이만큼은 있어야 쓸 만하다
+        let left_w = (lb - short * lb / (lb + rb)).max(ui_panes::LEFT_MIN.min(lb));
+        let right_w = if self.chat_open { (free - left_w - ui_panes::CENTER_MIN).clamp(ui_panes::CHAT_MIN, rb) } else { 0.0 };
         let center_w = avail.width() - left_w - right_w - gap * if self.chat_open { 2.0 } else { 1.0 };
         let h = avail.height();
         let r_left = egui::Rect::from_min_size(avail.min, egui::vec2(left_w, h));
@@ -594,6 +607,21 @@ impl App {
         ui.scope_builder(egui::UiBuilder::new().max_rect(r_left), |ui| { ui.set_clip_rect(clip(r_left)); self.left_column(ui) });
         ui.scope_builder(egui::UiBuilder::new().max_rect(r_center), |ui| { ui.set_clip_rect(clip(r_center)); self.center_column(ui) });
         if self.chat_open { ui.scope_builder(egui::UiBuilder::new().max_rect(r_right), |ui| { ui.set_clip_rect(clip(r_right)); self.right_column(ui) }); }
+        // 칸 사이 손잡이 (끌어서 너비 바꾸기, 두 번 누르면 기본)
+        let hr = egui::Rect::from_min_max(egui::pos2(r_left.right() + 2.0, avail.top() + 20.0), egui::pos2(r_center.left() - 2.0, avail.bottom() - 20.0));
+        let (d, dbl, done) = ui_panes::handle(ui, hr, "left", true, "끌어서 칸 너비 바꾸기 (두 번 누르면 기본 크기)");
+        let max_left = (free - right_w - ui_panes::CENTER_MIN).max(ui_panes::LEFT_MIN);
+        if d != 0.0 { self.panes.left = (left_w + d).clamp(ui_panes::LEFT_MIN, max_left); }
+        if dbl { self.panes.left = ui_panes::Panes::default().left; }
+        if self.chat_open {
+            let hr2 = egui::Rect::from_min_max(egui::pos2(r_center.right() + 2.0, avail.top() + 20.0), egui::pos2(r_right.left() - 2.0, avail.bottom() - 20.0));
+            let (d2, dbl2, done2) = ui_panes::handle(ui, hr2, "chat", true, "끌어서 AI 대화 칸 너비 바꾸기 (두 번 누르면 기본 크기)");
+            let max_chat = (free - left_w - ui_panes::CENTER_MIN).max(ui_panes::CHAT_MIN);
+            if d2 != 0.0 { self.panes.chat = (right_w - d2).clamp(ui_panes::CHAT_MIN, max_chat); }
+            if dbl2 { self.panes.chat = ui_panes::Panes::default().chat; }
+            if done2 || dbl2 { self.panes.save(); }
+        }
+        if done || dbl { self.panes.save(); }
         ui.allocate_rect(avail, egui::Sense::hover());
     }
 

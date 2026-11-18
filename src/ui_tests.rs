@@ -802,6 +802,11 @@ impl App {
                 info["edited"] = json!(self.chat.video.as_ref().map(|v| v.edited));
                 match self.t_stable_rect("act:title") { Some(r) => self.t_click(r.center(), egui::Modifiers::NONE), None if t.t0.elapsed().as_secs_f64() < 80.0 => return self.test = Some(test), None => { info["noTitleBtn"] = json!(true); } }
                 self.test_words = info.to_string();
+                t.step = 30; t.t0 = Instant::now();
+            }
+            // 하나만 고른 뒤 [한번에 적용] (다듬기 버튼은 고르기만 한다)
+            ("chatflow", 30) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.7 => {
+                match self.t_stable_rect("act:apply-picked") { Some(r) => self.t_click(r.center(), egui::Modifiers::NONE), None if t.t0.elapsed().as_secs_f64() < 20.0 => return self.test = Some(test), None => {} }
                 t.step = 4; t.t0 = Instant::now();
             }
             ("chatflow", 4) if self.test_input.is_empty() && !self.chat_busy() && t.t0.elapsed().as_secs_f64() > 1.5 || t.step == 4 && t.t0.elapsed().as_secs_f64() > 30.0 => {
@@ -810,6 +815,33 @@ impl App {
                 info["kept2"] = json!(self.project.words.iter().filter(|x| !x.del).count());
                 info["lastSys"] = json!(self.chat.msgs.iter().rev().find_map(|m| if let crate::ui_chat::M::Sys { t } = m { Some(t.clone()) } else { None }));
                 shot(ctx, std::env::var("SS_SHOT3").ok().map(PathBuf::from), false);
+                self.test_words = info.to_string();
+                t.step = 40; t.t0 = Instant::now();
+            }
+            // 다듬기 여러 개 고르기 → [한번에 적용]: 늘어지지 않게 · 군말·반복 빼기 · 제목 다시 → 요청 한 번
+            ("chatflow", s @ 40..=42) if self.test_input.is_empty() && !self.chat_busy() && t.t0.elapsed().as_secs_f64() > 0.7 => {
+                let key = ["act:tight", "act:filler", "act:title"][(s - 40) as usize];
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                match self.t_stable_rect(key) { Some(r) => { info[format!("click{s}")] = json!([r.center().x, r.center().y, self.chat.picked.clone()]); self.t_click(r.center(), egui::Modifiers::NONE) }, None if t.t0.elapsed().as_secs_f64() < 20.0 => return self.test = Some(test), None => { info[format!("miss{s}")] = json!(true); } }
+                self.test_words = info.to_string();
+                t.step = s + 1; t.t0 = Instant::now();
+            }
+            ("chatflow", 43) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.7 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["picked"] = json!(self.chat.picked);
+                shot(ctx, std::env::var("SS_SHOT4").ok().map(PathBuf::from), false);
+                match self.t_stable_rect("act:apply-picked") { Some(r) => self.t_click(r.center(), egui::Modifiers::NONE), None if t.t0.elapsed().as_secs_f64() < 20.0 => return self.test = Some(test), None => {} }
+                self.test_words = info.to_string();
+                t.step = 44; t.t0 = Instant::now();
+            }
+            ("chatflow", 44) if self.test_input.is_empty() && !self.chat_busy() && t.t0.elapsed().as_secs_f64() > 2.0 || t.step == 44 && t.t0.elapsed().as_secs_f64() > 30.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let sent = std::fs::read_to_string(std::env::temp_dir().join("ss_llm_sent3.txt")).unwrap_or_default();
+                info["multiPrompt"] = json!(sent.contains("3가지를 한 번에 모두 반영") && sent.contains("1. 늘어지지 않게") && sent.contains("2. \"그…\"") && sent.contains("3. 제목을 다시") && !sent.contains("구간은 그대로 둡니다"));
+                info["pickedAfter"] = json!(self.chat.picked.len());
+                info["title3"] = json!(self.title);
+                let label = self.chat.msgs.iter().rev().find_map(|m| if let crate::ui_chat::M::User { t, .. } = m { Some(t.clone()) } else { None });
+                info["multiLabel"] = json!(label);
                 match self.t_stable_rect("new") { Some(r) => self.t_click(r.center(), egui::Modifiers::NONE), None if t.t0.elapsed().as_secs_f64() < 25.0 => return self.test = Some(test), None => { info["noNew"] = json!(true); } }
                 self.test_words = info.to_string();
                 t.step = 5; t.t0 = Instant::now();
@@ -826,7 +858,8 @@ impl App {
                 info["pass"] = json!(info["useEditor"] == true && info["cands"] == 2 && kept >= 40 && kept <= 60 && info["outsideKept"] == 0 && info["corr"] == "고침"
                     && info["title"] == "기도의 / 시작" && info["verse"] == "마태복음 6:13" && info["edited"] == true && info["replayText"].as_str().unwrap_or("").contains("편집기에 반영했습니다")
                     && info["title2"] == "새 제목" && info["kept2"] == info["kept"] && info["lastSys"].as_str().unwrap_or("").contains("구간은 그대로")
-                    && info["videoAfterNew"] == false && info["reopenExists"] == true && info["logSaved"] == true && info["pickPrompt"] == true);
+                    && info["videoAfterNew"] == false && info["reopenExists"] == true && info["logSaved"] == true && info["pickPrompt"] == true
+                    && info["picked"] == json!(["tight", "filler", "title"]) && info["multiPrompt"] == true && info["pickedAfter"] == 0 && info["title3"] == "다듬은 제목");
                 if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
@@ -848,7 +881,7 @@ impl App {
                 self.test_words = info.to_string();
                 t.step = 2; t.t0 = Instant::now();
             }
-            ("recflow", 2) if self.import.dlg.is_none() && self.rec.pending.is_none() && !self.project.words.is_empty() && t.t0.elapsed().as_secs_f64() > 2.0 || t.step == 2 && t.t0.elapsed().as_secs_f64() > 300.0 => {
+            ("recflow", 2) if self.import.dlg.is_none() && self.rec.pending.is_none() && self.tidy.is_none() && !self.project.words.is_empty() && t.t0.elapsed().as_secs_f64() > 4.0 || t.step == 2 && t.t0.elapsed().as_secs_f64() > 300.0 => {
                 let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
                 info["title"] = json!(self.title); info["verse"] = json!(self.verse);
                 info["words"] = json!(self.project.words.len()); info["kept"] = json!(self.project.words.iter().filter(|w| !w.del).count());
@@ -887,6 +920,101 @@ impl App {
                 t.step = 2; t.t0 = Instant::now();
             }
             ("updflow", 2) if t.t0.elapsed().as_secs_f64() > 1.0 => { ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 3; }
+            // 부드러운 미리보기: 유튜브에서 받은 영상(기준 화면 드묾)을 열면 미리보기용 영상을 만들어 바꾼다 → 지운 곳 건너뛰며 재생
+            ("smoothpreview", 0) => {
+                if self.proxy.using.is_some() || t.t0.elapsed().as_secs_f64() > 240.0 {
+                    let mut last = self.project.words.first().map(|w| w.start).unwrap_or(0.0);
+                    for w in self.project.words.iter_mut() { if w.start - last > 3.0 { w.del = true; if w.end - last > 3.6 { last = w.end; } } }
+                    self.edited = true; self.recompute();
+                    self.test_words = json!({ "proxySecs": t.t0.elapsed().as_secs_f64(), "using": self.proxy.using.as_ref().map(|p| p.to_string_lossy().to_string()), "playerPath": self.player.path.as_ref().map(|p| p.to_string_lossy().to_string()), "status": self.proxy.status.as_ref().map(|s| s.0.clone()), "source": self.project.source_path.to_string_lossy() }).to_string();
+                    shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                    self.player.seek(0.0); self.player.play();
+                    t.log.clear(); t.t0 = Instant::now(); t.step = 1;
+                } else { ctx.request_repaint_after(std::time::Duration::from_millis(300)); }
+            }
+            ("smoothpreview", 1) if t.t0.elapsed().as_secs_f64() > 15.0 => {
+                self.player.stop();
+                let mut s: Vec<f64> = t.log.windows(2).map(|w| (w[1].0 - w[0].0) * 1000.0).collect();
+                s.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                let q = |p: f64| s.get(((s.len() as f64 - 1.0) * p) as usize).copied().unwrap_or(0.0);
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["fps"] = json!(t.log.len() as f64 / 15.0); info["gapMs"] = json!({ "median": q(0.5), "p95": q(0.95), "max": s.last().copied().unwrap_or(0.0) }); info["underruns"] = json!(self.player.underruns());
+                let using = info["using"].as_str().unwrap_or("").to_string();
+                info["pass"] = json!(!using.is_empty() && info["playerPath"] == info["using"] && std::path::Path::new(&using).exists() && info["source"] != info["using"] && info["status"] == "부드러운 미리보기" && info["fps"].as_f64().unwrap_or(0.0) > 20.0);
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
+            }
+            // 칸 크기 끌기: 왼쪽 칸 +80, 대화 칸 60 넓게, 파형 60 높게, 디자인 탭 50 높게 → layout.json 저장 → 왼쪽 손잡이 두 번 누르기는 기본으로
+            ("panes", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
+                let ids = ["left", "chat", "wave", "tabs"];
+                let rs: Vec<Option<egui::Rect>> = ids.iter().map(|i| crate::ui_panes::rect_of(ctx, i)).collect();
+                if rs.iter().any(|r| r.is_none()) || self.t_stable("pane-left", rs[0]).is_none() { return self.test = Some(test); }
+                self.test_words = json!({ "before": [self.panes.left, self.panes.chat, self.panes.wave, self.panes.tabs], "rects": rs.iter().map(|r| { let r = r.unwrap(); json!([r.left(), r.top(), r.right(), r.bottom()]) }).collect::<Vec<_>>() }).to_string();
+                let n = egui::Modifiers::NONE;
+                for (r, dv) in [(rs[0].unwrap(), egui::vec2(80.0, 0.0)), (rs[1].unwrap(), egui::vec2(-60.0, 0.0)), (rs[2].unwrap(), egui::vec2(0.0, -60.0)), (rs[3].unwrap(), egui::vec2(0.0, -50.0))] {
+                    let p0 = r.center();
+                    self.t_queue(vec![egui::Event::PointerMoved(p0)], n);
+                    self.t_press(p0, n, true);
+                    for k in 1..=8 { self.t_queue(vec![egui::Event::PointerMoved(p0 + dv * (k as f32 / 8.0))], n); }
+                    self.t_press(p0 + dv, n, false);
+                    self.t_queue(vec![], n);
+                    self.t_queue(vec![], n);
+                }
+                t.step = 1; t.t0 = Instant::now();
+            }
+            ("panes", 1) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["after"] = json!([self.panes.left, self.panes.chat, self.panes.wave, self.panes.tabs]);
+                info["saved"] = std::fs::read_to_string(sermon_shorts::theme::user_data_dir().join("layout.json")).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).unwrap_or(Value::Null);
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                self.test_words = info.to_string();
+                if let Some(r) = crate::ui_panes::rect_of(ctx, "left") { self.t_dbl(r.center()); }
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("panes", 2) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["afterReset"] = json!(self.panes.left);
+                let b: Vec<f64> = info["before"].as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect();
+                let a: Vec<f64> = info["after"].as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect();
+                let near = |x: f64, y: f64| (x - y).abs() < 3.0;
+                info["pass"] = json!(near(a[0], b[0] + 80.0) && near(a[1], b[1] + 60.0) && near(a[2], b[2] + 60.0) && near(a[3], b[3] + 50.0) && info["saved"]["left"].as_f64().is_some_and(|x| near(x, a[0])) && near(self.panes.left as f64, 440.0));
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 3;
+            }
+            // 체크 상자 Shift 범위 선택: 1번 칸 누르기 → Shift+3번 (1~3 선택) → Shift+2번 다시 누르기 (2~3 해제, 1은 그대로)
+            ("checkrange", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
+                let r = self.check_rects.first().map(|x| x.1);
+                let Some(r) = self.t_stable("chk1", r) else { return self.test = Some(test) };
+                self.t_click(r.center(), egui::Modifiers::NONE);
+                t.step = 1; t.t0 = Instant::now();
+            }
+            ("checkrange", 1) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.6 => {
+                let r = self.check_rects.get(2).map(|x| x.1);
+                let Some(r) = self.t_stable("chk4", r) else { return self.test = Some(test) };
+                self.t_click(r.center(), egui::Modifiers::SHIFT);
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("checkrange", 2) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.6 => {
+                let st = |a: &App| -> Vec<bool> { a.check_rects.iter().take(7).map(|(f, _)| { let b = a.blocks.iter().find(|b| b.from == *f).unwrap(); let live: Vec<_> = (b.from..b.to).filter(|&i| !a.project.words[i].del).collect(); !live.is_empty() && live.iter().all(|&i| a.checked.contains(&a.project.words[i].id)) }).collect() };
+                let mut info0: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({})); info0["afterShift"] = json!(st(self)); info0["anchor2"] = json!(self.check_anchor); self.test_words = info0.to_string();
+                let r = self.check_rects.get(1).map(|x| x.1);
+                let Some(r) = self.t_stable("chk2", r) else { return self.test = Some(test) };
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                self.t_click(r.center(), egui::Modifiers::SHIFT);
+                t.step = 3; t.t0 = Instant::now();
+            }
+            ("checkrange", 3) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.6 => {
+                let st = |a: &App| -> Vec<bool> { a.check_rects.iter().take(7).map(|(f, _)| { let b = a.blocks.iter().find(|b| b.from == *f).unwrap(); let live: Vec<_> = (b.from..b.to).filter(|&i| !a.project.words[i].del).collect(); !live.is_empty() && live.iter().all(|&i| a.checked.contains(&a.project.words[i].id)) }).collect() };
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["afterShift2"] = json!(st(self));
+                let a = info["afterShift"].clone();
+                let b = info["afterShift2"].clone();
+                info["pass"] = json!(a == json!([true, true, true, false, false, false, false]) && b == json!([true, false, false, false, false, false, false]));
+                shot(ctx, std::env::var("SS_SHOT3").ok().map(PathBuf::from), false);
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                t.step = 4; t.t0 = Instant::now();
+            }
+            ("checkrange", 4) if t.t0.elapsed().as_secs_f64() > 0.8 => { self.unsaved = false; ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 5; }
             // 교인 자료: 화면 열기(편집 중인 자막을 원고로) → 요약·묵상카드·소그룹 고르고 [만들기] (가짜 AI 답, 설교와 대조까지)
             //  → 만든 자료 미리보기 → 글 고치기가 미리보기에 반영 → PDF·카드 PNG·홈페이지 글 저장 → 설교 전달 점검
             ("materialsflow", 0) if t.t0.elapsed().as_secs_f64() > 1.5 => {

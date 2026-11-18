@@ -10,7 +10,7 @@ impl App {
             ui.set_min_size(ui.available_size());
             let full_h = ui.available_height();
             let w = ui.available_width();
-            let tabs_h = 318.0f32.min(full_h * 0.44);
+            let tabs_h = self.panes.tabs.clamp(160.0, (full_h - 78.0 - 240.0).max(160.0));
             let ctrl_h = 78.0;
             let pe_h = if self.pe.active { 150.0 } else { 0.0 };
             let stage_h = (full_h - tabs_h - ctrl_h - pe_h - 10.0).max(180.0);
@@ -20,6 +20,13 @@ impl App {
             if self.pe.active { ui.add_space(6.0); self.pe_panel(ui); }
             ui.add_space(10.0);
             self.play_controls(ui);
+            // 미리보기와 디자인 탭 사이 손잡이 (끌어 올리면 탭이 커지고 미리보기가 작아진다)
+            let y = ui.cursor().top() + 5.0;
+            let hr = egui::Rect::from_min_max(egui::pos2(ui.max_rect().left() + 30.0, y - 4.0), egui::pos2(ui.max_rect().right() - 30.0, y + 4.0));
+            let (d, dbl, done) = crate::ui_panes::handle(ui, hr, "tabs", false, "끌어서 미리보기·디자인 칸 높이 바꾸기 (두 번 누르면 기본 크기)");
+            if d != 0.0 { self.panes.tabs = (tabs_h - d).clamp(160.0, (full_h - 78.0 - 240.0).max(160.0)); }
+            if dbl { self.panes.tabs = crate::ui_panes::Panes::default().tabs; }
+            if done || dbl { self.panes.save(); }
             ui.add_space(10.0);
             self.design_tabs(ui);
         });
