@@ -12,6 +12,8 @@
     if (!e) {
       const host = document.getElementById('fileName'); if (!host || !host.parentElement) return null;
       e = document.createElement('span'); e.id = 'proxyStatus'; e.className = 'proxy-status';
+      e.style.cursor = 'pointer';
+      e.addEventListener('click', turnOff);   // 누르면 부드러운 미리보기 끄기 (원본으로 미리 보기)
       host.insertAdjacentElement('afterend', e);
     }
     return e;
@@ -19,6 +21,18 @@
   function status(text, title, cls) {
     const e = el(); if (!e) return;
     e.hidden = !text; e.textContent = text || ''; e.title = title || ''; e.className = 'proxy-status' + (cls ? ' ' + cls : '');
+  }
+  /** 부드러운 미리보기 끄기: 설정에 저장하고, 미리보기용 영상을 쓰는 중이면 바로 원본으로 */
+  async function turnOff() {
+    if (!confirm('부드러운 미리보기를 끌까요? (원본 영상으로 미리 봅니다. 설정 → 편집에서 다시 켤 수 있습니다)')) return;
+    try { await api.saveSettings({ previewProxy: false }); if (SS.appSettings) SS.appSettings.previewProxy = false; } catch (_) { /* 저장 실패해도 지금 영상은 원본으로 */ }
+    try { if (api.proxyCancel) await api.proxyCancel(); } catch (_) { /* */ }
+    waiting = null;
+    const src = SS.state && SS.state.source && SS.state.source.path;
+    if (cur && cur.state === 'ready' && src && SS.preview && SS.preview.useMedia) { try { await SS.preview.useMedia(src); } catch (_) { /* */ } }
+    if (cur) cur.state = 'off';
+    status('');
+    if (SS.toast) SS.toast('부드러운 미리보기를 껐습니다.');
   }
   async function swapNow(p) {
     try {
