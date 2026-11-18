@@ -941,6 +941,16 @@ impl App {
                 info["fps"] = json!(t.log.len() as f64 / 15.0); info["gapMs"] = json!({ "median": q(0.5), "p95": q(0.95), "max": s.last().copied().unwrap_or(0.0) }); info["underruns"] = json!(self.player.underruns());
                 let using = info["using"].as_str().unwrap_or("").to_string();
                 info["pass"] = json!(!using.is_empty() && info["playerPath"] == info["using"] && std::path::Path::new(&using).exists() && info["source"] != info["using"] && info["status"] == "부드러운 미리보기" && info["fps"].as_f64().unwrap_or(0.0) > 20.0);
+                // 표시를 눌러 끄기 → 원본으로
+                if let Some(r) = ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("proxy-badge"))) { self.t_click(r.center(), egui::Modifiers::NONE); }
+                self.test_words = info.to_string();
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("smoothpreview", 2) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 1.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["afterOff"] = json!({ "player": self.player.path.as_ref().map(|p| p.to_string_lossy().to_string()), "status": self.proxy.status.as_ref().map(|s| s.0.clone()), "setting": sermon_shorts::settings::load()["previewProxy"] });
+                let ok_off = info["afterOff"]["player"] == info["source"] && info["afterOff"]["status"].is_null() && info["afterOff"]["setting"] == false;
+                info["pass"] = json!(info["pass"] == true && ok_off);
                 if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
             }
@@ -1025,6 +1035,61 @@ impl App {
                 info["pass"] = json!(info["afterBlur"] == "고친말" && info["editOpen"] == false && info["afterEsc"] == "고친말" && info["afterPreeditBlur"] == "새말" && info["lineAfter"].as_str() == Some(want.as_str()));
                 if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
                 self.unsaved = false; ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 13;
+            }
+            // 테마 편집기: 기본 테마를 고친 뒤 [이 테마 사용] → 복제 물음(예) → 이름(Enter) → 복제본이 저장·적용돼야 한다
+            ("themeapply", 0) if t.t0.elapsed().as_secs_f64() > 1.0 => { self.cmd_edit_theme(); t.step = 1; t.t0 = Instant::now(); }
+            ("themeapply", 1) if self.theme_ed.ed.as_ref().is_some_and(|e| e.rendered) && t.t0.elapsed().as_secs_f64() > 1.0 => {
+                if let Some(e) = self.theme_ed.ed.as_mut() { let y = e.theme["title"]["y"].as_f64().unwrap_or(0.0); e.theme["title"]["y"] = json!(y + 40.0); e.dirty = true; }
+                let r = self.theme_ed.ed.as_ref().and_then(|e| e.rects.iter().find(|x| x.0 == "apply").map(|x| x.1));
+                let Some(r) = self.t_stable("ta-apply", r) else { return self.test = Some(test) };
+                self.test_words = json!({ "id0": self.theme["id"] }).to_string();
+                self.t_click(r.center(), egui::Modifiers::NONE);
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("themeapply", 2) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["asked"] = json!(self.theme_ed.ed.as_ref().is_some_and(|e| e.ask_open()));
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                self.test_words = info.to_string();
+                self.t_key(egui::Key::Enter, egui::Modifiers::NONE);
+                t.step = 3; t.t0 = Instant::now();
+            }
+            ("themeapply", 3) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 1.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["active"] = self.theme["id"].clone();
+                info["activeName"] = self.theme["name"].clone();
+                info["saved"] = sermon_shorts::settings::load()["activeThemeId"].clone();
+                let id = self.theme["id"].as_str().unwrap_or("").to_string();
+                info["file"] = json!(sermon_shorts::theme::user_data_dir().join("themes").join(format!("{id}.json")).exists());
+                info["pass"] = json!(info["asked"] == true && id.starts_with("user-") && info["saved"] == info["active"] && info["file"] == true && info["activeName"].as_str().unwrap_or("").contains("복사본"));
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
+            }
+            // 메인 화면에서 고른 로고가 내보낸 영상에도 나오는지 (빨간 네모 로고 → 내보내기 → 화면 한 장의 로고 자리 색)
+            ("logoexport", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
+                let red = std::env::temp_dir().join("ss_red_logo.png");
+                let _ = image::RgbaImage::from_pixel(200, 200, image::Rgba([230, 20, 20, 255])).save(&red);
+                self.choose_logo_file(&red);
+                self.theme["logo"]["show"] = json!(true); self.theme["churchName"]["show"] = json!(true); self.theme["logo"]["path"] = json!("assets/images/logo-default.png");
+                let out = PathBuf::from(t.report.clone().unwrap()).with_extension("mp4");
+                let _ = std::fs::remove_file(&out);
+                self.test_words = json!({ "logoPath": self.logo_path(), "themeLogo": self.theme["logo"], "settingsLogo": self.settings["template"]["logoPath"] }).to_string();
+                self.export_to(out);
+                t.step = 1; t.t0 = Instant::now();
+            }
+            ("logoexport", 1) if self.export_view.is_some() || t.t0.elapsed().as_secs_f64() > 200.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let mp4 = self.export_view.as_ref().map(|v| v.done.out.clone());
+                let png = std::env::temp_dir().join("ss_logo_frame.png");
+                let _ = std::fs::remove_file(&png);
+                if let Some(m) = &mp4 { let _ = sermon_shorts::media::command("ffmpeg").args(["-y", "-v", "error", "-ss", "1", "-i"]).arg(m).args(["-frames:v", "1"]).arg(&png).status(); }
+                // 로고 자리: 테마의 logo x·y·height 또는 묶음(교회 이름 옆) — 아래쪽 25% 안의 빨간 화소 수로 본다
+                let reds = image::open(&png).ok().map(|im| { let im = im.to_rgb8(); let (w, h) = im.dimensions(); let mut n = 0u64; for y in (h * 3 / 4)..h { for x in 0..w { let p = im.get_pixel(x, y).0; if p[0] > 180 && p[1] < 80 && p[2] < 80 { n += 1; } } } n });
+                info["redPixels"] = json!(reds);
+                info["frame"] = json!(png.to_string_lossy());
+                info["pass"] = json!(reds.unwrap_or(0) > 1500);
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                self.unsaved = false; ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
             }
             // 칸 크기 끌기: 왼쪽 칸 +80, 대화 칸 60 넓게, 파형 60 높게, 디자인 탭 50 높게 → layout.json 저장 → 왼쪽 손잡이 두 번 누르기는 기본으로
             ("panes", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {

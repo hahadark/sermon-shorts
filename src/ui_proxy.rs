@@ -70,4 +70,21 @@ impl App {
             }
         }
     }
+
+    /// 부드러운 미리보기 켜기·끄기: 끄면 미리보기를 바로 원본으로 되돌리고, 켜면 지금 영상에 다시 만든다
+    pub(crate) fn proxy_set_enabled(&mut self, on: bool, save: bool) {
+        if save { if let Ok(s) = sermon_shorts::settings::save(&serde_json::json!({ "previewProxy": on })) { self.settings = s; } }
+        if on {
+            let src = self.project.source_path.clone();
+            if self.player.path.is_some() && src.exists() { self.proxy_start(&src); }
+            return;
+        }
+        self.proxy_cancel();
+        let using = self.proxy.using.take();
+        self.proxy = ProxyState::default();
+        if using.is_some() && self.project.source_path.exists() {
+            let was = self.player.playing();
+            if self.player.swap_media(&self.project.source_path.clone()).is_ok() && was { self.player.play(); }
+        }
+    }
 }

@@ -47,7 +47,7 @@ fn install_job(a: &str) -> Option<(Option<&'static str>, &'static str)> {
 const ALL_ORDER: [(&str, &str); 5] = [("install-ffmpeg", "ffmpeg (약 100MB)"), ("install-ytdlp", "yt-dlp (약 20MB)"), ("install-engine", "자막 엔진 (약 3GB, 10분 이상)"), ("reinstall-engine", "자막 엔진 다시 설치 (약 3GB)"), ("download-model", "Whisper 모델 (1.5~3GB)")];
 
 fn yes(title: &str, text: &str) -> bool {
-    std::env::var("SS_TEST_YES").is_ok() || rfd::MessageDialog::new().set_title(title).set_description(text).set_buttons(rfd::MessageButtons::YesNo).show() == rfd::MessageDialogResult::Yes
+    std::env::var("SS_TEST_YES").is_ok() || crate::style::confirm(title, text)
 }
 
 impl App {

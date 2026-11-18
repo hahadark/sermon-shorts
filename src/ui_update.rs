@@ -85,7 +85,7 @@ impl App {
                     if b.clicked() {
                         match &st {
                             St::Ready { .. } => {
-                                if rfd::MessageDialog::new().set_title("업데이트").set_description("저장하지 않은 편집은 사라집니다. 지금 다시 시작해 새 버전을 설치할까요?").set_buttons(rfd::MessageButtons::YesNo).show() == rfd::MessageDialogResult::Yes {
+                                if crate::style::confirm("업데이트", "저장하지 않은 편집은 사라집니다. 지금 다시 시작해 새 버전을 설치할까요?") {
                                     self.upd.relaunch = true;
                                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                                 }

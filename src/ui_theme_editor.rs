@@ -36,6 +36,7 @@ pub(crate) struct Ed {
     pub rendered: bool,
 }
 impl Ed {
+    pub fn ask_open(&self) -> bool { self.ask.is_some() }
     /// 시험용: 테마와 단추 자리만 복사
     pub fn clone_view(&self) -> EdView { EdView { theme: self.theme.clone(), rects: self.rects.clone() } }
     fn new(t: Value) -> Ed {
@@ -44,7 +45,8 @@ impl Ed {
 }
 
 #[derive(Default)]
-pub(crate) struct State { pub ed: Option<Box<Ed>> }
+pub(crate) struct State { pub ed: Option<Box<Ed>>, /// 기본 테마에서 [이 테마 사용] → 복제 이름을 받은 뒤 저장하고 적용까지
+    pub apply_after_clone: bool }
 pub(crate) struct EdView { pub theme: Value, pub rects: Vec<(String, egui::Rect)> }
 
 fn num(v: &Value) -> f64 { theme::num(v).unwrap_or(0.0) }
@@ -57,7 +59,7 @@ fn theme_file(id: &str) -> Result<PathBuf, String> {
     if id.is_empty() || id.starts_with('.') || id.contains(['/', '\\', ':']) { return Err(format!("테마 id가 올바르지 않습니다: {id}")); }
     Ok(themes_dir().join(format!("{id}.json")))
 }
-fn yes(text: &str) -> bool { std::env::var("SS_TEST_YES").is_ok() || rfd::MessageDialog::new().set_title("테마 편집기").set_description(text).set_buttons(rfd::MessageButtons::YesNo).show() == rfd::MessageDialogResult::Yes }
+fn yes(text: &str) -> bool { std::env::var("SS_TEST_YES").is_ok() || crate::style::confirm("테마 편집기", text) }
 
 /// 편집기 미리보기 그림 (기존 render: 배경·밑 층 → 영상 자리 → 위 층·자막·아래)
 fn render_theme(t: &Value) -> egui::ColorImage {
@@ -220,7 +222,11 @@ impl App {
     }
     pub(crate) fn te_apply(&mut self) {
         let need = self.theme_ed.ed.as_ref().is_some_and(|e| e.dirty || (is_user(&e.theme) && !theme_file(e.theme["id"].as_str().unwrap_or("")).map(|p| p.exists()).unwrap_or(false)));
-        if need && !self.te_save(true) { return; }
+        if need && !self.te_save(true) {
+            // 기본 테마라 복제 이름을 묻는 중이면, 이름을 받아 저장한 뒤 이어서 적용한다
+            if self.theme_ed.ed.as_ref().is_some_and(|e| matches!(e.ask, Some((Ask::Clone { then_save: true }, _)))) { self.theme_ed.apply_after_clone = true; }
+            return;
+        }
         let Some(e) = self.theme_ed.ed.as_ref() else { return };
         let id = e.theme["id"].as_str().unwrap_or("").to_string();
         self.themes = theme::list_themes();
@@ -242,7 +248,10 @@ impl App {
         }
         e.need_render = true;
         self.te_push();
-        if let Ask::Clone { then_save: true } = kind { self.te_save(false); }
+        if let Ask::Clone { then_save: true } = kind {
+            let ok = self.te_save(self.theme_ed.apply_after_clone);
+            if ok && std::mem::take(&mut self.theme_ed.apply_after_clone) { self.te_apply(); }
+        }
     }
     fn te_more(&mut self, what: &str) {
         let Some(e) = self.theme_ed.ed.as_mut() else { return };
@@ -604,5 +613,7 @@ impl App {
             None => {}
         }
         if close { self.te_close(); }
+        // 묻는 창(이름)이 떠 있으면 바로 그린다 (맥에서 시스템 대화 상자를 닫은 뒤 마우스를 움직이기 전까지 그리지 않던 것)
+        if self.theme_ed.ed.as_ref().is_some_and(|e| e.ask.is_some()) { ctx.request_repaint(); }
     }
 }

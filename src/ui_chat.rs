@@ -144,7 +144,7 @@ fn clock_of(s: u64) -> String { format!("{}:{:02}", s / 60, s % 60) }
 fn iga(w: &str) -> &'static str { let c = w.chars().last().map(|c| c as u32).unwrap_or(0); if (0xac00..=0xd7a3).contains(&c) && (c - 0xac00) % 28 != 0 { "이" } else { "가" } }
 fn yt_id(u: &str) -> Option<String> { yt::video_id_of(u) }
 fn yes(title: &str, text: &str) -> bool {
-    std::env::var("SS_TEST_YES").is_ok() || rfd::MessageDialog::new().set_title(title).set_description(text).set_buttons(rfd::MessageButtons::YesNo).show() == rfd::MessageDialogResult::Yes
+    std::env::var("SS_TEST_YES").is_ok() || crate::style::confirm(title, text)
 }
 fn same_ranges(a: &Option<Vec<Range>>, b: &[Range]) -> bool { a.as_ref().is_some_and(|a| a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x == y)) }
 fn src_to_file(map: &[Piece], t: f64) -> Option<f64> { map.iter().find(|m| t >= m.src0 - 0.001 && t <= m.src1 + 0.001).map(|m| m.file0 + (t - m.src0)) }

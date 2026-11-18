@@ -256,10 +256,7 @@ impl App {
         });
         if choose_logo {
             if let Some(p) = rfd::FileDialog::new().set_title("교회 로고 고르기").add_filter("그림", &["png", "jpg", "jpeg", "webp"]).pick_file() {
-                match theme::import_logo(&p).and_then(|dst| theme::save_settings(&json!({ "template": { "logoPath": dst.to_string_lossy() } }))) {
-                    Ok(s) => { self.settings = s; self.toast("로고를 바꿨습니다"); }
-                    Err(e) => self.toast(format!("로고 바꾸기 실패: {e}")),
-                }
+                self.choose_logo_file(&p);
             }
         }
         if toggle_show {
@@ -271,5 +268,15 @@ impl App {
             self.toast(if on { "쇼츠에 교회 이름·로고를 보입니다 (이 프로젝트에만. 테마에 저장하려면 [편집])" } else { "쇼츠에서 교회 이름·로고를 숨겼습니다" });
         }
         if changed && self.has_project { self.unsaved = true; }
+    }
+}
+
+impl App {
+    /// 메인 화면에서 교회 로고 고르기 (설정의 로고로 저장)
+    pub(crate) fn choose_logo_file(&mut self, p: &std::path::Path) {
+        match theme::import_logo(p).and_then(|dst| theme::save_settings(&json!({ "template": { "logoPath": dst.to_string_lossy() } }))) {
+            Ok(s) => { self.settings = s; self.toast("로고를 바꿨습니다"); }
+            Err(e) => self.toast(format!("로고 바꾸기 실패: {e}")),
+        }
     }
 }

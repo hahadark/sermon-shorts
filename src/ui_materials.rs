@@ -382,7 +382,7 @@ impl App {
             }
             "again" => {
                 if self.mstore()["demoMode"] == true { self.toast("샘플 체험에서는 AI를 사용하지 않습니다. 원래 자료로 돌아가세요."); return; }
-                if rfd::MessageDialog::new().set_title("교인 자료").set_description(format!("{}을(를) 다시 만들까요? 지금 고친 내용은 사라집니다.", ti.label)).set_buttons(rfd::MessageButtons::YesNo).show() != rfd::MessageDialogResult::Yes { return; }
+                if !crate::style::confirm("교인 자료", format!("{}을(를) 다시 만들까요? 지금 고친 내용은 사라집니다.", ti.label)) { return; }
                 self.mstore()["selected"] = json!([cur]);
                 self.materials.page = MPage::Make;
                 self.mat_generate();
@@ -1115,7 +1115,7 @@ impl App {
         if !regex::Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap().is_match(&date) { self.toast("예배 날짜가 올바르지 않습니다. 날짜 칸을 확인해 주세요."); return; }
         let msg = format!("{date} 예배 묶음을 만듭니다: {}.\n\n홈페이지에 공개되므로 나눔지에 성도 이름·헌금·봉사자 명단·사관 개인 사정·전화번호가 없는지 확인하셨나요?{}", has.join(", "), if n > 0 { "" } else { "\n\n(공개로 올린 쇼츠가 없어 쇼츠 주소는 넣지 않습니다.)" });
         let test_dir = std::env::var("SS_TEST_SAVE_DIR").ok();
-        if test_dir.is_none() && rfd::MessageDialog::new().set_title("홈페이지 묶음").set_description(msg).set_buttons(rfd::MessageButtons::YesNo).show() != rfd::MessageDialogResult::Yes { return; }
+        if test_dir.is_none() && !crate::style::confirm("홈페이지 묶음", msg) { return; }
         let root = match test_dir {
             Some(d) => PathBuf::from(d),
             None => {

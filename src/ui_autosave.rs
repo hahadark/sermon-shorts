@@ -288,7 +288,7 @@ impl App {
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) { close = true; }
         self.asv.browser = Some(b);
         if let Some(k) = del {
-            let yes = std::env::var("SS_TEST_YES").is_ok() || rfd::MessageDialog::new().set_title("자동 저장본 지우기").set_description("이 영상의 자동 저장본(작업본 포함)을 모두 지울까요?").set_buttons(rfd::MessageButtons::YesNo).show() == rfd::MessageDialogResult::Yes;
+            let yes = std::env::var("SS_TEST_YES").is_ok() || crate::style::confirm("자동 저장본 지우기", "이 영상의 자동 저장본(작업본 포함)을 모두 지울까요?");
             if yes { let _ = asv::remove(&k); if let Some(b) = &mut self.asv.browser { if let Some(es) = &mut b.entries { es.retain(|e| e.key != k); } } }
         }
         if let Some((k, f, force)) = open { self.open_saved(&k, &f, force); return; }

@@ -132,3 +132,10 @@ pub fn backdrop_clicked(ctx: &egui::Context) -> bool {
     let now = ctx.cumulative_pass_nr();
     ctx.data(|d| d.get_temp::<(u64, bool)>(egui::Id::new("ss-backdrop-click"))).is_some_and(|(n, hit)| hit && n == now)
 }
+/// 예/아니요 묻기 (맥에서도 한국어 단추). 시험(SS_TEST_YES)에서는 늘 예
+pub fn confirm(title: impl AsRef<str>, text: impl AsRef<str>) -> bool {
+    if std::env::var("SS_TEST_YES").is_ok() { return true; }
+    let r = rfd::MessageDialog::new().set_title(title.as_ref()).set_description(text.as_ref())
+        .set_buttons(rfd::MessageButtons::OkCancelCustom("예".into(), "아니요".into())).show();
+    matches!(r, rfd::MessageDialogResult::Yes | rfd::MessageDialogResult::Ok) || matches!(&r, rfd::MessageDialogResult::Custom(s) if s == "예")
+}

@@ -576,7 +576,7 @@ impl App {
             if sel.as_deref() == Some(id.as_str()) { self.toast("지금 쓰는 음악은 뺄 수 없습니다. 다른 음악으로 바꾼 뒤 빼 주세요."); }
             else {
                 let title = self.bgm_track(&id).map(|t| t.title).unwrap_or(id.clone());
-                let yes = std::env::var("SS_TEST_YES").is_ok() || rfd::MessageDialog::new().set_title("배경음악").set_description(format!("\"{title}\"을(를) 내 음악 목록에서 뺄까요?")).set_buttons(rfd::MessageButtons::YesNo).show() == rfd::MessageDialogResult::Yes;
+                let yes = std::env::var("SS_TEST_YES").is_ok() || crate::style::confirm("배경음악", format!("\"{title}\"을(를) 내 음악 목록에서 뺄까요?"));
                 if yes { bgm::remove_custom(&id); self.reload_custom(); }
             }
         }
@@ -832,7 +832,7 @@ impl App {
             if sel.as_deref() == Some(id.as_str()) { self.toast("지금 쓰는 음악은 지울 수 없습니다. 다른 음악으로 바꾼 뒤 지워 주세요."); }
             else {
                 let title = self.bgm_track(&id).map(|t| t.title).unwrap_or(id.clone());
-                let yes = std::env::var("SS_TEST_YES").is_ok() || rfd::MessageDialog::new().set_title("배경음악 관리").set_description(format!("\"{title}\"을(를) 보관함에서 지울까요? 보관함 폴더의 음악 파일도 함께 지워집니다.")).set_buttons(rfd::MessageButtons::YesNo).show() == rfd::MessageDialogResult::Yes;
+                let yes = std::env::var("SS_TEST_YES").is_ok() || crate::style::confirm("배경음악 관리", format!("\"{title}\"을(를) 보관함에서 지울까요? 보관함 폴더의 음악 파일도 함께 지워집니다."));
                 if yes { if self.bgm.listen.as_ref().is_some_and(|l| l.id == id) { self.stop_listen(); } bgm::remove_custom(&id); self.reload_custom(); }
             }
         }

@@ -186,7 +186,7 @@ impl App {
                 });
             }
             if sm_btn(ui, "모두 지우기").clicked() {
-                let yes = std::env::var("SS_TEST_YES").is_ok() || rfd::MessageDialog::new().set_title("설정").set_description("최근 유튜브 링크를 모두 지울까요?").set_buttons(rfd::MessageButtons::YesNo).show() == rfd::MessageDialogResult::Yes;
+                let yes = std::env::var("SS_TEST_YES").is_ok() || crate::style::confirm("설정", "최근 유튜브 링크를 모두 지울까요?");
                 if yes { rm = Some(None); }
             }
             if let Some(which) = rm { if let Ok(s) = st::recent_remove(which.as_deref()) { p.recent = sermon_shorts::youtube::recent_list(&s).into_iter().map(|(u, t, _)| (u, t)).collect(); self.settings = s; } }
@@ -425,7 +425,11 @@ impl App {
         self.chat_save_prefs();
         match st::save(&patch) {
             Ok(s) => {
+                let was_proxy = self.settings["previewProxy"] != false;
                 self.settings = s;
+                // 부드러운 미리보기를 켜고 끄면 바로 (지금 영상에도)
+                let now_proxy = self.settings["previewProxy"] != false;
+                if was_proxy != now_proxy { self.proxy_set_enabled(now_proxy, false); }
                 // 화면의 교회 이름도 새 설정으로
                 self.church = self.settings["template"]["churchName"].as_str().unwrap_or("").to_string();
                 if p.apply_now { self.apply_edit_defaults(); self.recompute(); }

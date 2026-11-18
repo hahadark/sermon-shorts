@@ -478,9 +478,10 @@ impl App {
     pub fn logo_path(&self) -> String {
         let t = self.theme["logo"]["path"].as_str().unwrap_or("");
         let crest = regex::Regex::new(r"(?i)^assets[\\/]images[\\/](sa-)?crest\.png$").unwrap();
-        if !t.is_empty() && !crest.is_match(t) { return t.to_string(); }
+        // 메인 화면·설정에서 고른 교회 로고가 먼저 (기존 Electron 미리보기와 같음), 없을 때만 테마에 든 로고
         let s = self.settings["template"]["logoPath"].as_str().unwrap_or("");
         if !s.is_empty() && !crest.is_match(s) { return s.to_string(); }
+        if !t.is_empty() && !crest.is_match(t) { return t.to_string(); }
         String::new()
     }
     /// 그리기 값 (자막은 따로)

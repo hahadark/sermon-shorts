@@ -91,7 +91,9 @@ impl App {
                 let pr = egui::Rect::from_min_size(egui::pos2(nr.right() + 10.0, full.center().y - g.size().y / 2.0 - 3.0), g.size() + egui::vec2(14.0, 6.0));
                 ui.painter().rect_filled(pr, CornerRadius::same(255), if kind == 1 { Color32::from_rgb(0xe7, 0xf8, 0xee) } else if kind == 2 { style::WARN_SOFT } else { style::PANEL3 });
                 ui.painter().galley(pr.min + egui::vec2(7.0, 3.0), g, col);
-                ui.interact(pr, egui::Id::new("proxy-status"), egui::Sense::hover()).on_hover_text(tip);
+                let resp = ui.interact(pr, egui::Id::new("proxy-status"), egui::Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text(format!("{tip}\n\n누르면 부드러운 미리보기를 끕니다 (원본으로 미리 보기). 설정 → 편집에서 다시 켤 수 있습니다."));
+                ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new("proxy-badge"), pr));
+                if resp.clicked() { self.proxy_set_enabled(false, true); self.toast("부드러운 미리보기를 껐습니다. 설정 → 편집에서 다시 켤 수 있습니다."); }
             }
         }
         // 오른쪽: 내보내기
