@@ -39,7 +39,7 @@ fn deleted_word_end_later_moves_next_segment_start() {
     assert!(same(&segs(&ws, &ov), &[(0.9, 1.65), (2.2, 2.65)]), "{:?}", segs(&ws, &ov));
     // 다시 조금 앞으로 (끄는 중처럼 여러 번): 구간이 따라온다
     word_trim::set_edge(&mut ws, &mut ov, &st(), 1, 'E', 2.1);
-    assert!(near(ws[1].end, 2.1) && near(ws[2].start, 2.2), "이웃은 밀기만 하고 당기지 않음");
+    assert!(near(ws[1].end, 2.1) && near(ws[2].start, 2.1), "맞닿은 이웃은 같이 따라와 빈 곳이 생기지 않음");
     assert!(same(&segs(&ws, &ov), &[(0.9, 1.65), (2.1, 2.65)]), "{:?}", segs(&ws, &ov));
 }
 
@@ -74,7 +74,8 @@ fn joined_kept_words_keep_one_segment() {
     let mut ws = vec![w(0, "가", 1.0, 1.5, false), w(1, "나", 1.5, 2.0, false)];
     let mut ov = Overrides::new();
     word_trim::set_edge(&mut ws, &mut ov, &st(), 0, 'E', 1.3);
-    assert!(near(ws[1].start, 1.5), "벌어지는 쪽은 이웃을 당기지 않음");
+    assert!(near(ws[1].start, 1.3), "맞닿은 이웃의 시작이 같이 따라와 빈 곳이 생기지 않음");
+    assert_eq!(word_trim::original(&ws[1]), (1.5, 2.0));
     assert!(ov.is_empty());
     assert!(same(&segs(&ws, &ov), &[(0.9, 2.15)]));
     // 맨 끝 단어 끝을 늘리면 구간 끝도 따라간다
@@ -140,4 +141,45 @@ fn edited_times_survive_json_roundtrip() {
     assert!(j.contains("\"sttStart\":1.5"));
     // 미세 조정 값 키는 Electron 이 읽는 모양("s:"/"e:" + 숫자)만
     assert!(ov.keys().all(|k| (k.starts_with("s:") || k.starts_with("e:")) && k[2..].parse::<i64>().is_ok()));
+}
+
+#[test]
+fn touching_boundary_moves_together_and_existing_gap_stays() {
+    // 가 [1.0,1.5] | 나 [1.5,2.0] (맞닿음) · 쉼 0.4초 · 다 [2.4,2.9]
+    let mut ws = vec![w(0, "가", 1.0, 1.5, false), w(1, "나", 1.5, 2.0, false), w(2, "다", 2.4, 2.9, false)];
+    let mut ov = Overrides::new();
+    // 뒤 단어의 시작을 늦춰도 앞 단어 끝이 따라온다 (빈 곳 없음)
+    word_trim::set_edge(&mut ws, &mut ov, &st(), 1, 'S', 1.7);
+    assert!(near(ws[0].end, 1.7) && near(ws[1].start, 1.7));
+    // 여러 번 조금씩 옮겨도 (화살표 키) 계속 맞닿아 있다
+    for v in [1.68, 1.66, 1.62] { word_trim::set_edge(&mut ws, &mut ov, &st(), 0, 'E', v); assert!(near(ws[1].start, v) && near(ws[0].end, v)); }
+    // 원래 떨어져 있던 곳은 그대로: 끝을 줄이면 쉼이 길어질 뿐 다음 단어는 안 움직인다
+    word_trim::set_edge(&mut ws, &mut ov, &st(), 1, 'E', 1.9);
+    assert!(near(ws[1].end, 1.9) && near(ws[2].start, 2.4));
+    // 떨어져 있던 이웃 너머로 늘리면 밀어 준다
+    word_trim::set_edge(&mut ws, &mut ov, &st(), 1, 'E', 2.5);
+    assert!(near(ws[1].end, 2.5) && near(ws[2].start, 2.5));
+    assert!(ov.is_empty(), "{ov:?}");
+    assert!(same(&segs(&ws, &ov), &[(0.9, 3.05)]));
+    // 원래대로: 맞닿은 경계가 함께 인식 값으로 돌아온다
+    word_trim::reset(&mut ws, &mut ov, &st(), 1);
+    assert!(near(ws[1].start, 1.5) && near(ws[1].end, 2.0) && near(ws[0].end, 1.5) && near(ws[2].start, 2.4), "{:?}", ws.iter().map(|x| (x.start, x.end)).collect::<Vec<_>>());
+}
+
+#[test]
+fn small_recognition_gap_closes_when_edge_moves() {
+    // 인식 결과는 단어 사이에 0.0x초 틈이 흔하다: 가 [1.0,1.5] · 틈 0.07 · 나 [1.57,2.0] · 지움 [2.05,2.4]
+    let mut ws = vec![w(0, "가", 1.0, 1.5, false), w(1, "나", 1.57, 2.0, false), w(2, "음", 2.05, 2.4, true)];
+    let mut ov = Overrides::new();
+    // 앞 단어 끝을 줄이면 뒤 단어 시작이 따라와 붙는다 (빈 곳이 커지지 않는다)
+    word_trim::set_edge(&mut ws, &mut ov, &st(), 0, 'E', 1.4);
+    assert!(near(ws[0].end, 1.4) && near(ws[1].start, 1.4), "{:?}", ws.iter().map(|x| (x.start, x.end)).collect::<Vec<_>>());
+    // 남긴 말 끝을 줄이면 지운 말 시작이 따라오고, 컷은 그 경계에 바짝
+    word_trim::set_edge(&mut ws, &mut ov, &st(), 1, 'E', 1.9);
+    assert!(near(ws[1].end, 1.9) && near(ws[2].start, 1.9));
+    assert!(same(&segs(&ws, &ov), &[(0.9, 1.9)]), "{:?}", segs(&ws, &ov));
+    // 원래대로 하면 인식 값(틈 포함)으로 돌아온다
+    word_trim::reset(&mut ws, &mut ov, &st(), 1);
+    assert!(near(ws[0].end, 1.5) && near(ws[1].start, 1.57) && near(ws[1].end, 2.0) && near(ws[2].start, 2.05), "{:?}", ws.iter().map(|x| (x.start, x.end)).collect::<Vec<_>>());
+    assert!(ws.iter().all(|x| !word_trim::edited(x)));
 }

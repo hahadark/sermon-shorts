@@ -268,7 +268,11 @@ impl App {
                 let seg1 = self.segs.iter().find(|s| s.last_word_id == w.id).map(|s| s.end);
                 let seg0 = info["seg0"].as_f64();
                 let next0 = info["next0"].as_f64().unwrap_or(f64::INFINITY);
-                let want_seg = (w.end + self.project.settings.pad_after).min(next0);
+                // 맞닿아 있던 다음 말(지운 말)은 끝을 줄일 때 같이 따라와 빈 곳이 생기지 않는다
+                let next1 = self.project.words.get(li + 1).map(|n| n.start).unwrap_or(f64::INFINITY);
+                let touching0 = next0 - e0 <= sermon_shorts::word_trim::JOIN_GAP;
+                info["noGap"] = json!({ "ok": !touching0 || (next1 - w.end).abs() < 1e-9, "touching": touching0, "next": next1 });
+                let want_seg = (w.end + self.project.settings.pad_after).min(next1);
                 info["e1"] = json!(w.end); info["seg1"] = json!(seg1); { let tr = self.trim.as_ref().unwrap(); info["rect3"] = json!([tr.wstrip.left(), tr.wstrip.top(), tr.wstrip.width(), tr.wview.0, tr.wview.1]); } info["wantSeg"] = json!(want_seg);
                 info["orig"] = json!(sermon_shorts::word_trim::original(&w));
                 info["drag"] = json!({ "ok": (w.end - (e0 - delta)).abs() < 0.006 && (w.start - s0).abs() < 1e-9 && (sermon_shorts::word_trim::original(&w).1 - e0).abs() < 1e-9 });
@@ -310,7 +314,7 @@ impl App {
                         Err(e) => { info["saveReload"] = json!({ "ok": false, "error": e.to_string() }); }
                     }
                 }
-                let all = ["drag", "segFollows", "oneUndoStep", "bar", "undo", "redo", "saveReload"].iter().all(|k| info[*k]["ok"].as_bool() == Some(true)) && info["selected"].as_bool() == Some(true);
+                let all = ["drag", "noGap", "segFollows", "oneUndoStep", "bar", "undo", "redo", "saveReload"].iter().all(|k| info[*k]["ok"].as_bool() == Some(true)) && info["selected"].as_bool() == Some(true);
                 info["pass"] = json!(all);
                 if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
                 self.unsaved = false;
@@ -419,14 +423,13 @@ impl App {
                 let bi = info["split"]["blank"].as_u64().unwrap() as usize;
                 let dur = edl::segments_duration(&self.segs);
                 info["redo"] = json!({ "ok": self.project.words.len() == info["n0"].as_u64().unwrap() as usize + 1 && self.project.words[bi].del && (dur - info["dur1"].as_f64().unwrap()).abs() < 1e-9 && self.trim.is_some() });
-                // 공백 만들기: 칸 안에서 이어진 남긴 두 단어를 찾아 앞 단어 끝을 당겨 빈 곳을 만든다 (사용자가 막대 끝을 소리에 맞게 끈 것과 같음)
+                // 공백 준비: 칸 안에서 이어진 남긴 두 단어 사이를 벌려 둔다 (인식 결과에 쉼이 있는 경우와 같음. 막대 끝을 끄는 것으로는 빈 곳이 생기지 않는다)
                 let (ib, ia) = self.trim.as_ref().map(|x| (x.idx_b, x.idx_a)).unwrap();
                 let ws = &self.project.words;
                 let pair = (ib..ia).find(|&k| !ws[k].del && !ws[k + 1].del && !sermon_shorts::word_trim::blank(&ws[k]) && ws[k].end - ws[k].start > 0.3);
                 let Some(k) = pair else { info["gap"] = json!({ "ok": false, "why": "이어진 남긴 단어 쌍이 없음" }); info["pass"] = json!(false); if let Some(p) = &t.report { let _ = std::fs::write(p, info.to_string()); } self.unsaved = false; ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9; return self.test = Some(test); };
                 let to = ws[k].end - (0.3f64).min((ws[k].end - ws[k].start) * 0.5);
-                self.set_word_edge(k, 'E', to);
-                if self.dirty { self.recompute(); }
+                self.project.words[k].end = to; self.commit(); self.recompute();
                 info["gk"] = json!(k); info["dur2"] = json!(edl::segments_duration(&self.segs));
                 info["gapLen"] = json!(self.project.words[k + 1].start - self.project.words[k].end);
                 self.test_words = info.to_string();

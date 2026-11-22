@@ -15,6 +15,11 @@ pub const MIN_LEN: f64 = 0.02;
 /// 같은 값으로 본다
 const EPS: f64 = 1e-6;
 
+/// 두 단어가 맞닿았다고 보는 틈 (초). 맞닿은 단어의 경계는 함께 움직인다
+pub const TOUCH: f64 = 0.015;
+/// 이만큼 안쪽으로 붙은 이웃 단어는 한 경계로 본다 (초): 한쪽을 옮기면 다른 쪽이 따라와 붙는다. 이보다 긴 틈은 쉼으로 보고 따로 둔다
+pub const JOIN_GAP: f64 = 0.3;
+
 /// 이 단어의 인식 원래 시각 (고친 적 없으면 지금 값)
 pub fn original(w: &Word) -> (f64, f64) {
     let g = |k: &str, d: f64| w.extra.get(k).and_then(|v| v.as_f64()).unwrap_or(d);
@@ -34,8 +39,10 @@ fn tidy_memo(w: &mut Word) { if !edited(w) { w.extra.remove("sttStart"); w.extra
 
 fn timed(words: &[Word], i: Option<usize>) -> Option<usize> { i.filter(|&k| k < words.len() && words[k].timed()) }
 
-/// 단어 i 의 시작('S') 또는 끝('E') 을 val 로. 앞뒤 단어와 겹치지 않게 이웃 단어의 맞닿은 쪽을 밀어 주고
-/// (이웃 단어도 MIN_LEN 보다 짧아지지는 않음), 그 경계의 컷을 맞춘다. 실제로 넣은 값을 돌려준다.
+/// 단어 i 의 시작('S') 또는 끝('E') 을 val 로. 이웃 단어와 붙어 있으면 (틈 JOIN_GAP 이하) 그 경계를 함께 옮긴다
+/// (줄여도 단어 사이에 빈 곳이 생기지 않는다. 빈 곳은 [나누기] 로 만든 빈 조각으로만 생긴다).
+/// 떨어져 있던 이웃은 겹칠 때만 밀어 준다 (이웃 단어도 MIN_LEN 보다 짧아지지는 않음).
+/// 그 경계의 컷을 맞추고 실제로 넣은 값을 돌려준다.
 pub fn set_edge(words: &mut [Word], ov: &mut Overrides, s: &EditSettings, i: usize, edge: char, val: f64) -> f64 {
     if i >= words.len() || !words[i].timed() || !val.is_finite() { return val; }
     let prev = timed(words, i.checked_sub(1));
@@ -47,15 +54,17 @@ pub fn set_edge(words: &mut [Word], ov: &mut Overrides, s: &EditSettings, i: usi
         let lo = prev.map(|p| words[p].start + MIN_LEN).unwrap_or(0.0).max(0.0);
         let hi = words[i].end - MIN_LEN;
         let v = if hi < lo { words[i].start } else { val.clamp(lo, hi) };
+        let touching = prev.is_some_and(|p| words[i].start - words[p].end <= JOIN_GAP);
         remember(&mut words[i]); words[i].start = v;
-        if let Some(p) = prev { if words[p].end > v { remember(&mut words[p]); words[p].end = v; } }
+        if let Some(p) = prev { if words[p].end > v || touching { remember(&mut words[p]); words[p].end = v; } }
         v
     } else {
         let lo = words[i].start + MIN_LEN;
         let hi = next.map(|n| words[n].end - MIN_LEN).unwrap_or(f64::INFINITY);
         let v = if hi < lo { words[i].end } else { val.clamp(lo, hi) };
+        let touching = next.is_some_and(|n| words[n].start - words[i].end <= JOIN_GAP);
         remember(&mut words[i]); words[i].end = v;
-        if let Some(n) = next { if words[n].start < v { remember(&mut words[n]); words[n].start = v; } }
+        if let Some(n) = next { if words[n].start < v || touching { remember(&mut words[n]); words[n].start = v; } }
         v
     };
     refit(words, ov, s, l, r, old_l_end, old_r_start);
@@ -63,13 +72,31 @@ pub fn set_edge(words: &mut [Word], ov: &mut Overrides, s: &EditSettings, i: usi
     v
 }
 
-/// 단어 i 를 인식 원래 시각으로 (이웃을 민 것은 이웃 단어 쪽에서 따로 되돌린다)
+/// 단어 i 를 인식 원래 시각으로. 맞닿아 있던 이웃의 경계도 그 이웃의 인식 값으로 함께 돌린다 (처음부터 있던 쉼만 다시 생긴다)
 pub fn reset(words: &mut [Word], ov: &mut Overrides, s: &EditSettings, i: usize) {
     if i >= words.len() { return; }
+    if !words[i].timed() { return; }
     let (os, oe) = original(&words[i]);
-    // 늘이는 쪽부터 (줄이는 쪽을 먼저 하면 MIN_LEN 제한에 걸릴 수 있다)
-    if os < words[i].start { set_edge(words, ov, s, i, 'S', os); set_edge(words, ov, s, i, 'E', oe); }
-    else { set_edge(words, ov, s, i, 'E', oe); set_edge(words, ov, s, i, 'S', os); }
+    let prev = timed(words, i.checked_sub(1));
+    let next = timed(words, Some(i + 1));
+    let (old_s, old_e) = (words[i].start, words[i].end);
+    let old_p_end = prev.map(|p| words[p].end);
+    let old_n_start = next.map(|n| words[n].start);
+    let touch_p = prev.is_some_and(|p| (old_s - words[p].end).abs() <= TOUCH);
+    let touch_n = next.is_some_and(|n| (words[n].start - old_e).abs() <= TOUCH);
+    // 이 단어를 인식 값으로 (이웃이 MIN_LEN 은 남게)
+    let lo = prev.map(|p| words[p].start + MIN_LEN).unwrap_or(0.0).max(0.0);
+    let hi = next.map(|n| words[n].end - MIN_LEN).unwrap_or(f64::INFINITY);
+    let ns = if os < lo { lo } else { os };
+    let ne = if oe > hi { hi } else { oe };
+    if ne - ns < MIN_LEN { return; }
+    words[i].start = ns; words[i].end = ne;
+    // 맞닿아 있던 (또는 겹치게 된) 이웃의 경계는 그 이웃의 인식 값으로, 다만 이 단어와 겹치지 않게
+    if let Some(p) = prev { if touch_p || words[p].end > ns { let poe = original(&words[p]).1; remember(&mut words[p]); words[p].end = poe.min(ns).max(words[p].start + MIN_LEN); } }
+    if let Some(n) = next { if touch_n || words[n].start < ne { let nos = original(&words[n]).0; remember(&mut words[n]); words[n].start = nos.max(ne).min(words[n].end - MIN_LEN); } }
+    refit(words, ov, s, prev, Some(i), old_p_end, Some(old_s));
+    refit(words, ov, s, Some(i), next, Some(old_e), old_n_start);
+    for k in [prev, Some(i), next].into_iter().flatten() { tidy_memo(&mut words[k]); }
 }
 
 /// 경계 (왼쪽 단어 l 의 끝 | 오른쪽 단어 r 의 시작) 의 컷을 새 단어 시각에 맞춘다
