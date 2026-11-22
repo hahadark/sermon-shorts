@@ -316,6 +316,174 @@ impl App {
                 self.unsaved = false;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
             }
+            // 단어별 조정의 조각 도구: 파형을 눌러 자를 자리 → [나누기] → [지우기] → 되돌리기·다시 하기 → 빈 곳 누르고 [공백 없애기] → 저장·다시 열기
+            ("wordsplit", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
+                let b = self.blocks.iter().filter(|b| b.line.is_some()).nth(2).cloned().unwrap();
+                let li = (b.from..b.to).rev().find(|&k| !self.project.words[k].del).unwrap();
+                self.open_fine(b.from, li);
+                let text: Vec<String> = self.lines.iter().map(|l| l.text.clone()).collect();
+                self.test_words = json!({ "n0": self.project.words.len(), "dur0": edl::segments_duration(&self.segs), "text0": text.join("|"), "ib0": b.from, "ia0": li, "hist0": self.hist_at }).to_string();
+                t.step = 1; t.t0 = Instant::now();
+            }
+            ("wordsplit", 1) if self.trim.as_ref().is_some_and(|x| x.wpcm.is_some() && !x.wrects.is_empty()) && t.t0.elapsed().as_secs_f64() > 1.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap();
+                // 칸 안에서 막대가 가장 긴 남긴 단어의 가운데(파형 쪽)를 누른다
+                let (pick, cy) = { let tr = self.trim.as_ref().unwrap(); (tr.wrects.iter().filter(|(i, _)| *i >= tr.idx_b && *i <= tr.idx_a && !self.project.words[*i].del).max_by(|x, y| x.1.width().total_cmp(&y.1.width())).map(|x| (x.0, x.1)), tr.wstrip.center().y) };
+                if self.t_stable("splitbar", pick.map(|x| x.1)).is_none() { return self.test = Some(test); }
+                let (li, bar) = pick.unwrap();
+                let w = &self.project.words[li];
+                info["li"] = json!(li); info["w0"] = json!([w.start, w.end]); info["word"] = json!(w.text);
+                self.test_words = info.to_string();
+                self.t_click(egui::pos2(bar.center().x, cy + 14.0), egui::Modifiers::NONE);
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("wordsplit", 2) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.5 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap();
+                let li = info["li"].as_u64().unwrap() as usize;
+                let tr = self.trim.as_ref().unwrap();
+                let (s, e) = (info["w0"][0].as_f64().unwrap(), info["w0"][1].as_f64().unwrap());
+                info["cursor"] = json!({ "ok": tr.word == Some(li) && tr.wcur.is_some_and(|c| c > s + 0.04 && c < e - 0.04), "at": tr.wcur });
+                self.test_words = info.to_string();
+                let btn = tr.wbtn[0];
+                if !btn.is_positive() { return self.test = Some(test); }
+                self.t_click(btn.center(), egui::Modifiers::NONE);
+                t.step = 3; t.t0 = Instant::now();
+            }
+            ("wordsplit", 3) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.6 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap();
+                let li = info["li"].as_u64().unwrap() as usize;
+                let n0 = info["n0"].as_u64().unwrap() as usize;
+                let at = info["cursor"]["at"].as_f64().unwrap_or(-1.0);
+                if self.dirty { self.recompute(); }
+                let ws = &self.project.words;
+                let ok_n = ws.len() == n0 + 1 && ws.iter().enumerate().all(|(k, w)| w.id == k as i64);
+                let (a, b) = (&ws[li], &ws[(li + 1).min(ws.len() - 1)]);
+                let blank_i = if sermon_shorts::word_trim::blank(a) { li } else { li + 1 };
+                let ok_pieces = ok_n && (a.end - at).abs() < 1e-9 && (b.start - at).abs() < 1e-9 && (sermon_shorts::word_trim::blank(a) != sermon_shorts::word_trim::blank(b)) && [a, b].iter().any(|w| w.text == info["word"].as_str().unwrap_or("?"));
+                let text: Vec<String> = self.lines.iter().map(|l| l.text.clone()).collect();
+                let dur = edl::segments_duration(&self.segs);
+                let tr = self.trim.as_ref().unwrap();
+                info["split"] = json!({ "ok": ok_pieces, "n": ws.len(), "blank": blank_i, "pieces": [[a.start, a.end, a.text], [b.start, b.end, b.text]] });
+                info["sameResult"] = json!({ "ok": (dur - info["dur0"].as_f64().unwrap()).abs() < 1e-6 && text.join("|") == info["text0"].as_str().unwrap(), "dur": dur });
+                info["blankPicked"] = json!({ "ok": tr.word == Some(blank_i) && tr.wcur.is_none(), "word": tr.word });
+                // 빈 조각은 글자 있는 조각과 같은 자막 칸에 남고, 미세 조정 칸도 같은 단어들을 계속 맡는다
+                let same_block = self.blocks.iter().any(|b| b.line.is_some() && li >= b.from && li + 1 < b.to);
+                info["blockKept"] = json!({ "ok": same_block && self.blocks.iter().filter(|b| b.line.is_none()).all(|b| (b.from..b.to).all(|k| ws[k].del)) && tr.idx_b as u64 == info["ib0"].as_u64().unwrap() && tr.idx_a as u64 == info["ia0"].as_u64().unwrap() + 1, "range": [tr.idx_b, tr.idx_a] });
+                info["blankLen"] = json!(ws[blank_i].end - ws[blank_i].start);
+                self.test_words = info.to_string();
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                let btn = tr.wbtn[1];
+                self.t_click(btn.center(), egui::Modifiers::NONE);
+                t.step = 4; t.t0 = Instant::now();
+            }
+            ("wordsplit", 4) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.6 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap();
+                let bi = info["split"]["blank"].as_u64().unwrap() as usize;
+                if self.dirty { self.recompute(); }
+                let dur = edl::segments_duration(&self.segs);
+                let gone = info["dur0"].as_f64().unwrap() - dur;
+                let bl = info["blankLen"].as_f64().unwrap();
+                let w = &self.project.words[bi];
+                // 지운 조각 소리가 하나도 남지 않는다
+                let leak = self.segs.iter().any(|s| s.start < w.end - 1e-6 && s.end > w.start + 1e-6);
+                let text: Vec<String> = self.lines.iter().map(|l| l.text.clone()).collect();
+                // 자막 글은 그대로 (쉼이 줄어 줄 나눔은 달라질 수 있다)
+                let same_text = text.join(" ") == info["text0"].as_str().unwrap().replace('|', " ");
+                info["delete"] = json!({ "ok": w.del && !leak && gone > bl - 1e-6 && same_text, "gone": gone, "leak": leak, "sameText": same_text });
+                info["dur1"] = json!(dur);
+                self.test_words = info.to_string();
+                shot(ctx, std::env::var("SS_SHOT3").ok().map(PathBuf::from), false);
+                t.step = 11; t.t0 = Instant::now();
+            }
+            // (화면 그림이 찍힌 뒤에) 되돌리기 두 번: 지우기 → 나누기
+            ("wordsplit", 11) if t.t0.elapsed().as_secs_f64() > 0.5 => {
+                self.t_key(egui::Key::Z, egui::Modifiers::COMMAND);
+                self.t_key(egui::Key::Z, egui::Modifiers::COMMAND);
+                t.step = 5; t.t0 = Instant::now();
+            }
+            ("wordsplit", 5) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap();
+                if self.dirty { self.recompute(); }
+                let tr = self.trim.as_ref();
+                let dur = edl::segments_duration(&self.segs);
+                info["undo"] = json!({ "ok": self.project.words.len() == info["n0"].as_u64().unwrap() as usize && (dur - info["dur0"].as_f64().unwrap()).abs() < 1e-9 && self.project.overrides.keys().all(|k| k[2..].parse::<usize>().is_ok_and(|i| i < self.project.words.len()))
+                    && tr.is_some_and(|x| x.idx_b as u64 == info["ib0"].as_u64().unwrap() && x.idx_a as u64 == info["ia0"].as_u64().unwrap()), "range": tr.map(|x| [x.idx_b, x.idx_a]), "n": self.project.words.len() });
+                self.test_words = info.to_string();
+                self.t_key(egui::Key::Y, egui::Modifiers::COMMAND);
+                self.t_key(egui::Key::Y, egui::Modifiers::COMMAND);
+                t.step = 6; t.t0 = Instant::now();
+            }
+            ("wordsplit", 6) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap();
+                if self.dirty { self.recompute(); }
+                let bi = info["split"]["blank"].as_u64().unwrap() as usize;
+                let dur = edl::segments_duration(&self.segs);
+                info["redo"] = json!({ "ok": self.project.words.len() == info["n0"].as_u64().unwrap() as usize + 1 && self.project.words[bi].del && (dur - info["dur1"].as_f64().unwrap()).abs() < 1e-9 && self.trim.is_some() });
+                // 공백 만들기: 칸 안에서 이어진 남긴 두 단어를 찾아 앞 단어 끝을 당겨 빈 곳을 만든다 (사용자가 막대 끝을 소리에 맞게 끈 것과 같음)
+                let (ib, ia) = self.trim.as_ref().map(|x| (x.idx_b, x.idx_a)).unwrap();
+                let ws = &self.project.words;
+                let pair = (ib..ia).find(|&k| !ws[k].del && !ws[k + 1].del && !sermon_shorts::word_trim::blank(&ws[k]) && ws[k].end - ws[k].start > 0.3);
+                let Some(k) = pair else { info["gap"] = json!({ "ok": false, "why": "이어진 남긴 단어 쌍이 없음" }); info["pass"] = json!(false); if let Some(p) = &t.report { let _ = std::fs::write(p, info.to_string()); } self.unsaved = false; ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9; return self.test = Some(test); };
+                let to = ws[k].end - (0.3f64).min((ws[k].end - ws[k].start) * 0.5);
+                self.set_word_edge(k, 'E', to);
+                if self.dirty { self.recompute(); }
+                info["gk"] = json!(k); info["dur2"] = json!(edl::segments_duration(&self.segs));
+                info["gapLen"] = json!(self.project.words[k + 1].start - self.project.words[k].end);
+                self.test_words = info.to_string();
+                t.step = 7; t.t0 = Instant::now();
+            }
+            ("wordsplit", 7) if t.t0.elapsed().as_secs_f64() > 0.6 => {
+                let info: Value = serde_json::from_str(&self.test_words).unwrap();
+                let k = info["gk"].as_u64().unwrap() as usize;
+                let tr = self.trim.as_ref().unwrap();
+                let (r, (v0, v1)) = (tr.wstrip, tr.wview);
+                let mid = (self.project.words[k].end + self.project.words[k + 1].start) / 2.0;
+                let x = r.left() + (((mid - v0) / (v1 - v0)) as f32) * r.width();
+                // 빈 곳을 누른다 → 자를 자리가 공백 안
+                self.t_click(egui::pos2(x, r.center().y + 14.0), egui::Modifiers::NONE);
+                t.step = 8; t.t0 = Instant::now();
+            }
+            ("wordsplit", 8) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.5 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap();
+                let k = info["gk"].as_u64().unwrap() as usize;
+                let tr = self.trim.as_ref().unwrap();
+                let (e, s) = (self.project.words[k].end, self.project.words[k + 1].start);
+                info["gapCursor"] = json!({ "ok": tr.wcur.is_some_and(|c| c > e && c < s), "at": tr.wcur });
+                self.test_words = info.to_string();
+                shot(ctx, std::env::var("SS_SHOT4").ok().map(PathBuf::from), false);
+                let c = tr.wbtn[2].center();
+                self.t_click(c, egui::Modifiers::NONE);
+                t.step = 10; t.t0 = Instant::now();
+            }
+            ("wordsplit", 10) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.6 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap();
+                let k = info["gk"].as_u64().unwrap() as usize;
+                if self.dirty { self.recompute(); }
+                let dur = edl::segments_duration(&self.segs);
+                let (gone, gap) = (info["dur2"].as_f64().unwrap() - dur, info["gapLen"].as_f64().unwrap());
+                let w = &self.project.words[k + 1];
+                let keep = sermon_shorts::word_trim::GAP_KEEP.min(gap * 0.25) * 2.0;
+                info["gap"] = json!({ "ok": w.cut_before && w.extra.get("gapCut").and_then(|v| v.as_bool()) == Some(true) && (gone - (gap - keep)).abs() < 1e-6, "gone": gone, "gapLen": gap });
+                shot(ctx, std::env::var("SS_SHOT5").ok().map(PathBuf::from), false);
+                if let Some(rep) = &t.report {
+                    let sp = std::path::Path::new(rep).with_extension("sshorts");
+                    self.project_path = Some(sp.clone()); self.save_project(false);
+                    match Project::load(&sp) {
+                        Ok(p2) => {
+                            let segs2 = edl::build_segments(&p2.words, &p2.settings, &p2.overrides, Some(self.player.probe.duration), p2.order.as_deref());
+                            let lines2: Vec<String> = edl::build_lines(&p2.words, &segs2, &p2.settings).iter().map(|l| l.text.clone()).collect();
+                            let lines1: Vec<String> = self.lines.iter().map(|l| l.text.clone()).collect();
+                            info["saveReload"] = json!({ "ok": p2.words.len() == self.project.words.len() && p2.overrides == self.project.overrides && segs2 == self.segs && lines1 == lines2, "file": sp });
+                        }
+                        Err(e) => { info["saveReload"] = json!({ "ok": false, "error": e.to_string() }); }
+                    }
+                }
+                let all = ["cursor", "split", "sameResult", "blankPicked", "blockKept", "delete", "undo", "redo", "gapCursor", "gap", "saveReload"].iter().all(|k| info[*k]["ok"].as_bool() == Some(true));
+                info["pass"] = json!(all);
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                self.unsaved = false;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
+            }
             // 내보내기 → 완성 영상 창 → (가짜) 유튜브 올리기 → 업로드 기록
             ("exportflow", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
                 self.title = "오늘의 말씀 / 하나님 중심의 *기도*".into();

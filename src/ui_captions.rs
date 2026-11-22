@@ -244,13 +244,14 @@ impl App {
                             if w.del && (i == b.from || !words[i - 1].del) && filler_run { style::pill(ui, "군말", Color32::from_rgb(0xfe, 0xf3, 0xc7), style::WARN); ui.label(" "); }
                             let in_sel = sel.is_some_and(|(s0, s1)| i >= s0 && i < s1);
                             let fill = tidy::is_filler(&w.text);
-                            let mut t = RichText::new(caption_edit::source_text(w)).size(15.5).color(style::TEXT);
+                            let blank_piece = sermon_shorts::word_trim::blank(w) && caption_edit::source_text(w).trim().is_empty();
+                            let mut t = RichText::new(if blank_piece { "□".to_string() } else { caption_edit::source_text(w) }).size(15.5).color(if blank_piece { style::FAINT } else { style::TEXT });
                             if w.del { t = t.strikethrough().color(if filler_run { style::WARN } else { style::FAINT }); if filler_run { t = t.background_color(Color32::from_rgb(0xff, 0xf4, 0xdc)); } }
                             else if fill { t = t.color(Color32::from_rgb(0xd9, 0x77, 0x06)).underline(); }
                             if in_sel { t = t.background_color(Color32::from_rgba_unmultiplied(37, 99, 235, 41)); }
                             if mark_i == Some(i) || mark_o == Some(i) { t = t.background_color(if in_sel { Color32::from_rgba_unmultiplied(245, 158, 11, 89) } else { Color32::from_rgba_unmultiplied(245, 158, 11, 56) }); }
                             let r = ui.add(egui::Label::new(t).sense(egui::Sense::click_and_drag()).selectable(false));
-                            let r = if mark_i == Some(i) { r.on_hover_text("쇼츠 시작점") } else if mark_o == Some(i) { r.on_hover_text("쇼츠 끝점") } else { r };
+                            let r = if blank_piece { r.on_hover_text("빈 조각: 미세 조정에서 나눈 글자 없는 부분 (소리만 있고 자막에는 안 나옵니다) · 누른 뒤 Delete 로 지우기") } else if mark_i == Some(i) { r.on_hover_text("쇼츠 시작점") } else if mark_o == Some(i) { r.on_hover_text("쇼츠 끝점") } else { r };
                             if find_hits.0.contains(&i) { ui.painter().rect_stroke(r.rect.expand(1.0), CornerRadius::same(3), Stroke::new(if find_hits.1 == Some(i) { 2.0 } else { 1.0 }, if find_hits.1 == Some(i) { style::PRIMARY } else { Color32::from_rgb(0x93, 0xb4, 0xf5) }), egui::StrokeKind::Outside); if find_hits.1 == Some(i) && caret_scroll { r.scroll_to_me(Some(egui::Align::Center)); } }
                             if caret == i { ui.painter().vline(r.rect.left() - 1.0, r.rect.y_range(), Stroke::new(2.0, style::PRIMARY)); if caret_scroll { r.scroll_to_me(None); } }
                             if caret == n_all && i + 1 == n_all { ui.painter().vline(r.rect.right() + 1.0, r.rect.y_range(), Stroke::new(2.0, style::PRIMARY)); }

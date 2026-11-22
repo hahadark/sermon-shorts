@@ -29,6 +29,8 @@ pub(crate) struct Trim {
     /// 고른 단어와 움직일 쪽 ('S' 시작 · 'E' 끝)
     pub word: Option<usize>,
     pub wedge: char,
+    /// 자를 자리 (파형을 누른 원본 시각): 나누기·공백 없애기가 여기에 한다
+    pub wcur: Option<f64>,
     /// 단축키가 단어 쪽으로 가는가 (단어 막대를 누른 뒤)
     pub wfocus: bool,
     /// 끌기 중인 쪽과 끌기 시작 때 상태 (끄는 동안은 늘 이 상태에서 다시 계산)
@@ -37,12 +39,16 @@ pub(crate) struct Trim {
     /// 화면 자리 (시험용)
     pub wstrip: egui::Rect,
     pub wrects: Vec<(usize, egui::Rect)>,
+    /// 조각 도구 단추 자리: 나누기 · 지우기 · 공백 없애기 (시험용)
+    pub wbtn: [egui::Rect; 3],
+    /// 이 칸이 맡은 단어 범위 (연 때의 자막 첫·끝 단어. 조각을 나누면 같이 늘어난다). idx_b·idx_a 는 이 안의 남긴 첫·끝 단어
+    pub wspan: (usize, usize),
     /// '이 단어만 들어 보기' 중 (틀 구간을 그 단어로 바꿔 둠)
     pub solo: bool,
 }
 
 /// 단어별 조정 칸 높이 (ui_captions 가 자리를 잡을 때 씀)
-pub(crate) const WORD_SECTION_H: f32 = 136.0;
+pub(crate) const WORD_SECTION_H: f32 = 172.0;
 pub(crate) const STRIP_H: f32 = 84.0;
 pub(crate) const BAR_H: f32 = 22.0;
 
@@ -121,7 +127,7 @@ impl App {
             let _ = tx.send(r.map_err(|e| e.to_string()));
         });
         self.trim = Some(Trim { range, idx_a, idx_b, active: 'B', center_a, center_b, buf_a: center_a - 2.0, buf_b: center_b - 2.0, pcm: None, rx: Some(rx), dragging: false,
-            wpcm: None, wview, wlo, whi, word: None, wedge: 'E', wfocus: false, wdrag: None, wbase: None, wstrip: egui::Rect::NOTHING, wrects: vec![], solo: false });
+            wpcm: None, wview, wlo, whi, word: None, wedge: 'E', wcur: None, wfocus: false, wdrag: None, wbase: None, wstrip: egui::Rect::NOTHING, wrects: vec![], wbtn: [egui::Rect::NOTHING; 3], wspan: (idx_a.min(idx_b), idx_a.max(idx_b)), solo: false });
     }
 
     pub(crate) fn close_trim(&mut self) { self.stop_solo(); self.trim = None; self.trim_loop = None; }
@@ -378,6 +384,8 @@ impl App {
         let fps = if self.player.probe.fps > 0.0 { self.player.probe.fps } else { 30.0 };
         let mut todo: Vec<&str> = vec![];
         let mut step = 0.0f64;
+        let wtools = self.trim.as_ref().is_some_and(|t| t.range);
+        let wsel = self.trim.as_ref().is_some_and(|t| t.range && t.wfocus && t.word.is_some());
         ctx.input_mut(|i| {
             let m = i.modifiers;
             if i.consume_key(egui::Modifiers::SHIFT, egui::Key::ArrowLeft) { step = -0.01; }
@@ -393,6 +401,9 @@ impl App {
             if i.consume_key(egui::Modifiers::ALT, egui::Key::S) { todo.push("zero"); }
             else if i.consume_key(egui::Modifiers::NONE, egui::Key::S) { todo.push("silence"); }
             if i.consume_key(egui::Modifiers::NONE, egui::Key::R) { todo.push("reset"); }
+            // 단어별 조정: X 나누기 · G 공백 없애기 · Delete 지우기/되살리기
+            if wtools { if i.consume_key(egui::Modifiers::NONE, egui::Key::X) { todo.push("wsplit"); } if i.consume_key(egui::Modifiers::NONE, egui::Key::G) { todo.push("wgap"); } }
+            if wsel && i.consume_key(egui::Modifiers::NONE, egui::Key::Delete) { todo.push("wdel"); }
             if i.consume_key(egui::Modifiers::NONE, egui::Key::OpenBracket) { todo.push("prev"); }
             if i.consume_key(egui::Modifiers::NONE, egui::Key::CloseBracket) { todo.push("next"); }
             if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) { todo.push("confirm"); }
@@ -400,6 +411,8 @@ impl App {
             let _ = m;
         });
         // 단어 막대를 눌렀으면 화살표·Tab·S·R·Space 는 고른 단어 쪽으로 (1·2 를 누르거나 위 파형을 누르면 다시 칸 시작·끝)
+        // 조각 도구는 단어를 고르지 않아도 (자를 자리만 있어도) 된다
+        todo.retain(|a| match *a { "wsplit" => { self.split_word_here(); false } "wdel" => { self.toggle_word_del(); false } "wgap" => { self.cut_gaps_here(); false } _ => true });
         let word_keys = self.trim.as_ref().is_some_and(|t| t.wfocus && t.word.is_some());
         if word_keys {
             if step != 0.0 { self.nudge_word(step); }

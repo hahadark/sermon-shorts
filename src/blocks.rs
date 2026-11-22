@@ -24,6 +24,12 @@ pub fn build(words: &[Word], lines: &[Line], max_chars: usize) -> Vec<Block> {
     }
     let mut covered = vec![false; words.len()];
     for &(a, b, _) in &line_blocks { for c in &mut covered[a..b] { *c = true; } }
+    // 글자 없는 남긴 조각(나누기로 생긴 빈 조각)은 자막 줄에 들지 않지만 지운 말이 아니다: 바로 붙은 줄 칸에 넣는다 (앞 칸 먼저)
+    let kept_blank = |w: &Word| !w.del && w.timed() && w.text.trim().is_empty();
+    // 단어의 앞부분을 잘라 낸 빈 조각(joinNext)은 뒤 칸에, 나머지는 앞 칸에. 그쪽에 칸이 없으면 다른 쪽에
+    for lb in line_blocks.iter_mut() { while lb.1 < words.len() && !covered[lb.1] && kept_blank(&words[lb.1]) && !crate::word_trim::joins_next(&words[lb.1]) { covered[lb.1] = true; lb.1 += 1; } }
+    for lb in line_blocks.iter_mut() { while lb.0 > 0 && !covered[lb.0 - 1] && kept_blank(&words[lb.0 - 1]) { covered[lb.0 - 1] = true; lb.0 -= 1; } }
+    for lb in line_blocks.iter_mut() { while lb.1 < words.len() && !covered[lb.1] && kept_blank(&words[lb.1]) { covered[lb.1] = true; lb.1 += 1; } }
     let mut by_end: Vec<usize> = (0..line_blocks.len()).collect();
     by_end.sort_by_key(|&k| line_blocks[k].1);
     let mut after: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();

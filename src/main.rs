@@ -432,12 +432,24 @@ impl App {
     pub fn commit(&mut self) { self.push_undo(); self.dirty = true; self.unsaved = true; }
     fn restore(&mut self, k: usize) {
         let s = self.history[k].clone();
+        // 단어 수가 바뀌는 되돌리기 (조각 나누기): 단어 번호로 기억하던 것들을 시각으로 다시 찾는다
+        let old: Option<Vec<(f64, f64)>> = (s.words.len() != self.project.words.len()).then(|| self.project.words.iter().map(|w| (w.start, w.end)).collect());
         self.project.words = s.words; self.project.overrides = s.overrides; self.project.order = s.order;
+        let resized = old.is_some();
+        if let Some(old) = old {
+            let starts: Vec<f64> = self.project.words.iter().map(|w| w.start).collect();
+            let at = |t: f64| starts.partition_point(|&x| x <= t).saturating_sub(1);
+            self.remap_word_indices(&|k| at(old.get(k).map(|o| o.0).unwrap_or(f64::INFINITY) + 1e-6), &|k| at(old.get(k).map(|o| o.1).unwrap_or(f64::INFINITY) - 1e-6), old.len());
+        }
         for (k, v) in [("voice", s.voice), ("bgm", s.bgm), (sermon_shorts::sync::KEY, s.sync)] { match v { Some(v) => { self.project.rest.insert(k.into(), v); } None => { self.project.rest.remove(k); } } }
         // 미리보기 편집으로 고친 프로젝트 테마도 되돌린다 (기록에 없으면 설정의 테마로)
         // (기존 editor.js 처럼 기록마다 테마를 넣고 되돌린다)
         if let Some((t, proj)) = s.theme { if t != self.theme || proj != self.project_theme { self.theme = t; self.project_theme = proj; self.theme_changed(); } }
         self.hist_at = k + 1; self.dirty = true; self.unsaved = true; self.cap_buf.clear();
+        // 단어별 조정에서 조각을 나누거나 지운 것을 되돌렸을 때 미세 조정 칸이 같은 자막을 가리키게
+        if self.trim.as_ref().is_some_and(|t| t.range) { self.refit_trim_range(); }
+        // 단어 수가 바뀌었으면 자막 칸 목록을 바로 다시 만든다 (예전 목록은 없는 단어 번호를 가리킨다)
+        if resized { self.recompute(); }
     }
     pub fn undo(&mut self) { if self.hist_at >= 2 { self.restore(self.hist_at - 2); } }
     pub fn redo(&mut self) { if self.hist_at < self.history.len() { self.restore(self.hist_at); } }
@@ -455,6 +467,9 @@ impl App {
     }
     pub fn toggle_words(&mut self, from: usize, to: usize, del: bool) {
         for w in &mut self.project.words[from..to] { w.del = del; }
+        // 빈 조각(미세 조정에서 나눈 글자 없는 부분)은 나눈 자리에서 정확히 잘리게 컷을 조각 끝에 바짝 맞춘다
+        let st = self.project.settings.clone();
+        for i in from..to.min(self.project.words.len()) { if sermon_shorts::word_trim::blank(&self.project.words[i]) { sermon_shorts::word_trim::set_del(&mut self.project.words, &mut self.project.overrides, &st, i, del); } }
         self.commit();
     }
 
