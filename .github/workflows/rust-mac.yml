@@ -43,7 +43,7 @@ jobs:
           else cargo build --release; fi
       - name: 계산 시험 (공개 저장소에 있는 자료로)
         if: matrix.target == ''   # 교차 빌드는 같은 시험을 Intel 판이 하므로 건너뜀 (시험용으로 다시 컴파일하는 시간 절약)
-        run: cargo test --release --test bgm_parity --test llm_parity --test settings_parity --test snap_parity --test ytmeta_parity --test mac_crypt_parity --test delta --test json3_words
+        run: cargo test --release --test bgm_parity --test llm_parity --test settings_parity --test snap_parity --test ytmeta_parity --test mac_crypt_parity --test delta --test json3_words --test retime --test word_split --test word_trim
       - name: 서명 인증서 넣기 (업데이트해도 같은 앱으로 보이게)
         env:
           MAC_SIGN_P12: ${{ secrets.MAC_SIGN_P12 }}

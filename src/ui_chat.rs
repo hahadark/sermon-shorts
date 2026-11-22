@@ -52,12 +52,14 @@ pub enum M {
 }
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct VideoUi { pub url: String, pub title: String, pub words: usize, pub edited: bool, pub from_editor: bool }
+pub(crate) struct VideoUi { pub url: String, pub title: String, pub words: usize, pub edited: bool, pub from_editor: bool,
+    /// 자막이 이미 음성 인식으로 만든 것 (유튜브 자막이 없어 위스퍼로 만들었거나 편집기 자막): 정밀 인식을 다시 하지 않는다
+    pub recognized: bool }
 #[derive(Clone, Debug)]
 struct LastFetch { url: String, path: PathBuf, map: Vec<Piece> }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-enum Hint { Load, Whisper, Send, Clips, Gaps }
+enum Hint { Load, Whisper, Send, Clips, Gaps, Stt }
 
 /// 진행 카드 (기존 progressCard): 단계·지난 시간·안내·멈추기
 pub(crate) struct Card { pub title: String, steps: Vec<(String, String)>, on: Option<usize>, subs: Vec<String>, pct: Option<f64>, t0: Instant, hint: Hint, stoppable: bool, pub stopping: bool, last_sig: Instant, last_stage: String }
@@ -80,10 +82,10 @@ impl Card {
 #[derive(Default, Clone)]
 struct Prog { stage: String, pct: Option<f64>, n: u64 }
 
-enum Out { Load(Result<Loaded, String>), Whisper(Result<Loaded, String>), Send(Result<Reply, String>), Clips(Result<yt::Clips, String>), Gaps(Result<sermon_shorts::tidy::GapPlan, String>) }
+enum Out { Load(Result<Loaded, String>), Whisper(Result<Loaded, String>), Send(Result<Reply, String>), Clips(Result<yt::Clips, String>), Gaps(Result<sermon_shorts::tidy::GapPlan, String>), Stt(Result<Value, String>) }
 
 /// 다음에 할 일 (영상 받기·공백 찾기가 끝난 뒤)
-enum Next { None, Apply { plan: ApplyPlan, replay: bool, first: bool }, Finish { plan: ApplyPlan, replay: bool, first: bool }, GapsNow }
+enum Next { None, Apply { plan: ApplyPlan, replay: bool, first: bool }, Finish { plan: ApplyPlan, replay: bool, first: bool }, GapsNow, Retime { plan: ApplyPlan, replay: bool, first: bool, subs: Vec<sermon_shorts::retime::SubW>, fallback: Vec<Word> } }
 
 struct Job { rx: Receiver<Out>, cancel: Arc<AtomicBool>, prog: Arc<Mutex<Prog>>, seen: u64, card: Card, next: Next }
 
@@ -113,17 +115,19 @@ pub(crate) struct ChatState {
     pub picked: Vec<String>,
     scroll_cands: bool,
     flash: Option<Instant>,
+    /// 정밀 인식 결과 알림 (반영 끝 글에 붙인다)
+    precise_note: String,
 }
 impl Default for ChatState {
     fn default() -> Self {
         ChatState { shared: Arc::new(Mutex::new(None)), msgs: vec![], archived: 0, video: None, last_video: None, url: String::new(), prefs: load_prefs(), cond_open: true,
-            last_ranges: None, last_fetch: None, job: None, after: None, loaded_log: false, log_dirty: None, focus_text: false, rects: vec![], quick_h: 0.0, picked: vec![], scroll_cands: false, flash: None }
+            last_ranges: None, last_fetch: None, job: None, after: None, loaded_log: false, log_dirty: None, focus_text: false, rects: vec![], quick_h: 0.0, picked: vec![], scroll_cands: false, flash: None, precise_note: String::new() }
     }
 }
 
 // ---------------------------------------------------------------- 편집 조건·기록 저장
 
-fn default_prefs() -> Value { json!({ "length": 120, "tight": true, "filler": true, "questions": true, "notices": true, "gaps": true, "ending": true, "contents": [], "audience": "all", "intensity": 0, "count": 3 }) }
+fn default_prefs() -> Value { json!({ "length": 120, "tight": true, "filler": true, "questions": true, "notices": true, "gaps": true, "ending": true, "contents": [], "audience": "all", "intensity": 0, "count": 3, "precise": true }) }
 fn prefs_file() -> PathBuf { sermon_shorts::theme::user_data_dir().join("chat_prefs.json") }
 fn load_prefs() -> Value {
     let mut p = default_prefs();
@@ -164,6 +168,7 @@ fn hint_of(c: &Card) -> (&'static str, bool) {
         Hint::Whisper => if s < 60 { ("영상이 길면 시간이 걸립니다. 다른 일을 하셔도 됩니다.", false) } else { ("아직 만드는 중입니다. 끝나면 이 대화에 알려 드립니다.", false) },
         Hint::Clips => if s < 30 { ("받을 영상이 길면 조금 걸립니다.", false) } else { ("영상을 받고 있어요. 인터넷이 느리면 1~2분 걸리기도 합니다.", false) },
         Hint::Gaps => ("영상 소리를 살펴봅니다. 보통 몇 초면 끝납니다.", false),
+        Hint::Stt => if s < 40 { ("받아 온 부분만 다시 알아듣습니다. 처음 한 번은 엔진을 준비하느라 조금 더 걸립니다.", false) } else { ("아직 알아듣는 중입니다. 그래픽카드가 없으면 몇 분 걸리기도 합니다. [멈추기]를 누르면 유튜브 자막 시각으로 넣습니다.", false) },
     }
 }
 
@@ -349,7 +354,7 @@ impl App {
         let prev = self.chat.last_video.clone();
         let resumed = resumed && prev.as_ref().is_some_and(|p| p.url == url);
         let edited = resumed && (prev.as_ref().is_some_and(|p| p.edited) || has_plan);
-        self.chat.video = Some(VideoUi { url: url.clone(), title: title.clone(), words, edited, from_editor });
+        self.chat.video = Some(VideoUi { url: url.clone(), title: title.clone(), words, edited, from_editor, recognized: whisper || from_editor });
         if !resumed { self.chat.last_ranges = None; }
         if !from_editor { if let Ok(s) = yt::recent_add(&url, &title) { self.settings = s; } }
         let name = if title.is_empty() { "설교 영상".to_string() } else { title.clone() };
@@ -380,7 +385,7 @@ impl App {
         let title = src["title"].as_str().unwrap_or("").to_string();
         match chat::use_words(&self.chat.shared, &url, &title, src["duration"].as_f64().unwrap_or(0.0), &raw) {
             Ok(Loaded::Ready { words, .. }) => {
-                self.chat.video = Some(VideoUi { url: url.clone(), title: title.clone(), words, edited: false, from_editor: true });
+                self.chat.video = Some(VideoUi { url: url.clone(), title: title.clone(), words, edited: false, from_editor: true, recognized: true });
                 self.chat.last_ranges = None;
                 self.chat.last_fetch = Some(LastFetch { url: url.clone(), path: PathBuf::from(&path), map: vec![Piece { src0: off, src1: off + file_dur, file0: 0.0 }] });
                 let r = match (src["range"]["start"].as_f64(), src["range"]["end"].as_f64()) { (Some(a), Some(b)) => format!(" ({} ~ {})", edl::format_time(a, false), edl::format_time(b, false)), _ => String::new() };
@@ -501,7 +506,9 @@ impl App {
         if plan.ranges.iter().any(|g| g.1 >= words.len()) { self.chat_sys("유튜브 자막이 그사이 바뀌어 이 편집을 그대로 적용할 수 없습니다. 후보를 다시 고르거나 새로 부탁해 주세요."); return; }
         let spans: Vec<Span> = plan.ranges.iter().map(|g| Span { start: words[g.0].start, end: words[g.1].end }).collect();
         let gaps = self.chat.prefs["gaps"].as_bool().unwrap_or(false) || plan.tighten == "strong";
-        let mut steps: Vec<(&str, String)> = vec![("clips", "필요한 영상 부분 받기".into()), ("apply", "자막·구간을 편집기에 넣기".into())];
+        let mut steps: Vec<(&str, String)> = vec![("clips", "필요한 영상 부분 받기".into())];
+        if self.chat_precise() { steps.push(("stt", format!("{}로 다시 알아듣기 (단어 시각 맞추기)", sermon_shorts::stt::engine_label()))); }
+        steps.push(("apply", "자막·구간을 편집기에 넣기".into()));
         if gaps { steps.push(("gaps", "말 사이 공백 줄이기".into())); }
         let mut card = Card::new("편집기에 반영하는 중", &steps, Hint::Clips, false);
         // 필요한 구간이 모두 이미 받은 영상 안에 있으면 다시 받지 않는다
@@ -538,6 +545,59 @@ impl App {
         }
         let mut wv: Vec<Word> = match serde_json::from_value(Value::Array(ew)) { Ok(w) => w, Err(e) => { self.chat_push(M::Err { t: format!("다시 적용하지 못했습니다: {e}") }); return; } };
         for (i, w) in wv.iter_mut().enumerate() { w.id = i as i64; }
+        self.chat.precise_note.clear();
+        // 정밀 인식: 받아 온 부분만 다시 알아듣고 (위스퍼·맥 받아쓰기) 유튜브 자막 편집을 그 단어로 옮긴다
+        if self.chat_precise() {
+            let subs: Vec<sermon_shorts::retime::SubW> = wv.iter().map(|w| sermon_shorts::retime::SubW { text: w.stt_text.clone().unwrap_or_else(|| w.text.clone()), start: w.start, end: w.end, kept: !w.del, cut_before: w.cut_before, br: w.br, corr: (w.stt_text.as_deref() != Some(w.text.as_str())).then(|| w.text.clone()) }).collect();
+            card.step("clips", None, None); card.sub("clips", "받음");
+            card.step("stt", Some(format!("{}로 다시 알아듣는 중", sermon_shorts::stt::engine_label())), Some("준비 중".into()));
+            card.hint = Hint::Stt; card.pct = None; card.stoppable = true; card.t0 = Instant::now();
+            let (path, terms) = (lf.path.clone(), self.settings["churchTerms"].as_str().unwrap_or("").to_string());
+            self.start_job(card, Next::Retime { plan, replay, first, subs, fallback: wv }, move |prog, cancel| {
+                let p = prog.clone();
+                let cb = move |stage: &str, pct: f64, _m: &str| { if stage == "warn" { return; } let mut g = p.lock().unwrap(); g.stage = "stt".into(); g.pct = (pct.is_finite() && pct >= 0.0).then_some(if stage == "done" { 100.0 } else { pct }); g.n += 1; };
+                Out::Stt(sermon_shorts::stt::transcribe(&path, None, None, &terms, &cb, cancel).map_err(|e| e.to_string()))
+            });
+            return;
+        }
+        self.chat_put_words(plan, replay, first, card, wv);
+    }
+
+    /// 정밀 인식을 할까: 조건에서 켜 두었고, 자막이 유튜브 자막이고, 엔진이 있을 때
+    fn chat_precise(&self) -> bool {
+        self.chat.prefs["precise"].as_bool().unwrap_or(true) && !self.chat.video.as_ref().is_some_and(|v| v.recognized) && sermon_shorts::stt::engine_ready()
+    }
+
+    /// 정밀 인식 결과 → 편집기 단어 (못 하면 유튜브 자막 시각 그대로)
+    fn chat_retime_done(&mut self, r: Result<Value, String>, stopped: bool, plan: ApplyPlan, replay: bool, first: bool, subs: Vec<sermon_shorts::retime::SubW>, fallback: Vec<Word>, mut card: Card) {
+        let eng = sermon_shorts::stt::engine_label();
+        card.stopping = false;
+        card.sub("stt", "끝");
+        card.step("apply", Some("편집기에 넣는 중".into()), None); card.pct = None;
+        let words = match r {
+            Ok(v) => {
+                let stt: Vec<sermon_shorts::retime::SttW> = v["words"].as_array().map(|a| a.iter().map(|w| sermon_shorts::retime::SttW { text: w["text"].as_str().unwrap_or("").to_string(), start: w["start"].as_f64().unwrap_or(f64::NAN), end: w["end"].as_f64().unwrap_or(f64::NAN), score: w["score"].as_f64().unwrap_or(1.0) }).collect()).unwrap_or_default();
+                match sermon_shorts::retime::merge(&subs, &stt) {
+                    Some(m) => {
+                        let ew: Vec<Value> = m.words.iter().enumerate().map(|(i, w)| json!({ "id": i, "text": w.text, "sttText": w.stt_text, "start": w.start, "end": w.end, "score": w.score, "del": w.del, "br": w.br, "cutBefore": w.cut_before })).collect();
+                        match serde_json::from_value::<Vec<Word>>(Value::Array(ew)) {
+                            Ok(mut wv) => { for (i, w) in wv.iter_mut().enumerate() { w.id = i as i64; } self.chat.precise_note = format!(" 단어 시각은 {eng}로 다시 맞췄습니다 (유튜브 자막과 {:.0}% 일치).", m.matched * 100.0); wv }
+                            Err(_) => fallback,
+                        }
+                    }
+                    None => { self.chat.precise_note = format!(" {eng}가 알아들은 말이 유튜브 자막과 너무 달라 유튜브 자막 시각으로 넣었습니다."); fallback }
+                }
+            }
+            Err(e) => {
+                self.chat.precise_note = if stopped || e.contains("멈췄") { " 다시 알아듣기를 멈춰 유튜브 자막 시각으로 넣었습니다.".into() } else { format!(" {eng}로 다시 알아듣지 못해 유튜브 자막 시각으로 넣었습니다 ({}).", e.lines().next().unwrap_or("").chars().take(80).collect::<String>()) };
+                fallback
+            }
+        };
+        self.chat_put_words(plan, replay, first, card, words);
+    }
+
+    /// 만든 단어를 편집기에 넣고 군말·공백 정리까지
+    fn chat_put_words(&mut self, plan: ApplyPlan, replay: bool, first: bool, mut card: Card, wv: Vec<Word>) {
         self.apply_edit_defaults();
         self.set_words(wv);
         // 설정 [편집]의 컷 여백
@@ -564,7 +624,8 @@ impl App {
     fn chat_complete(&mut self, plan: ApplyPlan, replay: bool, first: bool, gap_note: String) {
         if let Some(t) = self.project.words.iter().find(|w| !w.del).map(|w| w.start) { self.player.seek_src(t); }
         self.recompute();
-        let done = format!("편집기에 반영했습니다. 완성 길이 약 {}.{gap_note} 왼쪽 화면에서 [재생]으로 확인해 보세요.", cp::fmt_len(edl::segments_duration(&self.segs)));
+        let pn = std::mem::take(&mut self.chat.precise_note);
+        let done = format!("편집기에 반영했습니다. 완성 길이 약 {}.{gap_note}{pn} 왼쪽 화면에서 [재생]으로 확인해 보세요.", cp::fmt_len(edl::segments_duration(&self.segs)));
         let t = if replay { format!("앞의 편집을 다시 적용했습니다. {done}") } else { done };
         self.chat.last_ranges = Some(plan.ranges.iter().map(|g| Range { from: g.0, to: g.1 }).collect());
         self.chat_push(M::Replay { t, plan });
@@ -714,6 +775,7 @@ impl App {
                     }
                 }
                 Hint::Clips => { if let Some(x) = p.pct { let x = x.round(); c.sub("clips", &format!("{x}%")); c.pct = Some(x); } }
+                Hint::Stt => { if let Some(x) = p.pct { let x = x.round(); c.sub("stt", &format!("{x}%")); c.pct = Some(x); } }
                 _ => {}
             }
         }
@@ -754,6 +816,10 @@ impl App {
                         self.chat_finish_apply(plan, replay, first, job.card);
                     }
                 }
+            }
+            Out::Stt(r) => {
+                let Next::Retime { plan, replay, first, subs, fallback } = job.next else { return };
+                self.chat_retime_done(r, stopped, plan, replay, first, subs, fallback, job.card);
             }
             Out::Gaps(r) => match job.next {
                 Next::Finish { plan, replay, first } => {
@@ -948,6 +1014,7 @@ impl App {
             row(ui, "내용", &mut |ui| for (k, l) in cp::CONTENTS { let on = p["contents"].as_array().is_some_and(|a| a.iter().any(|x| x == k)); if cq_btn(ui, &if on { format!("✓ {l}") } else { l.to_string() }, on, false, false, !busy).on_hover_text("여러 개 고를 수 있습니다. 안 고르면 상관없음").clicked() { acts.push(Act::Content(k)); } });
             row(ui, "대상", &mut |ui| for (k, l) in cp::AUDIENCES { let on = p["audience"].as_str().unwrap_or("all") == k; if cq_btn(ui, l, on, false, false, !busy).clicked() { acts.push(Act::Aud(k)); } });
             row(ui, "강도", &mut |ui| for (k, l) in INTENSITIES { let on = cp::js_num(p.get("intensity")) as i64 == k; if cq_btn(ui, l, on, false, false, !busy).on_hover_text("1 = 잔잔한 위로, 5 = 강한 도전").clicked() { acts.push(Act::Int(k)); } });
+            row(ui, "자막", &mut |ui| { let on = p["precise"].as_bool().unwrap_or(true); let b = cq_btn(ui, if on { "✓ 정밀 인식" } else { "정밀 인식" }, on, false, false, !busy).on_hover_text(format!("구간은 유튜브 자막으로 빨리 고르고, 편집기에 넣을 때 받아 온 부분만 {}로 다시 알아들어 단어 시각·글자를 정확하게 합니다.\n끄면 유튜브 자막 시각 그대로 넣습니다 (빠르지만 단어 경계가 어긋나기 쉽습니다).", sermon_shorts::stt::engine_label())); rects.push(("tog:precise".into(), b.rect)); if b.clicked() { acts.push(Act::Tog("precise")); } });
             row(ui, "후보", &mut |ui| for c in cp::COUNTS { if cq_btn(ui, &format!("{c}곳"), n == c as i64, false, false, !busy).clicked() { acts.push(Act::Count(c)); } });
         }
         let has_cands = self.chat.msgs.iter().any(|m| matches!(m, M::Cand { .. }));

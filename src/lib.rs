@@ -32,6 +32,7 @@ pub fn assets_dir() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets")
 }
 pub mod chat_plan;
+pub mod retime;
 pub mod chat;
 pub mod ai;
 pub mod delta;

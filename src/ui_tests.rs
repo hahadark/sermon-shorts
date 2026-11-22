@@ -1134,7 +1134,55 @@ impl App {
                 if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
-            // AI 쇼츠 추천·용어 교정: 추천 창 → [분석](실제 유튜브 정보·자막 + 가짜 제미나이 답) → 후보 [이 구간으로 만들기](구간 받기·자막) → 제목·본문·구간 → [용어 교정](가짜 답)
+            // 정밀 인식: 실제 유튜브 자막으로 대화 → (가짜 AI 답) 두 구간 → 필요한 부분 받기 → 위스퍼로 다시 알아듣기 → 편집기
+            ("chatprecise", 0) if t.t0.elapsed().as_secs_f64() > 1.5 => {
+                self.chat_load("https://www.youtube.com/watch?v=9Tmjg3ESEyc".into());
+                t.step = 1; t.t0 = Instant::now();
+            }
+            ("chatprecise", 1) if !self.chat_busy() && self.chat.video.is_some() && t.t0.elapsed().as_secs_f64() > 1.0 => {
+                let g = self.chat.shared.lock().unwrap();
+                let w = g.as_ref().map(|s| s.words.clone()).unwrap_or_default();
+                drop(g);
+                let yt = |a: usize, b: usize| w[a..=b.min(w.len() - 1)].iter().map(|x| json!([x.text, x.start, x.end])).collect::<Vec<_>>();
+                self.test_words = json!({ "ytWords": w.len(), "precisePref": self.chat.prefs["precise"], "engine": sermon_shorts::stt::engine_label(), "yt1": yt(1500, 1560), "yt2": yt(1580, 1620) }).to_string();
+                self.chat_send("1번 구간으로 만들어 줘".into(), None);
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("chatprecise", 2) if !self.chat_busy() && self.chat.msgs.iter().any(|m| matches!(m, crate::ui_chat::M::Replay { .. })) && t.t0.elapsed().as_secs_f64() > 1.0 || t.step == 2 && t.t0.elapsed().as_secs_f64() > 900.0 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                if self.dirty { self.recompute(); }
+                let w = &self.project.words;
+                let kept: Vec<&Word> = w.iter().filter(|x| !x.del).collect();
+                let norm = |s: &str| s.chars().filter(|c| c.is_alphanumeric()).collect::<String>();
+                let yt_text: String = ["yt1", "yt2"].iter().flat_map(|k| info[*k].as_array().cloned().unwrap_or_default()).map(|x| norm(x[0].as_str().unwrap_or(""))).collect();
+                let new_text: String = kept.iter().map(|x| norm(&x.text)).collect();
+                // 글자 겹침 (두 글의 공통 글자 비율, 순서 무시 어림)
+                let mut pool: HashMap<char, i64> = HashMap::new();
+                for c in yt_text.chars() { *pool.entry(c).or_default() += 1; }
+                let mut common = 0;
+                for c in new_text.chars() { if let Some(v) = pool.get_mut(&c) { if *v > 0 { *v -= 1; common += 1; } } }
+                let sim = common as f64 / yt_text.chars().count().max(1) as f64;
+                let replay = self.chat.msgs.iter().rev().find_map(|m| if let crate::ui_chat::M::Replay { t, .. } = m { Some(t.clone()) } else { None }).unwrap_or_default();
+                info["replay"] = json!(replay);
+                info["kept"] = json!(kept.len()); info["words"] = json!(w.len());
+                info["sim"] = json!(sim);
+                info["sample"] = json!(kept.iter().take(14).map(|x| json!([x.text, (x.start * 1000.0).round() / 1000.0, (x.end * 1000.0).round() / 1000.0, x.stt_text])).collect::<Vec<_>>());
+                info["segs"] = json!(self.segs.len());
+                info["sane"] = json!(w.iter().all(|x| x.timed() && x.end > x.start) && w.windows(2).all(|p| p[1].start >= p[0].start - 1e-6));
+                info["src"] = json!(self.project.source_path);
+                let ok = replay.contains("다시 맞췄습니다") && sim > 0.6 && info["sane"] == true && kept.len() > 30 && self.segs.len() >= 2;
+                info["pass"] = json!(ok);
+                // 두 번째 자막 칸 미세 조정을 열어 단어 막대와 파형을 화면에 (눈으로 확인용)
+                if let Some(b) = self.blocks.iter().filter(|b| b.line.is_some()).nth(3).cloned() { let li = (b.from..b.to).rev().find(|&k| !self.project.words[k].del).unwrap_or(b.from); self.open_fine(b.from, li); }
+                self.test_words = info.to_string();
+                t.step = 3; t.t0 = Instant::now();
+            }
+            ("chatprecise", 3) if self.trim.as_ref().is_some_and(|x| x.wpcm.is_some()) && t.t0.elapsed().as_secs_f64() > 1.5 || t.step == 3 && t.t0.elapsed().as_secs_f64() > 20.0 => {
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                if let Some(p) = &t.report { let v: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({})); let _ = std::fs::write(p, serde_json::to_string_pretty(&v).unwrap()); }
+                self.unsaved = false;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
+            }            // AI 쇼츠 추천·용어 교정: 추천 창 → [분석](실제 유튜브 정보·자막 + 가짜 제미나이 답) → 후보 [이 구간으로 만들기](구간 받기·자막) → 제목·본문·구간 → [용어 교정](가짜 답)
             ("recflow", 0) if t.t0.elapsed().as_secs_f64() > 1.5 => {
                 if !self.rec.open { self.cmd_ai_recommend(); self.rec.url = "https://www.youtube.com/watch?v=9Tmjg3ESEyc".into(); return self.test = Some(test); }
                 let ar = self.rec.rects.iter().find(|x| x.0 == "analyze").map(|x| x.1); if let Some(r) = self.t_stable("analyze", ar) { self.t_click(r.center(), egui::Modifiers::NONE); t.step = 1; t.t0 = Instant::now(); }

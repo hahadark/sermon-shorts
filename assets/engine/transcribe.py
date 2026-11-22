@@ -100,17 +100,69 @@ def main():
             initial_prompt=initial_prompt
         )
         
+        segs = []
+        for segment in segments:
+            segs.append((segment.start, segment.end, segment.text, [(w.word.strip(), w.start, w.end, w.probability) for w in segment.words]))
+            log_progress("stt", int(segment.end / duration_s * 100))
+
+        # 위스퍼가 말이 잘 안 들리는 곳(특히 말 도중에 시작하는 영상 앞부분)에서 실제 말 대신 앞에 둔 예시 글(initial_prompt)을
+        # 그대로 되풀이고 그 뒤 말을 통째로 건너뛰는 일이 있다. 그런 조각은 앞뒤 제대로 알아들은 곳 사이를 예시 글 없이 다시 알아듣는다.
+        def norm(s):
+            return "".join(c for c in s if c.isalnum())
+        prompt_n = norm(initial_prompt)
+        def echo(i):
+            t = norm(segs[i][2])
+            if not t or t not in prompt_n:
+                return False
+            prev_end = segs[i - 1][1] if i > 0 else 0.0
+            next_start = segs[i + 1][0] if i + 1 < len(segs) else duration_s
+            # 짧게 "아멘" 만 말한 것은 그대로, 길게 되풀이거나 그 뒤를 건너뛴 것만
+            return len(t) >= 6 or (next_start - prev_end) > (segs[i][1] - segs[i][0]) + 3.0
+        bad = [i for i in range(len(segs)) if echo(i)]
+        fixed = {}
+        k = 0
+        while k < len(bad):
+            a = b = bad[k]
+            while k + 1 < len(bad) and bad[k + 1] == b + 1:
+                k += 1
+                b = bad[k]
+            k += 1
+            w0 = segs[a - 1][1] if a > 0 else 0.0
+            w1 = segs[b + 1][0] if b + 1 < len(segs) else duration_s
+            if w1 - w0 < 0.5:
+                continue
+            try:
+                part = whisper_audio[int(w0 * 16000):int(w1 * 16000)]
+                again, _ = model.transcribe(part, language=args.lang, word_timestamps=True, vad_filter=True, beam_size=5, condition_on_previous_text=False)
+                again = [(s.start + w0, s.end + w0, s.text, [(w.word.strip(), w.start + w0, w.end + w0, w.probability) for w in s.words]) for s in again]
+                if again and not all(norm(s[2]) in prompt_n for s in again):
+                    fixed[a] = (b, again)
+                    print(json.dumps({"type": "warn", "message": f"{w0:.1f}~{w1:.1f}초를 다시 알아들었습니다 (예시 글 되풀이)"}, ensure_ascii=False), flush=True)
+            except Exception as e:
+                print(json.dumps({"type": "warn", "message": f"다시 알아듣기 실패: {e}"}, ensure_ascii=False), flush=True)
+        if fixed:
+            out = []
+            i = 0
+            while i < len(segs):
+                if i in fixed:
+                    b, again = fixed[i]
+                    out.extend(again)
+                    i = b + 1
+                else:
+                    out.append(segs[i])
+                    i += 1
+            segs = out
+
         raw_words = []
-        for seg_i, segment in enumerate(segments):
-            for w in segment.words:
+        for seg_i, (s0, s1, _t, ws) in enumerate(segs):
+            for (text, ws0, ws1, prob) in ws:
                 raw_words.append({
-                    "text": w.word.strip(),
-                    "start": w.start,
-                    "end": w.end,
-                    "score": w.probability,
+                    "text": text,
+                    "start": ws0,
+                    "end": ws1,
+                    "score": prob,
                     "seg": seg_i
                 })
-            log_progress("stt", int(segment.end / duration_s * 100))
         log_progress("stt", 100)
     except Exception as e:
         import traceback
