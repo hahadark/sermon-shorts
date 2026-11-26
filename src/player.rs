@@ -67,6 +67,8 @@ struct Run {
     done_audio: Arc<AtomicBool>,
     /// 이 재생에 쓴 음성 싱크 오프셋 (초)
     offset: f64,
+    /// 잠시 멈춤: 소리 장치만 세워 둔다 (풀던 ffmpeg 는 버퍼가 차면 기다린다). 다시 들으면 그 자리에서 바로 이어진다
+    paused: bool,
 }
 impl Drop for Run {
     fn drop(&mut self) { self.stop.store(true, Ordering::SeqCst); self.children.kill_all(); }
@@ -130,7 +132,17 @@ impl Player {
         Ok(())
     }
     pub fn duration(&self) -> f64 { total(&self.spans) }
-    pub fn playing(&self) -> bool { self.run.is_some() }
+    pub fn playing(&self) -> bool { self.run.as_ref().is_some_and(|r| !r.paused) }
+    /// 잠시 멈춤 (소리가 있는 재생만: 풀던 것을 끊지 않아 resume 이 바로 된다. 인터넷 주소의 곡 듣기용). 소리가 없으면 stop
+    pub fn pause(&mut self) {
+        let Some(r) = self.run.as_mut() else { return };
+        if r.paused { return; }
+        if r.audio && r._stream.as_ref().is_some_and(|s| s.pause().is_ok()) { r.paused = true; self.out_t = clock(r).min(total(&self.spans)); }
+        else { self.stop(); }
+    }
+    pub fn paused(&self) -> bool { self.run.as_ref().is_some_and(|r| r.paused) }
+    /// 재생을 시작한 뒤 소리가 실제로 나오기 시작했는지 (인터넷 주소는 처음 몇 초 받는 중일 수 있다)
+    pub fn sounding(&self) -> bool { self.run.as_ref().is_some_and(|r| !r.audio || r.played.load(Ordering::SeqCst) > 0) }
     pub fn preview_size(&self) -> (usize, usize) { (self.preview_w, self.preview_h) }
 
     /// 틀 구간 바꾸기 (편집 결과로 재생 / 원본). 지금 출력 시각은 새 줄에서 가장 가까운 자리로
@@ -146,10 +158,15 @@ impl Player {
     }
 
     pub fn play(&mut self) {
+        // 잠시 멈춘 것은 그 자리에서 이어서
+        if let Some(r) = self.run.as_mut().filter(|r| r.paused) {
+            if r._stream.as_ref().is_some_and(|s| s.play().is_ok()) { r.paused = false; return; }
+            self.stop();
+        }
         let Some(path) = self.path.clone() else { return };
         if self.spans.is_empty() { return; }
         if self.out_t >= self.duration() - 0.02 { self.out_t = 0.0; }
-        self.run = Some(start_run(&path, &self.spans, self.out_t, self.preview_w, self.preview_h, self.probe.has_audio, self.fx.clone(), self.meter.clone(), self.bgm.clone(), self.audio_offset));
+        self.run = Some(start_run(&path, &self.spans, self.out_t, self.preview_w, self.preview_h, self.probe.has_video, self.probe.has_audio, self.fx.clone(), self.meter.clone(), self.bgm.clone(), self.audio_offset));
         self.pending = None;
     }
     /// 음성 싱크 오프셋 (초)
@@ -182,6 +199,8 @@ impl Player {
 
     /// 멈춘 상태에서 지금 자리의 한 장면
     fn show_still(&mut self) {
+        // 소리만 듣는 것(배경음악 듣기)은 장면을 풀지 않는다 (인터넷 주소를 쓸데없이 한 번 더 열지 않게)
+        if !self.probe.has_video { return; }
         let Some(path) = self.path.clone() else { return };
         let Some((_, src)) = locate(&self.spans, self.out_t) else { return };
         let (w, h) = (self.preview_w, self.preview_h);
@@ -200,6 +219,7 @@ impl Player {
         let mut changed = false;
         if let Some(rx) = &self.still_rx { if let Ok(f) = rx.try_recv() { self.frame = Some(f); self.still_rx = None; changed = true; } }
         let Some(run) = &self.run else { return changed };
+        if run.paused { return changed; }
         let now = clock(run);
         self.out_t = now.min(self.duration());
         // 시계보다 늦지 않은 장면 중 가장 새것
@@ -239,13 +259,13 @@ fn spans_from(spans: &[Span], from: f64) -> Vec<Span> {
     v
 }
 
-fn start_run(path: &Path, spans: &[Span], from: f64, w: usize, h: usize, has_audio: bool, fx: Arc<Mutex<crate::vox_dsp::Fx>>, meter: Arc<Mutex<crate::vox_dsp::Meter>>, bgm: Arc<Mutex<Option<BgmMix>>>, offset: f64) -> Run {
+fn start_run(path: &Path, spans: &[Span], from: f64, w: usize, h: usize, has_video: bool, has_audio: bool, fx: Arc<Mutex<crate::vox_dsp::Fx>>, meter: Arc<Mutex<crate::vox_dsp::Meter>>, bgm: Arc<Mutex<Option<BgmMix>>>, offset: f64) -> Run {
     let stop = Arc::new(AtomicBool::new(false));
     let children = Killer(Arc::new(Mutex::new(vec![])));
     let todo = spans_from(spans, from);
     // 화면
     let (ftx, frx) = sync_channel::<Frame>(24);
-    {
+    if has_video {
         let (path, todo, stop, kids) = (path.to_path_buf(), todo.clone(), stop.clone(), Killer(children.0.clone()));
         thread::spawn(move || video_worker(&path, &todo, w, h, ftx, &stop, &kids));
     }
@@ -268,7 +288,7 @@ fn start_run(path: &Path, spans: &[Span], from: f64, w: usize, h: usize, has_aud
             Err(e) => eprintln!("소리 장치를 열지 못했습니다: {e}"),
         }
     }
-    Run { stop, frames: frx, played, underruns, _stream: stream, children, started: Instant::now(), out_from: from, audio, done_audio, offset }
+    Run { stop, frames: frx, played, underruns, _stream: stream, children, started: Instant::now(), out_from: from, audio, done_audio, offset, paused: false }
 }
 
 /// 구간마다 소리를 어떻게 낼지: (앞 무음 프레임 수, 풀 원본 구간, 이 구간 전체 프레임 수). 오프셋은 sync::window

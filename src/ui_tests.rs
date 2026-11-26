@@ -182,6 +182,173 @@ impl App {
                 if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&Value::Object(r)).unwrap()); }
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
             }            // 시작·끝 미세 조정: 열기 → 소리 받기 → 찍기 → 밀기·원래대로·무음 맞추기·되돌리기·다음 자막
+            // 출력 자막 합치기를 실제 키로: 출력 자막 칸을 눌러 Home → Backspace(위와 합치기) → End → Delete(아래와 합치기) → 저장·다시 열기 → 되돌리기.
+            // STT 원문·단어 시각·영상 구간은 그대로, 합친 줄은 앞 줄 시작부터 뒤 줄 끝까지
+            ("mergekeys", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
+                let li = 2usize.min(self.lines.len().saturating_sub(3));
+                let snap = |a: &App| json!({ "lines": a.lines.len(), "stt": a.project.words.iter().map(sermon_shorts::caption_edit::source_text).collect::<Vec<_>>(), "times": a.project.words.iter().map(|w| [w.start, w.end]).collect::<Vec<_>>(), "segs": a.segs.iter().map(|s| [s.start, s.end]).collect::<Vec<_>>(), "texts": a.lines.iter().map(|l| l.text.clone()).collect::<Vec<_>>(), "spans": a.lines.iter().map(|l| [l.out_start, l.out_end]).collect::<Vec<_>>() });
+                self.test_words = json!({ "li": li, "before": snap(self) }).to_string();
+                let from = self.blocks.iter().find(|b| b.line == Some(li)).map(|b| b.from);
+                if let Some(r) = from.and_then(|f| self.out_rects.iter().find(|(x, _)| *x == f).map(|x| x.1)) {
+                    self.t_click(r.center(), egui::Modifiers::NONE);
+                    self.t_key(egui::Key::Home, egui::Modifiers::NONE);
+                    self.t_key(egui::Key::Backspace, egui::Modifiers::NONE);
+                }
+                t.step = 1; t.t0 = Instant::now();
+            }
+            ("mergekeys", 1) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let li = info["li"].as_u64().unwrap() as usize;
+                let b = info["before"].clone();
+                let (pt, ct) = (b["texts"][li - 1].as_str().unwrap().to_string(), b["texts"][li].as_str().unwrap().to_string());
+                let m = self.lines.get(li - 1).cloned();
+                let stt: Vec<String> = self.project.words.iter().map(sermon_shorts::caption_edit::source_text).collect();
+                let times: Vec<[f64; 2]> = self.project.words.iter().map(|w| [w.start, w.end]).collect();
+                let segs: Vec<[f64; 2]> = self.segs.iter().map(|s| [s.start, s.end]).collect();
+                info["upDbg"] = json!({ "pt": pt, "ct": ct, "sttSame": json!(stt) == b["stt"], "timesSame": json!(times) == b["times"], "segsSame": json!(segs) == b["segs"], "spanA": b["spans"][li - 1][0], "spanB": b["spans"][li][1] });
+                info["up"] = json!({
+                    "lines": self.lines.len(), "text": m.as_ref().map(|l| l.text.clone()), "manual": m.as_ref().map(|l| l.manual_merge),
+                    "span": m.as_ref().map(|l| [l.out_start, l.out_end]), "caret": self.focus_line.map(|(_, c)| c),
+                    "ok": self.lines.len() + 1 == b["lines"].as_u64().unwrap() as usize
+                        && m.as_ref().is_some_and(|l| l.manual_merge && (l.text == format!("{pt} {ct}") || l.text == format!("{pt}{ct}")) && (l.out_start - b["spans"][li - 1][0].as_f64().unwrap()).abs() < 1e-6 && (l.out_end - b["spans"][li][1].as_f64().unwrap()).abs() < 1e-6)
+                        && json!(stt) == b["stt"] && json!(times) == b["times"] && json!(segs) == b["segs"],
+                });
+                shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                self.test_words = info.to_string();
+                t.step = 2; t.t0 = Instant::now();
+            }
+            ("mergekeys", 2) if t.t0.elapsed().as_secs_f64() > 0.8 => {
+                // 합친 줄 끝에서 Delete: 아래 줄과 합치기
+                let info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let li = info["li"].as_u64().unwrap() as usize - 1;
+                self.focus_line = None;
+                let from = self.blocks.iter().find(|b| b.line == Some(li)).map(|b| b.from);
+                if let Some(r) = from.and_then(|f| self.out_rects.iter().find(|(x, _)| *x == f).map(|x| x.1)) {
+                    self.t_click(r.center(), egui::Modifiers::NONE);
+                    self.t_key(egui::Key::End, egui::Modifiers::NONE);
+                    self.t_key(egui::Key::Delete, egui::Modifiers::NONE);
+                }
+                t.step = 3; t.t0 = Instant::now();
+            }
+            ("mergekeys", 3) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.8 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let li = info["li"].as_u64().unwrap() as usize;
+                let b = info["before"].clone();
+                let want: String = [li - 1, li, li + 1].iter().map(|k| b["texts"][*k].as_str().unwrap().replace(' ', "")).collect();
+                let m = self.lines.get(li - 1).cloned();
+                let stt: Vec<String> = self.project.words.iter().map(sermon_shorts::caption_edit::source_text).collect();
+                info["downDbg"] = json!({ "want": want, "sttSame": json!(stt) == b["stt"] });
+                info["down"] = json!({
+                    "lines": self.lines.len(), "text": m.as_ref().map(|l| l.text.clone()), "span": m.as_ref().map(|l| [l.out_start, l.out_end]),
+                    "ok": self.lines.len() + 2 == b["lines"].as_u64().unwrap() as usize
+                        && m.as_ref().is_some_and(|l| l.manual_merge && l.text.replace(' ', "") == want && (l.out_start - b["spans"][li - 1][0].as_f64().unwrap()).abs() < 1e-6 && (l.out_end - b["spans"][li + 1][1].as_f64().unwrap()).abs() < 1e-6)
+                        && json!(stt) == b["stt"],
+                });
+                shot(ctx, std::env::var("SS_SHOT3").ok().map(PathBuf::from), false);
+                // SRT 에 합친 줄 한 개
+                let srt = edl::to_srt(&self.lines);
+                info["srt"] = json!({ "ok": m.as_ref().is_some_and(|l| srt.contains(&format!("\n{}\n", l.text))) });
+                // 저장 → 다시 열기: 합친 기록(captionMerges)이 남는다
+                if let Some(rep) = &t.report {
+                    let sp = std::path::Path::new(rep).with_extension("sshorts");
+                    self.project_path = Some(sp.clone()); self.save_project(false);
+                    let ok = Project::load(&sp).ok().is_some_and(|p2| {
+                        let l2 = edl::build_lines(&p2.words, &edl::build_segments(&p2.words, &p2.settings, &p2.overrides, Some(self.player.probe.duration), p2.order.as_deref()), &p2.settings);
+                        l2.len() == self.lines.len() && l2.get(li - 1).is_some_and(|l| Some(&l.text) == m.as_ref().map(|x| &x.text) && l.manual_merge)
+                    });
+                    info["saveReload"] = json!({ "ok": ok });
+                }
+                // 되돌리기 두 번 → 처음 그대로
+                self.focus_line = None;
+                self.undo(); self.recompute(); self.undo(); self.recompute();
+                let texts: Vec<String> = self.lines.iter().map(|l| l.text.clone()).collect();
+                info["undo"] = json!({ "ok": json!(texts) == b["texts"] });
+                let pass = ["up", "down", "srt", "saveReload", "undo"].iter().all(|k| info[*k]["ok"] == true);
+                info["pass"] = json!(pass);
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
+            }
+            // 배경음악 목록의 ▶ 를 실제로 눌러: 듣기 → 다시 누르면 멈춤(자리 그대로) → 다시 누르면 그 자리부터 → 다른 곡 ▶ 는 앞 곡을 멈추고 → 창 닫으면 멈춤
+            ("bgmplay", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => { self.design_tab = DesignTab::Music; self.open_bgm_lib(); t.step = 1; t.t0 = Instant::now(); }
+            ("bgmplay", 1) if t.t0.elapsed().as_secs_f64() > 1.0 => {
+                let first = self.bgm.play_rects.first().cloned();
+                if let Some(r) = self.t_stable("bgmplay1", first.as_ref().map(|x| x.1)) {
+                    let id = first.unwrap().0;
+                    self.test_words = json!({ "id": id }).to_string();
+                    self.t_click(r.center(), egui::Modifiers::NONE);
+                    t.step = 2; t.t0 = Instant::now();
+                } else if t.t0.elapsed().as_secs_f64() > 20.0 { self.test_words = json!({ "noRows": true }).to_string(); t.step = 7; }
+            }
+            ("bgmplay", 2) => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let id = info["id"].as_str().unwrap_or("").to_string();
+                let (loading, on) = self.listening(&id);
+                if loading && info["sawLoading"].is_null() { info["sawLoading"] = json!(true); self.test_words = info.to_string(); }
+                let pos = self.bgm.listen.as_ref().map(|l| l.player.src_now()).unwrap_or(0.0);
+                if on && info["startSecs"].is_null() { info["startSecs"] = json!(t.t0.elapsed().as_secs_f64()); self.test_words = info.to_string(); }
+                if (on && pos > 1.5) || t.t0.elapsed().as_secs_f64() > 60.0 {
+                    info["play"] = json!({ "on": on, "pos": pos, "secs": t.t0.elapsed().as_secs_f64(), "toast": self.toast.as_ref().map(|x| x.0.clone()), "ok": on && pos > 1.5 });
+                    shot(ctx, std::env::var("SS_SHOT2").ok().map(PathBuf::from), false);
+                    if let Some(r) = self.bgm.play_rects.iter().find(|x| x.0 == id).map(|x| x.1) { self.t_click(r.center(), egui::Modifiers::NONE); }
+                    self.test_words = info.to_string();
+                    t.step = 3; t.t0 = Instant::now();
+                }
+            }
+            ("bgmplay", 3) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.5 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let id = info["id"].as_str().unwrap_or("").to_string();
+                let (_, on) = self.listening(&id);
+                info["pause"] = json!({ "on": on, "pos": self.bgm.listen.as_ref().map(|l| l.player.src_now()) });
+                self.test_words = info.to_string();
+                t.step = 4; t.t0 = Instant::now();
+            }
+            ("bgmplay", 4) if t.t0.elapsed().as_secs_f64() > 1.5 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let id = info["id"].as_str().unwrap_or("").to_string();
+                let (_, on) = self.listening(&id);
+                let p0 = info["pause"]["pos"].as_f64().unwrap_or(-1.0);
+                let p1 = self.bgm.listen.as_ref().map(|l| l.player.src_now()).unwrap_or(-2.0);
+                info["pause"]["later"] = json!(p1);
+                info["pause"]["ok"] = json!(info["pause"]["on"] == false && !on && (p1 - p0).abs() < 0.05 && p0 >= info["play"]["pos"].as_f64().unwrap_or(0.0) - 0.05);
+                shot(ctx, std::env::var("SS_SHOT3").ok().map(PathBuf::from), false);
+                if let Some(r) = self.bgm.play_rects.iter().find(|x| x.0 == id).map(|x| x.1) { self.t_click(r.center(), egui::Modifiers::NONE); }
+                self.test_words = info.to_string();
+                t.step = 5; t.t0 = Instant::now();
+            }
+            ("bgmplay", 5) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 1.5 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let id = info["id"].as_str().unwrap_or("").to_string();
+                let (_, on) = self.listening(&id);
+                let p0 = info["pause"]["pos"].as_f64().unwrap_or(0.0);
+                let p = self.bgm.listen.as_ref().map(|l| l.player.src_now()).unwrap_or(0.0);
+                info["resume"] = json!({ "on": on, "pos": p, "local": self.bgm.listen.as_ref().map(|l| !l.src_is_url()), "ok": on && p > p0 + 0.3 && p < p0 + 4.0 });
+                // 다른 곡 ▶
+                let other = self.bgm.play_rects.iter().find(|x| x.0 != id).cloned();
+                if let Some((oid, r)) = other { info["other"] = json!({ "id": oid }); self.t_click(r.center(), egui::Modifiers::NONE); }
+                self.test_words = info.to_string();
+                t.step = 6; t.t0 = Instant::now();
+            }
+            ("bgmplay", 6) => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                let (id, oid) = (info["id"].as_str().unwrap_or("").to_string(), info["other"]["id"].as_str().unwrap_or("").to_string());
+                let (_, on2) = self.listening(&oid);
+                if on2 || t.t0.elapsed().as_secs_f64() > 60.0 {
+                    let (l1, on1) = self.listening(&id);
+                    info["other"]["secs"] = json!(t.t0.elapsed().as_secs_f64());
+                    info["other"]["ok"] = json!(on2 && !on1 && !l1);
+                    self.t_key(egui::Key::Escape, egui::Modifiers::NONE);
+                    self.test_words = info.to_string();
+                    t.step = 7; t.t0 = Instant::now();
+                }
+            }
+            ("bgmplay", 7) if self.test_input.is_empty() && t.t0.elapsed().as_secs_f64() > 0.5 => {
+                let mut info: Value = serde_json::from_str(&self.test_words).unwrap_or(json!({}));
+                info["close"] = json!({ "ok": self.bgm.lib.is_none() && self.bgm.listen.is_none() });
+                let pass = ["play", "pause", "resume", "other", "close"].iter().all(|k| info[*k]["ok"] == true);
+                info["pass"] = json!(pass);
+                if let Some(p) = &t.report { let _ = std::fs::write(p, serde_json::to_string_pretty(&info).unwrap()); }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close); t.step = 9;
+            }
             ("trimflow", 0) if t.t0.elapsed().as_secs_f64() > 3.0 => {
                 let b = self.blocks.iter().filter(|b| b.line.is_some()).nth(2).cloned().unwrap();
                 self.open_fine(b.from, b.to - 1);

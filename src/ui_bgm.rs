@@ -36,12 +36,15 @@ pub(crate) struct State {
     pub mgr: Option<Box<Mgr>>,
     pub shared: MgrShared,
     warned_fallback: bool,
+    /// 곡 목록의 ▶ 단추 자리 (시험에서 실제로 누를 때)
+    pub play_rects: Vec<(String, egui::Rect)>,
 }
 
 pub(crate) struct LibDlg { pub mood: String, yt_url: String, msg: (String, i8), importing: Option<Receiver<Result<(Track, bool), String>>>, prog: Arc<Mutex<f64>> }
 
 /// 곡 듣기 (목록·구간): 원래 사이트 주소나 받아 둔 파일을 바로 재생
 pub(crate) struct Listen { pub id: String, pub player: Player, probe_rx: Option<Receiver<Result<sermon_shorts::media::Probe, String>>>, src: String, section: Option<(f64, f64, f64, f64)>, start: f64, pub loading: bool }
+impl Listen { pub fn src_is_url(&self) -> bool { self.src.contains("://") } }
 
 const ERR: Color32 = Color32::from_rgb(0xb9, 0x1c, 0x1c);
 const WARN: Color32 = Color32::from_rgb(0xb4, 0x53, 0x09);
@@ -183,10 +186,45 @@ impl App {
         let src = bgm::cached_file(&t.id).map(|f| f.to_string_lossy().to_string()).unwrap_or_else(|| t.url.clone());
         let (tx, rx) = std::sync::mpsc::channel();
         let s2 = src.clone();
-        std::thread::spawn(move || { let _ = tx.send(sermon_shorts::media::probe(std::path::Path::new(&s2)).map_err(|e| e.to_string())); });
+        // 추천 곡을 인터넷 주소로 들을 때는 목록의 길이를 써서 바로 시작 (ffprobe 로 주소를 한 번 더 읽으면 느린 사이트에서 2초쯤 더 걸렸다).
+        // 소리만 푼다 (곡 파일 속 표지 그림까지 풀지 않게)
+        let known = (!t.custom && s2.contains("://") && t.duration_sec > 0.0).then_some(t.duration_sec);
+        std::thread::spawn(move || {
+            let r = match known { Some(d) => Ok(sermon_shorts::media::Probe { duration: d, has_audio: true, ..Default::default() }), None => sermon_shorts::media::probe(std::path::Path::new(&s2)).map(|mut p| { p.has_video = false; p }).map_err(|e| e.to_string()) };
+            let _ = tx.send(r);
+        });
         self.bgm.listen = Some(Box::new(Listen { id: t.id.clone(), player: Player::default(), probe_rx: Some(rx), src, section, start: from, loading: true }));
+        // 주소로 바로 듣기 시작하면서 뒤에서 곡 파일을 받아 둔다 (다음 듣기·멈춘 뒤 다시 듣기는 받은 파일로)
+        if !t.custom { self.bgm_prefetch(&t.id); }
     }
-    pub(crate) fn listening(&self, id: &str) -> (bool, bool) { self.bgm.listen.as_ref().filter(|l| l.id == id).map(|l| (l.loading, l.player.playing())).unwrap_or((false, false)) }
+    /// 곡을 다 받아 두었으면 인터넷 주소 대신 받은 파일로 바꿔 듣는다 (멈춘 뒤 다시 듣기·옮기기가 바로 되게).
+    /// 주소로 다시 틀면 ffmpeg 가 인터넷에서 그 자리를 다시 찾느라 몇 초 동안 소리 없이 '재생 중'으로만 보였다
+    pub(crate) fn listen_use_local(&mut self) {
+        let Some(l) = self.bgm.listen.as_mut() else { return };
+        if l.loading || !l.src_is_url() { return; }
+        let Some(f) = bgm::cached_file(&l.id) else { return };
+        let was = l.player.playing();
+        if l.player.swap_media(&f).is_ok() { l.src = f.to_string_lossy().to_string(); if was { l.player.play(); } }
+    }
+    /// 멈춘 곡 다시 듣기 / 듣는 곡 멈추기
+    pub(crate) fn listen_toggle(&mut self) {
+        let on = self.bgm.listen.as_ref().is_some_and(|l| l.player.playing());
+        // 멈추기: 끊지 않고 잠시 멈춤 (인터넷 주소로 듣는 중이면 다시 틀 때 그 자리를 다시 찾느라 몇 초씩 소리가 안 났다)
+        if on { if let Some(l) = self.bgm.listen.as_mut() { l.player.pause(); } return; }
+        self.player.stop();
+        // 다 받아 두었으면 받은 파일로, 아니면 멈춘 자리에서 그대로 이어서
+        self.listen_use_local();
+        if let Some(l) = self.bgm.listen.as_mut() { l.player.play(); }
+    }
+    /// 듣는 곡의 자리 옮기기 (멈춰 있었으면 그 자리부터 듣기)
+    pub(crate) fn listen_seek(&mut self, x: f64) {
+        self.listen_use_local();
+        if let Some(l) = self.bgm.listen.as_mut() { l.player.seek(x); if !l.player.playing() { l.player.play(); } }
+    }
+    /// (불러오는 중, 듣는 중). 재생을 시작했어도 소리가 아직 안 나오면 '불러오는 중' (그동안 멈춤 단추가 보여 다시 누르면 멈춰 버렸다)
+    pub(crate) fn listening(&self, id: &str) -> (bool, bool) {
+        self.bgm.listen.as_ref().filter(|l| l.id == id).map(|l| { let wait = l.player.playing() && !l.player.sounding(); (l.loading || wait, l.player.playing() && !wait) }).unwrap_or((false, false))
+    }
     fn stop_listen(&mut self) { self.bgm.listen = None; }
 
     fn change_bgm(&mut self, f: impl FnOnce(&mut bgm::Bgm), record: bool) {
@@ -410,6 +448,7 @@ impl App {
     }
     fn bgm_lib_ui(&mut self, ctx: &egui::Context) {
         let Some(mut d) = self.bgm.lib.take() else { return };
+        self.bgm.play_rects.clear();
         if let Some(rx) = &d.importing {
             if let Ok(r) = rx.try_recv() {
                 d.importing = None;
@@ -494,6 +533,7 @@ impl App {
                                 ui.painter().circle(r.center(), 18.0, if on { style::PRIMARY } else { Color32::WHITE }, Stroke::new(1.0, if on { style::PRIMARY } else { style::BORDER_STRONG }));
                                 if loading { ui.put(egui::Rect::from_center_size(r.center(), egui::vec2(16.0, 16.0)), egui::Spinner::new().size(14.0).color(style::PRIMARY)); }
                                 else { icons::img(if on { "pause" } else { "play" }, 15.0, if on { Color32::WHITE } else { style::TEXT }).paint_at(ui, egui::Rect::from_center_size(r.center(), egui::vec2(15.0, 15.0))); }
+                                self.bgm.play_rects.push((t.id.clone(), r));
                                 if resp.on_hover_text(if loading { "불러오는 중…" } else { "듣기 / 일시정지" }).clicked() { play = Some(t.id.clone()); }
                                 let right_w = 150.0 + if t.custom { 34.0 } else { 0.0 } + 90.0;
                                 ui.vertical(|ui| {
@@ -563,13 +603,12 @@ impl App {
             }
         }
         if let Some(id) = play {
-            let (loading, on) = self.listening(&id);
-            if loading { self.stop_listen(); }
-            else if let Some(l) = self.bgm.listen.as_mut().filter(|l| l.id == id) { if on { l.player.stop(); } else { l.player.play(); } }
+            if self.listening(&id).0 { self.stop_listen(); }
+            else if self.bgm.listen.as_ref().is_some_and(|l| l.id == id) { self.listen_toggle(); }
             else if let Some(t) = self.bgm_track(&id) { self.listen_track(&t, 0.0, None); }
         }
         if let Some((id, x)) = seek {
-            if let Some(l) = self.bgm.listen.as_mut().filter(|l| l.id == id && !l.loading) { l.player.seek(x); if !l.player.playing() { l.player.play(); } }
+            if self.bgm.listen.as_ref().is_some_and(|l| l.id == id && !l.loading) { self.listen_seek(x); }
             else if let Some(t) = self.bgm_track(&id) { self.listen_track(&t, x, None); }
         }
         if let Some(id) = del_id {
@@ -680,6 +719,7 @@ impl App {
         if self.bgm.shared.changed.swap(false, Ordering::SeqCst) { self.reload_custom(); }
         if self.bgm.shared.queue.lock().unwrap().iter().any(|x| x.state == QState::Wait) { self.mgr_run(); }
         let Some(mut m) = self.bgm.mgr.take() else { return };
+        self.bgm.play_rects.clear();
         if let Some(rx) = &m.adding { if let Ok(r) = rx.try_recv() { m.adding = None; match r { Ok((t, _)) => { self.toast(format!("\"{}\"을(를) 보관함에 넣었습니다.", t.title)); self.reload_custom(); } Err(e) => self.toast(format!("넣지 못했습니다: {e}")) } } }
         let busy_q = self.bgm.shared.queue.lock().unwrap().iter().any(|x| matches!(x.state, QState::Wait | QState::Busy));
         if busy_q || m.adding.is_some() { ctx.request_repaint_after(std::time::Duration::from_millis(250)); }
@@ -773,6 +813,7 @@ impl App {
                                 let (r, resp) = ui.allocate_exact_size(egui::vec2(32.0, 32.0), egui::Sense::click());
                                 ui.painter().circle(r.center(), 16.0, if on { style::PRIMARY } else { Color32::WHITE }, Stroke::new(1.0, if on { style::PRIMARY } else { style::BORDER_STRONG }));
                                 icons::img(if on { "pause" } else { "play" }, 14.0, if on { Color32::WHITE } else if t.missing { style::FAINT } else { style::TEXT }).paint_at(ui, egui::Rect::from_center_size(r.center(), egui::vec2(14.0, 14.0)));
+                                self.bgm.play_rects.push((t.id.clone(), r));
                                 if resp.on_hover_text("미리 듣기").clicked() && !t.missing { play = Some(t.id.clone()); }
                                 ui.vertical(|ui| {
                                     ui.set_width((ui.available_width() - 330.0).max(120.0));
@@ -837,13 +878,12 @@ impl App {
             }
         }
         if let Some(id) = play {
-            let (loading, on) = self.listening(&id);
-            if loading { self.stop_listen(); }
-            else if let Some(l) = self.bgm.listen.as_mut().filter(|l| l.id == id) { if on { l.player.stop(); } else { l.player.play(); } }
+            if self.listening(&id).0 { self.stop_listen(); }
+            else if self.bgm.listen.as_ref().is_some_and(|l| l.id == id) { self.listen_toggle(); }
             else if let Some(t) = self.bgm_track(&id) { self.listen_track(&t, 0.0, None); }
         }
         if let Some((id, x)) = seek {
-            if let Some(l) = self.bgm.listen.as_mut().filter(|l| l.id == id && !l.loading) { l.player.seek(x); if !l.player.playing() { l.player.play(); } }
+            if self.bgm.listen.as_ref().is_some_and(|l| l.id == id && !l.loading) { self.listen_seek(x); }
             else if let Some(t) = self.bgm_track(&id) { self.listen_track(&t, x, None); }
         }
         if let Some(id) = use_id { self.stop_listen(); self.use_bgm(&id); self.page = Page::Editor; return; }

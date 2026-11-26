@@ -43,6 +43,7 @@ bash tools/mac_smoke.sh dist/SermonShorts.app smoke   # 빈 사용자 자료로 
 ## 4. 자동 시험
 - `cargo test --release` : 계산 시험. 아래 시험은 **공개 저장소에 없는 실제 설교 자막 자료**(`.gitignore` 의 tests/fixtures/*)가 필요해 맥 새 복제본에서는 실패한다 — 정상. 맥 CI 는 공개 자료로 되는 것만 돈다:
   `cargo test --release --test bgm_parity --test llm_parity --test settings_parity --test snap_parity --test ytmeta_parity --test mac_crypt_parity --test delta`
+- 내보내기 비교 검사 `tests/export_compare.rs`: ffmpeg 로 만든 12초 시험 영상(설교 자료 불필요)을 실제로 내보내 길이·해상도·초당 프레임·소리 형식·SRT·자막마다 나온 시각과 자리·소리(컷·싱크)를 편집 계산과 기준 `tests/fixtures/export_baseline.json` 에 견준다. ffmpeg 가 없으면 건너뜀. 내보내기를 일부러 바꿨을 때만 `SS_UPDATE_BASELINE=1 cargo test --release --test export_compare` 로 기준을 다시 쓴다. (Electron 판과 그림 단위 비교는 PC 의 `tools/parity.ps1`, ffmpeg 인자 비교는 `tests/export_args_parity.rs`)
 - 화면 시험: 앱을 `--test <이름> --report <경로>` 로 띄우면 `src/ui_tests.rs` 의 단계대로 실제 입력을 넣고 결과 JSON 을 쓴다. Windows 묶음 실행기 `tools/ui_tests.ps1` 은 PC 경로(F:\…)를 써서 맥에서는 그대로 못 돈다. 맥에서는 `tools/mac_smoke.sh` 처럼 프로젝트를 만들어 개별로 돌린다.
   예: `SS_USER_DATA_DIR=$(mktemp -d) SS_TEST_YTFAKE=1 dist/SermonShorts.app/Contents/MacOS/SermonShorts --project p.sshorts --test editflow --report r.json`
   (`SS_TEST_YTFAKE=1` 은 실제 유튜브 업로드를 막는다 — **시험에서 반드시**.)

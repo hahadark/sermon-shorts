@@ -125,6 +125,8 @@ pub fn build_args(r: &Request, temp: &Path, line_images: &[Vec<LineImage>], enco
         }
         last = l.out_end;
     }
+    // 자막이 하나도 없으면(출력 자막을 모두 비움) 영상 길이만큼 빈 그림을 먼저 둔다: 목록이 아래 한 줄뿐이면 ffmpeg 가 끝나지 않았다
+    if r.lines.is_empty() { concat += &entry("empty.png", 0.0, edl::segments_duration(segs)); }
     concat += "file 'empty.png'\nduration 9999\n";
     std::fs::write(temp.join("lines.txt"), concat).map_err(|e| e.to_string())?;
 
